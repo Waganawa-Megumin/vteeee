@@ -1007,3 +1007,54 @@ textarea:focus {
   text-overflow: ellipsis;
   white-space: nowrap;
 }
+.h-sum {
+  color: var(--text);
+}
+.history-row-wrap {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+.history-actions {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  justify-content: center;
+}
+.h-meta {
+  display: flex;
+  gap: 6px;
+  flex-wrap: wrap;
+  align-items: center;
+  margin-top: 2px;
+}
+.h-tag {
+  font-size: 10px;
+  background: rgba(116, 211, 176, 0.16);
+  color: var(--accent);
+  border-radius: 10px;
+  padding: 1px 7px;
+}
+.h-note {
+  font-size: 11px;
+  color: var(--muted);
+}
+.history-editor {
+  background: var(--bg2);
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  padding: 8px;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+.history-editor input,
+.history-editor textarea {
+  background: var(--bg);
+  border: 1px solid var(--line);
+  border-radius: 6px;
+  color: var(--text);
+  padding: 6px 8px;
+  font-size: 12.5px;
+  font-family: inherit;
+}

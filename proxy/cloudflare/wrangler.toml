@@ -13,6 +13,8 @@ VT_DAILY = "5000"       # max VT lookups per day (paid GTI)
 PARSE_DAILY = "2000"    # max Claude smart-parse calls per day (paid)
 # Pin the cheap model. Opus is refused in code regardless of this value.
 CLAUDE_MODEL = "claude-haiku-4-5"
+# Shared search history (KV) retention in days; 0 disables saving.
+HISTORY_DAYS = "30"
 
 # Shared store for users/settings (admin management).
 # Create once:  wrangler kv namespace create VTEEEE_KV

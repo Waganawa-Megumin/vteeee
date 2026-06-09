@@ -14,9 +14,11 @@ import {
   checkAccess,
   checkAdmin,
   consumeDailyQuota,
+  historyRoute,
   type ProxyEnv,
   type Storage,
 } from '@vteeee/proxy-core';
+import { fileHistoryBackend } from './historyFile';
 
 // Load local secrets from .dev.vars / .env if present (Node 20.12+).
 for (const f of ['.dev.vars', '.env']) {
@@ -61,8 +63,10 @@ const store: Storage = {
   },
 };
 
+const history = fileHistoryBackend(DATA_DIR);
+
 const app = express();
-app.use(express.json({ limit: '4mb' }));
+app.use(express.json({ limit: '8mb' }));
 
 app.use((req, res, next) => {
   const origin = req.headers.origin ?? null;
@@ -169,6 +173,22 @@ app.put('/api/admin/settings', async (req, res) => {
   await putSettings(store, req.body?.settings);
   res.json({ ok: true });
 });
+
+async function handleHistory(req: Request, res: Response, id: string | null) {
+  if (!requireAccess(req, res)) return;
+  if (req.method === 'DELETE' && !id && !checkAdmin(req.headers.authorization, env)) {
+    res.status(403).json({ error: 'admin token required to clear all history' });
+    return;
+  }
+  let retentionDays = Number(process.env.HISTORY_DAYS ?? 30);
+  if (req.method === 'POST' && typeof req.body?.retentionDays === 'number') {
+    retentionDays = Math.min(Math.max(req.body.retentionDays, 0), 366);
+  }
+  const r = await historyRoute(req.method, id, req.body, history, { retentionDays });
+  res.status(r.status).json(r.body);
+}
+app.all('/api/history', (req, res) => void handleHistory(req, res, null));
+app.all('/api/history/:id', (req, res) => void handleHistory(req, res, req.params.id));
 
 app.listen(PORT, () => {
   console.log(`vteeee proxy listening on :${PORT}`);

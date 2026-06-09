@@ -1,21 +1,49 @@
-import { useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
+import type { HistorySummary } from '@vteeee/shared';
 import { useStore } from '../state/store';
-import { clearHistory, deleteHistory, loadHistory, type HistoryEntry } from '../lib/history';
-
-function summarize(e: HistoryEntry) {
-  let mal = 0;
-  let sus = 0;
-  for (const r of e.results) {
-    if (r.verdict === 'malicious') mal++;
-    else if (r.verdict === 'suspicious') sus++;
-  }
-  return { mal, sus, total: e.results.length };
-}
+import { historySource } from '../lib/historySource';
+import { downloadCsv, resultsToCsv } from '../lib/csv-export';
 
 export function HistoryDialog({ onClose }: { onClose: () => void }) {
-  const retention = useStore((s) => s.settings.historyRetentionDays ?? 30);
+  const settings = useStore((s) => s.settings);
   const restore = useStore((s) => s.restore);
-  const [entries, setEntries] = useState<HistoryEntry[]>(() => loadHistory(retention));
+  const source = useMemo(() => historySource(settings), [settings]);
+  const retention = settings.historyRetentionDays ?? 30;
+
+  const [entries, setEntries] = useState<HistorySummary[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [busy, setBusy] = useState<string | null>(null);
+  const [editing, setEditing] = useState<string | null>(null);
+  const [tagsDraft, setTagsDraft] = useState('');
+  const [noteDraft, setNoteDraft] = useState('');
+
+  async function reload() {
+    setLoading(true);
+    try {
+      setEntries(await source.list());
+    } finally {
+      setLoading(false);
+    }
+  }
+  useEffect(() => {
+    void reload();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  async function withBusy(id: string, fn: () => Promise<void>) {
+    setBusy(id);
+    try {
+      await fn();
+    } finally {
+      setBusy(null);
+    }
+  }
+
+  function startEdit(e: HistorySummary) {
+    setEditing(e.id);
+    setTagsDraft((e.tags ?? []).join(', '));
+    setNoteDraft(e.note ?? '');
+  }
 
   return (
     <div className="modal-overlay" onClick={onClose}>
@@ -28,65 +56,140 @@ export function HistoryDialog({ onClose }: { onClose: () => void }) {
         </div>
 
         <div className="modal-body help-body">
-          {retention <= 0 && (
+          <div className={`mode-pill ${source.shared ? 'live' : 'demo'}`}>
+            {source.shared ? 'SHARED — stored on the proxy (KV)' : 'LOCAL — this browser only'}
+          </div>
+
+          {loading ? (
+            <p className="hint">Loading…</p>
+          ) : entries.length === 0 ? (
             <p className="hint">
-              History is off. Enable it in Settings (retention &gt; 0). ／ 設定で保持日数を1以上にすると有効になります。
-            </p>
-          )}
-          {entries.length === 0 ? (
-            <p className="hint">
-              No saved searches yet — run an enrichment and it will be saved here. ／ まだ履歴はありません。Enrich すると保存されます。
+              No saved searches yet — run an enrichment and it will be saved here. ／ まだ履歴はありません。
             </p>
           ) : (
             <ul className="history-list">
-              {entries.map((e) => {
-                const s = summarize(e);
-                return (
-                  <li key={e.id} className="history-row">
+              {entries.map((e) => (
+                <li key={e.id} className="history-row-wrap">
+                  <div className="history-row">
                     <button
                       className="history-main"
-                      onClick={() => {
-                        restore(e.results, e.input);
-                        onClose();
-                      }}
+                      disabled={busy === e.id}
+                      onClick={() =>
+                        void withBusy(e.id, async () => {
+                          const rec = await source.get(e.id);
+                          if (rec) {
+                            restore(rec.results, rec.input);
+                            onClose();
+                          }
+                        })
+                      }
                       title="Restore this search / この検索を復元"
                     >
                       <span className="h-top">
                         <span className="h-date">{new Date(e.createdAt).toLocaleString()}</span>
                         <span className={`mode-pill ${e.mode}`}>{e.mode.toUpperCase()}</span>
                         <span className="h-sum">
-                          {s.total} indicators
-                          {s.mal ? ` · ${s.mal} malicious` : ''}
-                          {s.sus ? ` · ${s.sus} suspicious` : ''}
+                          {e.total} indicators
+                          {e.malicious ? ` · ${e.malicious} malicious` : ''}
+                          {e.suspicious ? ` · ${e.suspicious} suspicious` : ''}
                         </span>
                       </span>
-                      <span className="h-input">{e.input.replace(/\s+/g, ' ').trim().slice(0, 90) || '—'}</span>
+                      <span className="h-input">{e.inputPreview || '—'}</span>
+                      {(e.tags?.length || e.note) && (
+                        <span className="h-meta">
+                          {e.tags?.map((t) => (
+                            <span key={t} className="h-tag">
+                              {t}
+                            </span>
+                          ))}
+                          {e.note && <span className="h-note">📝 {e.note}</span>}
+                        </span>
+                      )}
                     </button>
-                    <button
-                      className="btn btn-sm btn-danger"
-                      onClick={() => setEntries(deleteHistory(e.id, retention))}
-                    >
-                      Delete
-                    </button>
-                  </li>
-                );
-              })}
+                    <div className="history-actions">
+                      <button
+                        className="btn btn-sm"
+                        disabled={busy === e.id}
+                        onClick={() =>
+                          void withBusy(e.id, async () => {
+                            const rec = await source.get(e.id);
+                            if (rec) downloadCsv(`vteeee-history-${e.id}.csv`, resultsToCsv(rec.results));
+                          })
+                        }
+                      >
+                        CSV
+                      </button>
+                      <button className="btn btn-sm" onClick={() => startEdit(e)}>
+                        Tag/Note
+                      </button>
+                      <button
+                        className="btn btn-sm btn-danger"
+                        onClick={() => void withBusy(e.id, async () => {
+                          await source.del(e.id);
+                          await reload();
+                        })}
+                      >
+                        Delete
+                      </button>
+                    </div>
+                  </div>
+
+                  {editing === e.id && (
+                    <div className="history-editor">
+                      <input
+                        placeholder="tags (comma-separated)  例: c2, phishing"
+                        value={tagsDraft}
+                        onChange={(ev) => setTagsDraft(ev.target.value)}
+                      />
+                      <textarea
+                        placeholder="note / メモ"
+                        rows={2}
+                        value={noteDraft}
+                        onChange={(ev) => setNoteDraft(ev.target.value)}
+                      />
+                      <div className="panel-actions">
+                        <button
+                          className="btn btn-sm btn-primary"
+                          onClick={() =>
+                            void (async () => {
+                              const tags = tagsDraft
+                                .split(',')
+                                .map((t) => t.trim())
+                                .filter(Boolean);
+                              await source.update(e.id, { tags, note: noteDraft });
+                              setEditing(null);
+                              await reload();
+                            })()
+                          }
+                        >
+                          Save
+                        </button>
+                        <button className="btn btn-sm" onClick={() => setEditing(null)}>
+                          Cancel
+                        </button>
+                      </div>
+                    </div>
+                  )}
+                </li>
+              ))}
             </ul>
           )}
         </div>
 
         <div className="modal-foot">
           <span className="hint" style={{ marginRight: 'auto' }}>
-            保持 {retention} 日 · 端末内 (localStorage)
+            保持 {retention} 日 · {source.shared ? 'KV(共有)' : '端末内'}
           </span>
           <button
             className="btn"
             disabled={!entries.length}
-            onClick={() => {
-              if (!window.confirm('Clear all saved history? / 履歴をすべて消去しますか？')) return;
-              clearHistory();
-              setEntries([]);
-            }}
+            onClick={() =>
+              void (async () => {
+                if (!window.confirm('Clear all history? / 履歴を全消去しますか？')) return;
+                await source.clear();
+                await reload();
+              })()
+            }
           >
             Clear all
           </button>

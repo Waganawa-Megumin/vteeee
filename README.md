@@ -128,9 +128,9 @@ proxy/cloudflare   Worker adapter (recommended deploy) + wrangler.toml
 ## Tech & quality
 
 TypeScript (strict) · React + Vite · Zustand · Cloudflare Workers / Express · Vitest.
-**45 unit/integration tests** cover the refang/classifier, VT id+link helpers, the response
-normalizer, PBKDF2, the enrich orchestration (rate-limit, 429 retry, NDJSON streaming), and
-the end-to-end demo path. `pnpm -r typecheck && pnpm -r test`.
+**58 unit/integration tests** cover the refang/classifier, VT id+link helpers, the response
+normalizer, PBKDF2, the enrich orchestration (rate-limit, 429 retry, NDJSON streaming), the
+daily-quota/model guards, KV history, and the end-to-end demo path. `pnpm -r typecheck && pnpm -r test`.
 
 ## Limitations
 

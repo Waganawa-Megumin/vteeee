@@ -17,3 +17,5 @@ PARSE_DAILY=2000
 # PORT=8787
 # Pin the cheap model (Opus is refused in code regardless):
 CLAUDE_MODEL=claude-haiku-4-5
+# Shared search history retention (days); 0 disables saving:
+HISTORY_DAYS=30

@@ -1,34 +1,34 @@
-import type { ExtractStats, NormalizedResult } from '@vteeee/shared';
+import type { HistoryRecord, HistorySummary, NormalizedResult } from '@vteeee/shared';
 
 const KEY = 'vteeee.history';
 const MAX_ENTRIES = 50;
-const SIZE_BUDGET = 3_000_000; // ~3MB of JSON in localStorage
+const SIZE_BUDGET = 4_000_000; // ~4MB of JSON in localStorage
 
-export interface HistoryEntry {
-  id: string;
-  createdAt: number; // epoch ms
-  mode: 'demo' | 'live';
-  input: string;
-  stats: ExtractStats;
-  results: NormalizedResult[]; // stored without the heavy `raw` blob
+/** Common interface for local (localStorage) and shared (proxy/KV) history. */
+export interface HistorySource {
+  /** true when backed by the proxy/KV (shared across the team). */
+  shared: boolean;
+  list(): Promise<HistorySummary[]>;
+  get(id: string): Promise<HistoryRecord | null>;
+  update(id: string, patch: { tags?: string[]; note?: string }): Promise<void>;
+  del(id: string): Promise<void>;
+  clear(): Promise<void>;
 }
 
-function read(): HistoryEntry[] {
+function read(): HistoryRecord[] {
   try {
     const raw = localStorage.getItem(KEY);
-    if (!raw) return [];
-    const arr = JSON.parse(raw) as HistoryEntry[];
+    const arr = raw ? (JSON.parse(raw) as HistoryRecord[]) : [];
     return Array.isArray(arr) ? arr : [];
   } catch {
     return [];
   }
 }
 
-function write(entries: HistoryEntry[]): void {
+function write(entries: HistoryRecord[]): void {
   try {
     localStorage.setItem(KEY, JSON.stringify(entries));
   } catch {
-    // Quota exceeded — drop oldest entries until it fits.
     let e = entries.slice();
     while (e.length > 1) {
       e = e.slice(0, e.length - 1);
@@ -42,15 +42,37 @@ function write(entries: HistoryEntry[]): void {
   }
 }
 
-function stripRaw(r: NormalizedResult): NormalizedResult {
-  if (r.raw === undefined) return r;
-  const { raw: _omit, ...rest } = r;
-  void _omit;
-  return rest;
+function stripRaw(results: NormalizedResult[]): NormalizedResult[] {
+  return results.map((r) => {
+    if (r.raw === undefined) return r;
+    const { raw: _o, ...rest } = r;
+    void _o;
+    return rest;
+  });
+}
+
+export function summarizeLocal(rec: HistoryRecord): HistorySummary {
+  let malicious = 0;
+  let suspicious = 0;
+  for (const r of rec.results) {
+    if (r.verdict === 'malicious') malicious++;
+    else if (r.verdict === 'suspicious') suspicious++;
+  }
+  return {
+    id: rec.id,
+    createdAt: rec.createdAt,
+    mode: rec.mode,
+    total: rec.results.length,
+    malicious,
+    suspicious,
+    inputPreview: rec.input.replace(/\s+/g, ' ').trim().slice(0, 90),
+    tags: rec.tags,
+    note: rec.note ? rec.note.slice(0, 160) : undefined,
+  };
 }
 
 /** Pure: filter by retention window, sort newest-first, cap count + size. */
-export function prune(entries: HistoryEntry[], retentionDays: number, now = Date.now()): HistoryEntry[] {
+export function prune(entries: HistoryRecord[], retentionDays: number, now = Date.now()): HistoryRecord[] {
   const cutoff = now - retentionDays * 86_400_000;
   let e = entries
     .filter((x) => x.createdAt >= cutoff)
@@ -60,43 +82,41 @@ export function prune(entries: HistoryEntry[], retentionDays: number, now = Date
   return e;
 }
 
-export function loadHistory(retentionDays: number): HistoryEntry[] {
-  const pruned = prune(read(), retentionDays);
-  write(pruned); // purge expired on read
-  return pruned;
+/** Save to localStorage (raw stripped to respect the ~5MB quota). */
+export function saveLocal(rec: HistoryRecord, retentionDays: number): void {
+  if (retentionDays <= 0) return;
+  const stored: HistoryRecord = { ...rec, results: stripRaw(rec.results) };
+  write(prune([stored, ...read().filter((r) => r.id !== rec.id)], retentionDays));
 }
 
-export function addHistory(
-  entry: Omit<HistoryEntry, 'id' | 'createdAt' | 'results'> & { results: NormalizedResult[] },
-  retentionDays: number,
-): HistoryEntry[] {
-  if (retentionDays <= 0) return read(); // history disabled
-  const full: HistoryEntry = {
-    id: Math.random().toString(36).slice(2) + Date.now().toString(36),
-    createdAt: Date.now(),
-    mode: entry.mode,
-    input: entry.input,
-    stats: entry.stats,
-    results: entry.results.map(stripRaw),
+export function localHistorySource(retentionDays: number): HistorySource {
+  return {
+    shared: false,
+    async list() {
+      const e = prune(read(), retentionDays);
+      write(e); // purge expired on read
+      return e.map(summarizeLocal);
+    },
+    async get(id) {
+      return read().find((r) => r.id === id) ?? null;
+    },
+    async update(id, patch) {
+      const e = read();
+      const r = e.find((x) => x.id === id);
+      if (!r) return;
+      if (patch.tags) r.tags = patch.tags;
+      if (patch.note !== undefined) r.note = patch.note;
+      write(prune(e, retentionDays));
+    },
+    async del(id) {
+      write(read().filter((r) => r.id !== id));
+    },
+    async clear() {
+      try {
+        localStorage.removeItem(KEY);
+      } catch {
+        /* ignore */
+      }
+    },
   };
-  const next = prune([full, ...read()], retentionDays);
-  write(next);
-  return next;
-}
-
-export function deleteHistory(id: string, retentionDays: number): HistoryEntry[] {
-  const next = prune(
-    read().filter((x) => x.id !== id),
-    retentionDays,
-  );
-  write(next);
-  return next;
-}
-
-export function clearHistory(): void {
-  try {
-    localStorage.removeItem(KEY);
-  } catch {
-    /* ignore */
-  }
 }

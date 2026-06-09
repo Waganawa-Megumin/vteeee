@@ -1,8 +1,9 @@
 import { describe, it, expect } from 'vitest';
-import { prune, type HistoryEntry } from '../lib/history';
+import type { HistoryRecord } from '@vteeee/shared';
+import { prune } from '../lib/history';
 
 const now = Date.now();
-function mk(id: string, ageDays: number): HistoryEntry {
+function mk(id: string, ageDays: number): HistoryRecord {
   return {
     id,
     createdAt: now - ageDays * 86_400_000,

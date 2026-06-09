@@ -11,6 +11,9 @@ import {
   checkAccess,
   checkAdmin,
   consumeDailyQuota,
+  kvHistoryBackend,
+  historyRoute,
+  type KVLike,
   type ProxyEnv,
   type Storage,
 } from '@vteeee/proxy-core';
@@ -28,6 +31,7 @@ interface Env {
   MAX_BATCH?: string;
   VT_DAILY?: string;
   PARSE_DAILY?: string;
+  HISTORY_DAYS?: string;
   VTEEEE_KV: KVNamespace;
 }
 
@@ -130,6 +134,31 @@ export default {
           if (b.settings) await putSettings(store, b.settings);
           return json({ ok: true });
         }
+      }
+
+      if (url.pathname === '/api/history' || url.pathname.startsWith('/api/history/')) {
+        if (!checkAccess(auth, proxy)) return json({ error: 'unauthorized' }, 401);
+        const id = url.pathname.startsWith('/api/history/')
+          ? decodeURIComponent(url.pathname.slice('/api/history/'.length)) || null
+          : null;
+        if (request.method === 'DELETE' && !id && !checkAdmin(auth, proxy))
+          return json({ error: 'admin token required to clear all history' }, 403);
+        const hbody =
+          request.method === 'POST' || request.method === 'PUT' ? await request.json() : undefined;
+        const envDays = Number(env.HISTORY_DAYS ?? 30);
+        let retentionDays = envDays;
+        if (request.method === 'POST') {
+          const rd = (hbody as { retentionDays?: number } | undefined)?.retentionDays;
+          if (typeof rd === 'number' && rd >= 0) retentionDays = Math.min(rd, 366);
+        }
+        const r = await historyRoute(
+          request.method,
+          id,
+          hbody,
+          kvHistoryBackend(env.VTEEEE_KV as unknown as KVLike),
+          { retentionDays },
+        );
+        return json(r.body, r.status);
       }
 
       return json({ error: 'not found' }, 404);

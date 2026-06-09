@@ -190,3 +190,31 @@ export interface Session {
   /** epoch ms */
   expiresAt: number;
 }
+
+// ---- Search history ----
+
+/** A saved search (local in demo mode, or shared via the proxy/KV in live mode). */
+export interface HistoryRecord {
+  id: string;
+  createdAt: number; // epoch ms
+  mode: 'demo' | 'live';
+  input: string;
+  stats: ExtractStats;
+  /** Full results. In KV the raw VT attributes are kept; in localStorage they are stripped. */
+  results: NormalizedResult[];
+  tags?: string[];
+  note?: string;
+}
+
+/** Lightweight list item (stored as KV metadata; no need to fetch each record to list). */
+export interface HistorySummary {
+  id: string;
+  createdAt: number;
+  mode: 'demo' | 'live';
+  total: number;
+  malicious: number;
+  suspicious: number;
+  inputPreview: string;
+  tags?: string[];
+  note?: string;
+}

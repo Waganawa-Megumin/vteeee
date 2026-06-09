@@ -5,6 +5,7 @@ import {
   type EnrichableType,
   type EnrichOptions,
   type ExtractStats,
+  type HistoryRecord,
   type NormalizedResult,
   type ParsedIndicator,
   type Session,
@@ -13,7 +14,7 @@ import {
 import { loadSettings, loadUsers, resolveMode, saveSettings, saveUsers, type Mode } from '../config';
 import { authenticate, persistSession, restoreSession } from '../auth/session';
 import { makeClient, type EnrichClient } from '../api/client';
-import { addHistory } from '../lib/history';
+import { saveHistory } from '../lib/historySource';
 
 export const indKey = (i: { type: string; value: string }) => `${i.type}|${i.value}`;
 
@@ -206,25 +207,24 @@ export const useStore = create<State>((set, get) => ({
           set({ running: false });
           const s = get();
           const out = s.order.map((v) => s.results[v]).filter(Boolean);
-          const days = s.settings.historyRetentionDays ?? 30;
-          if (out.length && days > 0) {
-            addHistory(
-              {
-                mode: s.mode,
-                input: s.rawInput,
-                stats:
-                  s.stats ?? {
-                    total: out.length,
-                    unique: out.length,
-                    duplicates: 0,
-                    unknown: 0,
-                    private: 0,
-                    enrichable: out.length,
-                  },
-                results: out,
-              },
-              days,
-            );
+          if (out.length) {
+            const rec: HistoryRecord = {
+              id: Math.random().toString(36).slice(2) + Date.now().toString(36),
+              createdAt: Date.now(),
+              mode: s.mode,
+              input: s.rawInput,
+              stats:
+                s.stats ?? {
+                  total: out.length,
+                  unique: out.length,
+                  duplicates: 0,
+                  unknown: 0,
+                  private: 0,
+                  enrichable: out.length,
+                },
+              results: out,
+            };
+            void saveHistory(rec, s.settings);
           }
         },
         onError: (m) => set({ error: m, running: false }),

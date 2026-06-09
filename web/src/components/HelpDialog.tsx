@@ -123,12 +123,14 @@ export function HelpDialog({ onClose }: { onClose: () => void }) {
           <section className="help-section">
             <h3>History / 検索履歴</h3>
             <p className="help-ja">
-              Enrich した検索は自動でこのブラウザ内に保存され、上部「History」から閲覧・復元できます。
-              保持期間は既定30日（Settings で変更、0 で無効）。端末ごとの保存で共有はされません。
+              Enrich した検索は自動保存され、上部「History」から閲覧・復元できます。<b>LIVE時はプロキシのKVに
+              チーム共有で保存（raw込み）</b>、DEMO時は端末内(localStorage)に保存。各履歴に<b>タグ/メモ</b>を付与でき、
+              <b>CSV書き出し</b>も可能。保持期間は既定30日（Settings / プロキシの HISTORY_DAYS で変更、0で無効）。
             </p>
             <p className="help-en">
-              Each enrichment is saved locally (this browser) and can be reopened from the History button.
-              Default retention 30 days (change in Settings; 0 disables). Per-browser, not shared.
+              Each enrichment is saved and reopenable from History. In LIVE mode it is stored in the proxy's KV
+              (shared with the team, incl. raw); in DEMO mode in this browser. Add tags/notes and export CSV per
+              entry. Default retention 30 days (Settings / proxy HISTORY_DAYS; 0 disables).
             </p>
           </section>
 
