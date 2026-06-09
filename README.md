@@ -1,5 +1,5 @@
 <p align="center">
-  <img src="docs/assets/banner.svg" alt="vteeee — bulk IOC search" width="880" />
+  <img src="docs/assets/og-image.png" alt="vteeee — bulk IOC search: collect, normalize (defang), validate &amp; enrich" width="880" />
 </p>
 
 <p align="center">
