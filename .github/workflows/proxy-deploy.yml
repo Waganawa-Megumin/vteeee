@@ -8,7 +8,7 @@ name: Deploy Proxy (Cloudflare)
 #      ACCESS_TOKEN, ADMIN_TOKEN, CLOUDFLARE_API_TOKEN, CLOUDFLARE_ACCOUNT_ID
 #   3) Set ALLOWED_ORIGINS in wrangler.toml to your *.github.io origin + localhost
 on:
-  workflow_dispatch: {}
+  workflow_dispatch:
 
 jobs:
   deploy:

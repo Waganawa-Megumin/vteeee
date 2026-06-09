@@ -4,8 +4,8 @@ name: Deploy Pages
 # published site stays a demo (sample data) until a user points it at a proxy.
 on:
   push:
-    branches: [main]
-  workflow_dispatch: {}
+    branches: [main, claude/compassionate-edison-u5fjjz]
+  workflow_dispatch:
 
 permissions:
   contents: read
