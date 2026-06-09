@@ -1,19 +1,39 @@
 :root {
-  --bg: #0e1117;
-  --bg2: #161b22;
-  --bg3: #1c2330;
-  --panel: #141a23;
-  --line: #2a313c;
-  --text: #d7dde6;
-  --muted: #8b95a5;
-  --accent: #3da9fc;
-  --accent2: #2b8a3e;
-  --mal: #f4516c;
-  --sus: #f2a93b;
-  --harm: #3fb950;
-  --undet: #6e7a8a;
-  --radius: 8px;
+  /* Chalkboard (default dark green) */
+  --bg: #1f2a24;
+  --bg2: #273429;
+  --bg3: #32443a;
+  --panel: #25322b;
+  --line: #44564a;
+  --text: #eae7d7;
+  --muted: #a6b3a4;
+  --accent: #74d3b1;
+  --accent-ink: #08251c;
+  --mal: #ff6f86;
+  --sus: #f0bb60;
+  --harm: #86d98f;
+  --undet: #93a89c;
+  --shadow: rgba(0, 0, 0, 0.38);
+  --radius: 10px;
   --mono: ui-monospace, SFMono-Regular, 'SF Mono', Menlo, Consolas, monospace;
+}
+
+:root[data-theme='light'] {
+  /* Off-white (paper) */
+  --bg: #efece3;
+  --bg2: #e8e3d7;
+  --bg3: #e1daccb0;
+  --panel: #faf8f1;
+  --line: #d8d1c1;
+  --text: #2b2b26;
+  --muted: #6e6e62;
+  --accent: #1f8a73;
+  --accent-ink: #ffffff;
+  --mal: #cf3552;
+  --sus: #b07815;
+  --harm: #2f9e44;
+  --undet: #8a8a7d;
+  --shadow: rgba(70, 64, 48, 0.14);
 }
 
 * {
@@ -26,9 +46,11 @@ body,
   margin: 0;
 }
 body {
-  background: var(--bg);
+  background-color: var(--bg);
+  background-image: radial-gradient(1200px 520px at 72% -8%, rgba(255, 255, 255, 0.05), transparent 60%);
   color: var(--text);
-  font: 14px/1.5 system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif;
+  font: 14.5px/1.55 system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif;
+  transition: background-color 0.2s ease, color 0.2s ease;
 }
 h2,
 h3 {
@@ -76,7 +98,7 @@ a {
 .btn-primary {
   background: var(--accent);
   border-color: var(--accent);
-  color: #04121f;
+  color: var(--accent-ink);
   font-weight: 650;
 }
 .btn-primary:hover:not(:disabled) {
@@ -239,10 +261,13 @@ textarea:focus {
 /* layout */
 .layout {
   flex: 1;
+  width: 100%;
+  max-width: 1500px;
+  margin: 0 auto;
   display: grid;
-  grid-template-columns: minmax(360px, 460px) 1fr;
-  gap: 14px;
-  padding: 14px;
+  grid-template-columns: minmax(400px, 480px) 1fr;
+  gap: 18px;
+  padding: 18px;
   min-height: 0;
 }
 .col-left,
@@ -290,7 +315,7 @@ textarea:focus {
 /* input */
 .input-area {
   width: 100%;
-  min-height: 200px;
+  min-height: 260px;
   resize: vertical;
   background: var(--bg);
   border: 1px solid var(--line);
@@ -758,4 +783,61 @@ textarea:focus {
   padding: 8px 10px;
   font-size: 12.5px;
   color: var(--accent);
+}
+
+/* topbar / panel depth */
+.topbar {
+  position: sticky;
+  top: 0;
+  z-index: 20;
+  box-shadow: 0 1px 0 var(--line), 0 6px 18px -16px var(--shadow);
+}
+.panel {
+  box-shadow: 0 8px 24px -20px var(--shadow);
+}
+.theme-toggle {
+  min-width: 34px;
+}
+
+/* empty state (shown in the results area before any enrichment) */
+.empty-state {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 14px;
+  min-height: 320px;
+  padding: 48px 24px;
+  text-align: center;
+  border: 1.5px dashed var(--line);
+  border-radius: 14px;
+  background:
+    radial-gradient(600px 300px at 50% 0%, rgba(255, 255, 255, 0.04), transparent 70%),
+    var(--panel);
+  color: var(--muted);
+}
+.empty-state .es-mark {
+  width: 76px;
+  height: 76px;
+  opacity: 0.95;
+  filter: drop-shadow(0 6px 14px var(--shadow));
+}
+.empty-state h3 {
+  margin: 0;
+  color: var(--text);
+  font-size: 19px;
+  letter-spacing: 0.2px;
+}
+.empty-state p {
+  margin: 0;
+  max-width: 420px;
+  line-height: 1.6;
+}
+.empty-chips {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+  justify-content: center;
+  margin-top: 4px;
 }

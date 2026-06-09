@@ -2,13 +2,22 @@
 <html lang="en">
   <head>
     <meta charset="UTF-8" />
+    <link rel="icon" type="image/svg+xml" href="favicon.svg" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <meta name="color-scheme" content="dark" />
+    <meta name="theme-color" content="#1f2a24" />
     <title>vteeee — bulk IOC search</title>
     <meta
       name="description"
       content="Bulk IOC search for CTI analysts. Paste IPs, domains, URLs or hashes (even defanged) and enrich via VirusTotal / Google Threat Intelligence."
     />
+    <script>
+      // Apply the saved theme before paint to avoid a flash.
+      try {
+        document.documentElement.dataset.theme = localStorage.getItem('vteeee.theme') || 'chalk';
+      } catch (e) {
+        document.documentElement.dataset.theme = 'chalk';
+      }
+    </script>
   </head>
   <body>
     <div id="root"></div>

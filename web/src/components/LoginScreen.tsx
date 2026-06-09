@@ -3,7 +3,6 @@ import { useStore } from '../state/store';
 
 export function LoginScreen() {
   const login = useStore((s) => s.login);
-  const mode = useStore((s) => s.mode);
   const [username, setUsername] = useState('');
   const [password, setPassword] = useState('');
   const [error, setError] = useState<string | null>(null);
@@ -51,11 +50,6 @@ export function LoginScreen() {
           {busy ? 'Signing in…' : 'Sign in'}
         </button>
 
-        {mode === 'demo' && (
-          <div className="login-hint">
-            Demo credentials: <code>admin / REDACTED</code> or <code>analyst / REDACTED</code>
-          </div>
-        )}
         <div className="login-note">
           Shared-credential gate. On a static site this is obfuscation-grade only — real
           protection lives in the proxy.

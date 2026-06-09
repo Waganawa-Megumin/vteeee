@@ -7,7 +7,10 @@ import { ResultsTable } from './components/ResultsTable';
 import { DetailPanel } from './components/DetailPanel';
 import { ProgressBar } from './components/ProgressBar';
 import { SettingsDialog } from './components/SettingsDialog';
+import { EmptyState } from './components/EmptyState';
 import { AdminPanel } from './admin/AdminPanel';
+
+type Theme = 'chalk' | 'light';
 
 export default function App() {
   const booted = useStore((s) => s.booted);
@@ -18,11 +21,20 @@ export default function App() {
   const setView = useStore((s) => s.setView);
   const logout = useStore((s) => s.logout);
   const error = useStore((s) => s.error);
+  const hasResults = useStore((s) => s.order.length > 0);
   const [settingsOpen, setSettingsOpen] = useState(false);
+  const [theme, setTheme] = useState<Theme>(
+    () => ((localStorage.getItem('vteeee.theme') as Theme) || 'chalk'),
+  );
 
   useEffect(() => {
     void boot();
   }, [boot]);
+
+  useEffect(() => {
+    document.documentElement.dataset.theme = theme;
+    localStorage.setItem('vteeee.theme', theme);
+  }, [theme]);
 
   if (!booted) return <div className="boot">Loading…</div>;
   if (!session) return <LoginScreen />;
@@ -34,8 +46,15 @@ export default function App() {
           <span className="logo">vteeee</span>
           <span className="tagline">bulk IOC search</span>
         </div>
-        <span className={`mode-pill ${mode}`}>{mode === 'live' ? 'LIVE' : 'DEMO'}</span>
+        {mode === 'live' && <span className="mode-pill live">LIVE</span>}
         <div className="spacer" />
+        <button
+          className="btn btn-sm theme-toggle"
+          title={theme === 'chalk' ? 'Switch to off-white' : 'Switch to chalkboard'}
+          onClick={() => setTheme((t) => (t === 'chalk' ? 'light' : 'chalk'))}
+        >
+          {theme === 'chalk' ? '☀' : '☾'}
+        </button>
         <button className="btn btn-sm" onClick={() => setSettingsOpen(true)}>
           Settings
         </button>
@@ -52,12 +71,6 @@ export default function App() {
         </button>
       </header>
 
-      {mode === 'demo' && (
-        <div className="demo-banner">
-          <b>Demo</b> — sample data, no live API calls. Configure a proxy in Settings for real
-          VirusTotal / GTI lookups.
-        </div>
-      )}
       {error && <div className="error-banner">{error}</div>}
 
       {view === 'admin' ? (
@@ -70,7 +83,7 @@ export default function App() {
           </div>
           <div className="col-right">
             <ProgressBar />
-            <ResultsTable />
+            {hasResults ? <ResultsTable /> : <EmptyState />}
           </div>
         </main>
       )}

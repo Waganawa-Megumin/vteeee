@@ -24,7 +24,7 @@ export function SettingsDialog({ onClose }: { onClose: () => void }) {
         </div>
         <div className="modal-body">
           <div className={`mode-pill ${live ? 'live' : 'demo'}`}>
-            {live ? 'LIVE — real VT lookups via proxy' : 'DEMO — bundled sample data only'}
+            {live ? 'LIVE — real VT lookups via proxy' : 'Not connected — add a proxy URL to go live'}
           </div>
 
           <label className="fld">
