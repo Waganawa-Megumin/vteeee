@@ -162,12 +162,10 @@ CTIアナリスト向けの **IOC一括検索ツール** です。IP・ドメイ
 </p>
 
 If vteeee saves you triage time, you can support development on **[Ko-fi](https://ko-fi.com/shonanboyeah)** ☕
-役に立ったら **[Ko-fi](https://ko-fi.com/shonanboyeah)** で開発を応援いただけると励みになります。
-
+役に立ったら **[Ko-fi](https://ko-fi.com/shonanboyeah)**
 ## License
 
 **MIT** — see [LICENSE](./LICENSE). © 2026 Waganawa-Megumin.
-<br/><sub>社内・組織の所有物として公開する場合は、著作権者やライセンス種別を適宜変更してください（例: 企業利用なら特許条項のある Apache-2.0 も選択肢）。</sub>
 
 ---
 
