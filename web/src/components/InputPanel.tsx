@@ -1,6 +1,7 @@
 import { useRef, useState } from 'react';
 import { useStore } from '../state/store';
 import { DEMO_INPUT } from '../fixtures/samples';
+import { InfoTip } from './InfoTip';
 
 export function InputPanel() {
   const rawInput = useStore((s) => s.rawInput);
@@ -64,18 +65,21 @@ export function InputPanel() {
         <button className="btn btn-primary" onClick={parse} disabled={!rawInput.trim()}>
           Parse
         </button>
+        <InfoTip
+          ja="入力を無害化解除して種別ごとに分類します（ローカル処理・APIは使いません）。"
+          en="Refang and classify your input locally — no API calls."
+        />
         <button
           className="btn"
           onClick={() => void smartParse()}
           disabled={!rawInput.trim() || parsing}
-          title={
-            mode === 'demo'
-              ? 'Demo: uses the local regex extractor'
-              : 'Uses Claude to extract IOCs from messy report text'
-          }
         >
           {parsing ? 'Parsing…' : `Smart parse ${mode === 'demo' ? '(regex)' : '(Claude)'}`}
         </button>
+        <InfoTip
+          ja="レポート本文など雑多なテキストからIOCを抽出します。Live時はClaude、Demo時は正規表現で動作。"
+          en="Extract IOCs from messy / report-style text. Uses Claude in Live mode, regex in Demo."
+        />
         <button className="btn btn-ghost" onClick={() => setRawInput('')} disabled={!rawInput}>
           Clear
         </button>

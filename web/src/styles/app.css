@@ -653,7 +653,7 @@ textarea:focus {
   background: var(--panel);
   border: 1px solid var(--line);
   border-radius: 12px;
-  overflow: hidden;
+  overflow: visible;
 }
 .modal-head,
 .modal-foot {
@@ -840,4 +840,132 @@ textarea:focus {
   flex-wrap: wrap;
   justify-content: center;
   margin-top: 4px;
+}
+
+/* info tooltips ("?") */
+.infotip {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 15px;
+  height: 15px;
+  border-radius: 50%;
+  border: 1px solid var(--line);
+  color: var(--muted);
+  font-size: 10px;
+  font-weight: 700;
+  line-height: 1;
+  cursor: help;
+  position: relative;
+  margin-left: 6px;
+  vertical-align: middle;
+  user-select: none;
+}
+.infotip:hover,
+.infotip:focus {
+  color: var(--accent);
+  border-color: var(--accent);
+  outline: none;
+}
+.infotip-bubble {
+  position: absolute;
+  bottom: 150%;
+  left: 50%;
+  transform: translateX(-50%);
+  width: max-content;
+  max-width: 280px;
+  background: var(--bg2);
+  color: var(--text);
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  padding: 8px 10px;
+  font-size: 12px;
+  font-weight: 400;
+  line-height: 1.5;
+  text-align: left;
+  white-space: normal;
+  box-shadow: 0 12px 28px -12px var(--shadow);
+  z-index: 70;
+  opacity: 0;
+  visibility: hidden;
+  transition: opacity 0.12s ease;
+  pointer-events: none;
+}
+.infotip:hover .infotip-bubble,
+.infotip:focus .infotip-bubble,
+.infotip:focus-within .infotip-bubble {
+  opacity: 1;
+  visibility: visible;
+}
+.it-ja {
+  display: block;
+}
+.it-en {
+  display: block;
+  margin-top: 4px;
+  color: var(--muted);
+  font-size: 11px;
+}
+.fld-label {
+  display: inline-flex;
+  align-items: center;
+}
+
+/* Docs / Help dialog */
+.modal.help-modal {
+  width: 760px;
+}
+.help-body {
+  max-height: 76vh;
+  overflow: auto;
+  padding-top: 4px;
+}
+.help-section {
+  padding: 14px 2px;
+  border-bottom: 1px solid var(--line);
+}
+.help-section:last-child {
+  border-bottom: none;
+}
+.help-section h3 {
+  font-size: 15px;
+  margin: 0 0 6px;
+  color: var(--text);
+}
+.help-ja {
+  margin: 0 0 4px;
+  line-height: 1.6;
+}
+.help-en {
+  margin: 0;
+  color: var(--muted);
+  font-size: 12.5px;
+  line-height: 1.55;
+}
+.help-steps {
+  margin: 6px 0 0 18px;
+  padding: 0;
+  line-height: 1.6;
+}
+.help-kv {
+  display: grid;
+  grid-template-columns: 150px 1fr;
+  gap: 8px 14px;
+  font-size: 13px;
+  margin: 4px 0 0;
+}
+.help-kv dt {
+  color: var(--accent);
+  font-weight: 650;
+  font-family: var(--mono);
+  font-size: 12.5px;
+}
+.help-kv dd {
+  margin: 0;
+}
+.help-kv dd .en {
+  display: block;
+  color: var(--muted);
+  font-size: 11.5px;
+  margin-top: 2px;
 }

@@ -7,6 +7,7 @@ import { ResultsTable } from './components/ResultsTable';
 import { DetailPanel } from './components/DetailPanel';
 import { ProgressBar } from './components/ProgressBar';
 import { SettingsDialog } from './components/SettingsDialog';
+import { HelpDialog } from './components/HelpDialog';
 import { EmptyState } from './components/EmptyState';
 import { AdminPanel } from './admin/AdminPanel';
 
@@ -23,6 +24,7 @@ export default function App() {
   const error = useStore((s) => s.error);
   const hasResults = useStore((s) => s.order.length > 0);
   const [settingsOpen, setSettingsOpen] = useState(false);
+  const [helpOpen, setHelpOpen] = useState(false);
   const [theme, setTheme] = useState<Theme>(
     () => ((localStorage.getItem('vteeee.theme') as Theme) || 'chalk'),
   );
@@ -54,6 +56,9 @@ export default function App() {
           onClick={() => setTheme((t) => (t === 'chalk' ? 'light' : 'chalk'))}
         >
           {theme === 'chalk' ? '☀' : '☾'}
+        </button>
+        <button className="btn btn-sm" onClick={() => setHelpOpen(true)}>
+          Docs
         </button>
         <button className="btn btn-sm" onClick={() => setSettingsOpen(true)}>
           Settings
@@ -89,6 +94,7 @@ export default function App() {
       )}
 
       {settingsOpen && <SettingsDialog onClose={() => setSettingsOpen(false)} />}
+      {helpOpen && <HelpDialog onClose={() => setHelpOpen(false)} />}
       <DetailPanel />
     </div>
   );

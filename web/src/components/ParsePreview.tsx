@@ -1,5 +1,6 @@
 import { indKey, useStore } from '../state/store';
 import { TypeBadge } from './Badges';
+import { InfoTip } from './InfoTip';
 
 export function ParsePreview() {
   const parsed = useStore((s) => s.parsed);
@@ -16,7 +17,13 @@ export function ParsePreview() {
   return (
     <section className="panel preview-panel">
       <div className="panel-head">
-        <h2>Parsed indicators</h2>
+        <h2>
+          Parsed indicators
+          <InfoTip
+            ja="enrichable=検索対象 / unique=重複除外後 / dup=重複 / private=社内・予約IP(除外) / unknown=判別不可。各行のチェックで個別に含む/除外できます。"
+            en="enrichable = will be looked up; unique = after dedupe; dup = duplicates; private = RFC1918/reserved (excluded); unknown = unrecognized. Toggle each row to include/exclude."
+          />
+        </h2>
         <div className="spacer" />
         <button className="btn btn-sm" onClick={() => setAllIncluded(true)}>
           All
