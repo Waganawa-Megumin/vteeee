@@ -868,34 +868,22 @@ textarea:focus {
   outline: none;
 }
 .infotip-bubble {
-  position: absolute;
-  bottom: 150%;
-  left: 50%;
-  transform: translateX(-50%);
-  width: max-content;
-  max-width: 280px;
+  position: fixed;
+  width: 280px;
+  max-width: calc(100vw - 16px);
   background: var(--bg2);
   color: var(--text);
   border: 1px solid var(--line);
   border-radius: 8px;
-  padding: 8px 10px;
+  padding: 9px 11px;
   font-size: 12px;
   font-weight: 400;
   line-height: 1.5;
   text-align: left;
   white-space: normal;
   box-shadow: 0 12px 28px -12px var(--shadow);
-  z-index: 70;
-  opacity: 0;
-  visibility: hidden;
-  transition: opacity 0.12s ease;
+  z-index: 1000;
   pointer-events: none;
-}
-.infotip:hover .infotip-bubble,
-.infotip:focus .infotip-bubble,
-.infotip:focus-within .infotip-bubble {
-  opacity: 1;
-  visibility: visible;
 }
 .it-ja {
   display: block;
