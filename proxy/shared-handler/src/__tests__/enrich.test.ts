@@ -10,6 +10,9 @@ const env: ProxyEnv = {
   defaultRpm: 600,
   maxRpm: 1000,
   xTool: 'vteeee',
+  maxBatch: 1000,
+  dailyCap: 0,
+  parseDailyCap: 0,
 };
 
 function resp(status: number, body: unknown, headers?: Record<string, string>): Response {

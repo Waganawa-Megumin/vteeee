@@ -8,8 +8,11 @@ ACCESS_TOKEN=
 ADMIN_TOKEN=
 # Comma-separated exact origins allowed by CORS:
 ALLOWED_ORIGINS=http://localhost:5173
-# Rate limits (free tier ~4/min, 500/day):
+# Rate limits / cost guards (free tier ~4/min, 500/day):
 VT_RPM=4
 VT_DAILY=500
+# Max indicators per single enrich request, and max Claude parses/day:
+MAX_BATCH=1000
+PARSE_DAILY=200
 # PORT=8787
 # CLAUDE_MODEL=claude-haiku-4-5

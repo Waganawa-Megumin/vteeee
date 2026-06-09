@@ -63,12 +63,13 @@ export async function smartParse(
     },
     body: JSON.stringify({
       model: env.claudeModel ?? DEFAULT_MODEL,
-      max_tokens: 4096,
+      max_tokens: 2048,
       temperature: 0,
       system: [{ type: 'text', text: SYSTEM_PROMPT, cache_control: { type: 'ephemeral' } }],
       tools: [EMIT_TOOL],
       tool_choice: { type: 'tool', name: 'emit_indicators' },
-      messages: [{ role: 'user', content: text.slice(0, 200_000) }],
+      // Cap input length to bound per-call token cost.
+      messages: [{ role: 'user', content: text.slice(0, 120_000) }],
     }),
   });
 

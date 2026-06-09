@@ -80,9 +80,6 @@ export async function* runEnrich(
       inflight++;
       queue.push(progress());
       try {
-        if (env.consumeQuota && !env.consumeQuota()) {
-          throw new FatalError('Daily quota reached');
-        }
         const links = await buildLinks(ind.type, ind.value);
         const outcome = await lookupWithRetry(ind);
         const result: NormalizedResult = normalizeVt({

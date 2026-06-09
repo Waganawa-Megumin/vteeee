@@ -13,6 +13,7 @@ import {
   originAllowed,
   checkAccess,
   checkAdmin,
+  consumeDailyQuota,
   type ProxyEnv,
   type Storage,
 } from '@vteeee/proxy-core';
@@ -32,21 +33,6 @@ const allowedOrigins = (process.env.ALLOWED_ORIGINS ?? 'http://localhost:5173')
   .map((s) => s.trim())
   .filter(Boolean);
 
-// In-memory daily quota guard (single process). Resets at local midnight.
-const DAILY_CAP = Number(process.env.VT_DAILY ?? 500);
-let dailyCount = 0;
-let dailyDay = new Date().toDateString();
-function consumeQuota(): boolean {
-  const d = new Date().toDateString();
-  if (d !== dailyDay) {
-    dailyDay = d;
-    dailyCount = 0;
-  }
-  if (dailyCount >= DAILY_CAP) return false;
-  dailyCount++;
-  return true;
-}
-
 const env: ProxyEnv = {
   vtApiKey: process.env.VT_API_KEY ?? '',
   anthropicApiKey: process.env.ANTHROPIC_API_KEY || undefined,
@@ -57,7 +43,9 @@ const env: ProxyEnv = {
   maxRpm: Number(process.env.VT_MAX_RPM ?? 1000),
   claudeModel: process.env.CLAUDE_MODEL || undefined,
   xTool: process.env.VT_X_TOOL ?? 'vteeee',
-  consumeQuota,
+  maxBatch: Number(process.env.MAX_BATCH ?? 1000),
+  dailyCap: Number(process.env.VT_DAILY ?? 500),
+  parseDailyCap: Number(process.env.PARSE_DAILY ?? 200),
 };
 
 // JSON file storage for users/settings.
@@ -117,6 +105,21 @@ app.post('/api/enrich', async (req, res) => {
     res.status(500).json({ error: 'VT_API_KEY not configured' });
     return;
   }
+  const inds = req.body?.indicators;
+  if (!Array.isArray(inds) || inds.length === 0) {
+    res.status(400).json({ error: 'no indicators provided' });
+    return;
+  }
+  if (inds.length > env.maxBatch) {
+    res.status(400).json({ error: `too many indicators in one request (max ${env.maxBatch})` });
+    return;
+  }
+  if (!(await consumeDailyQuota(store, 'vt', env.dailyCap, inds.length))) {
+    res.status(429).json({
+      error: `daily lookup quota (${env.dailyCap}) would be exceeded — reduce the list or try again tomorrow`,
+    });
+    return;
+  }
   res.setHeader('Content-Type', 'application/x-ndjson');
   res.setHeader('Cache-Control', 'no-store');
   res.flushHeaders();
@@ -137,6 +140,10 @@ app.post('/api/enrich', async (req, res) => {
 
 app.post('/api/parse', async (req, res) => {
   if (!requireAccess(req, res)) return;
+  if (!(await consumeDailyQuota(store, 'parse', env.parseDailyCap, 1))) {
+    res.status(429).json({ error: 'daily smart-parse quota reached' });
+    return;
+  }
   try {
     res.json(await smartParse(req.body?.text ?? '', env, req.body?.maxIndicators));
   } catch (e) {

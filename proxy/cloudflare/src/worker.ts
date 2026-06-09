@@ -10,6 +10,7 @@ import {
   originAllowed,
   checkAccess,
   checkAdmin,
+  consumeDailyQuota,
   type ProxyEnv,
   type Storage,
 } from '@vteeee/proxy-core';
@@ -24,6 +25,9 @@ interface Env {
   VT_RPM?: string;
   VT_MAX_RPM?: string;
   CLAUDE_MODEL?: string;
+  MAX_BATCH?: string;
+  VT_DAILY?: string;
+  PARSE_DAILY?: string;
   VTEEEE_KV: KVNamespace;
 }
 
@@ -46,6 +50,9 @@ function build(env: Env): { proxy: ProxyEnv; allowed: string[]; store: Storage }
     maxRpm: Number(env.VT_MAX_RPM ?? 1000),
     claudeModel: env.CLAUDE_MODEL,
     xTool: 'vteeee',
+    maxBatch: Number(env.MAX_BATCH ?? 1000),
+    dailyCap: Number(env.VT_DAILY ?? 500),
+    parseDailyCap: Number(env.PARSE_DAILY ?? 200),
   };
   return { proxy, allowed, store };
 }
@@ -73,6 +80,12 @@ export default {
         if (!checkAccess(auth, proxy)) return json({ error: 'unauthorized' }, 401);
         if (!proxy.vtApiKey) return json({ error: 'VT_API_KEY not configured' }, 500);
         const body = (await request.json()) as EnrichRequest;
+        const inds = body.indicators;
+        if (!Array.isArray(inds) || inds.length === 0) return json({ error: 'no indicators provided' }, 400);
+        if (inds.length > proxy.maxBatch)
+          return json({ error: `too many indicators in one request (max ${proxy.maxBatch})` }, 400);
+        if (!(await consumeDailyQuota(store, 'vt', proxy.dailyCap, inds.length)))
+          return json({ error: `daily lookup quota (${proxy.dailyCap}) would be exceeded` }, 429);
         const enc = new TextEncoder();
         const stream = new ReadableStream<Uint8Array>({
           async start(controller) {
@@ -93,6 +106,8 @@ export default {
 
       if (url.pathname === '/api/parse' && request.method === 'POST') {
         if (!checkAccess(auth, proxy)) return json({ error: 'unauthorized' }, 401);
+        if (!(await consumeDailyQuota(store, 'parse', proxy.parseDailyCap, 1)))
+          return json({ error: 'daily smart-parse quota reached' }, 429);
         const body = (await request.json()) as { text?: string; maxIndicators?: number };
         return json(await smartParse(body.text ?? '', proxy, body.maxIndicators));
       }

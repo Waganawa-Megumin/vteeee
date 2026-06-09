@@ -13,8 +13,12 @@ export interface ProxyEnv {
   claudeModel?: string;
   /** Sent as the `x-tool` header so VT/GTI returns gti_assessment. */
   xTool?: string;
-  /** Optional daily-quota guard; returns false when exhausted. */
-  consumeQuota?: () => boolean;
+  /** Hard ceiling on indicators accepted in a single /api/enrich request. */
+  maxBatch: number;
+  /** Max VT lookups per day (0 = unlimited). Best-effort via the store. */
+  dailyCap: number;
+  /** Max Claude smart-parse calls per day (0 = unlimited). */
+  parseDailyCap: number;
 }
 
 /** Minimal KV-like store for users/settings (Node file store or Cloudflare KV). */
