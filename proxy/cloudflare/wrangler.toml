@@ -1,0 +1,22 @@
+name = "vteeee-proxy"
+main = "src/worker.ts"
+compatibility_date = "2024-11-01"
+
+# Non-secret config. Set ALLOWED_ORIGINS to your *.github.io origin + localhost.
+[vars]
+ALLOWED_ORIGINS = "http://localhost:5173"
+VT_RPM = "4"
+VT_MAX_RPM = "1000"
+
+# Shared store for users/settings (admin management).
+# Create once:  wrangler kv namespace create VTEEEE_KV
+# then paste the id below.
+[[kv_namespaces]]
+binding = "VTEEEE_KV"
+id = "REPLACE_WITH_KV_NAMESPACE_ID"
+
+# Secrets are NOT stored here. Set them with:
+#   wrangler secret put VT_API_KEY
+#   wrangler secret put ANTHROPIC_API_KEY   # optional (Claude smart-parse)
+#   wrangler secret put ACCESS_TOKEN        # required on /api/*
+#   wrangler secret put ADMIN_TOKEN         # required on /api/admin/*

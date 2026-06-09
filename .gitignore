@@ -20,6 +20,9 @@ coverage/
 # cloudflare
 .wrangler/
 
+# node proxy local store
+proxy/node/data/
+
 # editor / OS
 .DS_Store
 .idea/

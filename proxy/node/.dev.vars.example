@@ -1,0 +1,15 @@
+# Copy to .dev.vars (gitignored) and fill in. Loaded by the Node proxy.
+VT_API_KEY=
+# Optional — enables Claude smart-parse (falls back to regex if unset):
+ANTHROPIC_API_KEY=
+# Shared token required on /api/* (set the same value in the web Settings dialog):
+ACCESS_TOKEN=
+# Token required to write users/settings via /api/admin/* :
+ADMIN_TOKEN=
+# Comma-separated exact origins allowed by CORS:
+ALLOWED_ORIGINS=http://localhost:5173
+# Rate limits (free tier ~4/min, 500/day):
+VT_RPM=4
+VT_DAILY=500
+# PORT=8787
+# CLAUDE_MODEL=claude-haiku-4-5
