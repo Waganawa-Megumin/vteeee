@@ -3,6 +3,16 @@ import type { ProxyEnv } from './types';
 
 const DEFAULT_MODEL = 'claude-haiku-4-5';
 
+/**
+ * Resolve the Claude model, refusing Opus so a misconfigured CLAUDE_MODEL can never
+ * silently rack up expensive Opus usage. Empty / Opus -> the cheap default (Haiku).
+ * An explicit non-Opus override (e.g. a Sonnet) is allowed.
+ */
+export function resolveModel(model?: string): string {
+  if (!model || /opus/i.test(model)) return DEFAULT_MODEL;
+  return model;
+}
+
 const SYSTEM_PROMPT = `You extract cyber threat indicators (IOCs) from analyst report text.
 Return ONLY indicators that are IPv4, IPv6, domains, URLs, or file hashes (MD5/SHA1/SHA256).
 Refang any defanged indicators: hxxp->http, [.]->., (dot)->., [:]->:, [@]->@, etc.
@@ -62,7 +72,7 @@ export async function smartParse(
       'anthropic-version': '2023-06-01',
     },
     body: JSON.stringify({
-      model: env.claudeModel ?? DEFAULT_MODEL,
+      model: resolveModel(env.claudeModel),
       max_tokens: 2048,
       temperature: 0,
       system: [{ type: 'text', text: SYSTEM_PROMPT, cache_control: { type: 'ephemeral' } }],

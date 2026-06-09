@@ -8,9 +8,11 @@ ALLOWED_ORIGINS = "https://waganawa-megumin.github.io,http://localhost:5173"
 VT_RPM = "4"
 VT_MAX_RPM = "1000"
 # Cost / abuse guards (best-effort, backed by KV):
-MAX_BATCH = "1000"     # max indicators per /api/enrich request
-VT_DAILY = "500"       # max VT lookups per day (free tier ~500); raise for GTI
-PARSE_DAILY = "200"    # max Claude smart-parse calls per day
+MAX_BATCH = "1000"      # max indicators per /api/enrich request
+VT_DAILY = "5000"       # max VT lookups per day (paid GTI)
+PARSE_DAILY = "2000"    # max Claude smart-parse calls per day (paid)
+# Pin the cheap model. Opus is refused in code regardless of this value.
+CLAUDE_MODEL = "claude-haiku-4-5"
 
 # Shared store for users/settings (admin management).
 # Create once:  wrangler kv namespace create VTEEEE_KV
