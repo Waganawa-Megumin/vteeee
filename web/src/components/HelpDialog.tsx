@@ -121,6 +121,18 @@ export function HelpDialog({ onClose }: { onClose: () => void }) {
           </section>
 
           <section className="help-section">
+            <h3>History / 検索履歴</h3>
+            <p className="help-ja">
+              Enrich した検索は自動でこのブラウザ内に保存され、上部「History」から閲覧・復元できます。
+              保持期間は既定30日（Settings で変更、0 で無効）。端末ごとの保存で共有はされません。
+            </p>
+            <p className="help-en">
+              Each enrichment is saved locally (this browser) and can be reopened from the History button.
+              Default retention 30 days (change in Settings; 0 disables). Per-browser, not shared.
+            </p>
+          </section>
+
+          <section className="help-section">
             <h3>Troubleshooting / 困ったとき</h3>
             <dl className="help-kv">
               <dt>401</dt>

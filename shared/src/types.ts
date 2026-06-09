@@ -163,6 +163,8 @@ export interface AppSettings {
   concurrency: number;
   gti: boolean;
   submitUnknown: boolean;
+  /** Days to keep local search history (per browser). 0 = disabled. Default 30. */
+  historyRetentionDays?: number;
   /** Documentation-only note shown in the admin UI. */
   allowedOriginsNote?: string;
   /**

@@ -8,6 +8,7 @@ import { DetailPanel } from './components/DetailPanel';
 import { ProgressBar } from './components/ProgressBar';
 import { SettingsDialog } from './components/SettingsDialog';
 import { HelpDialog } from './components/HelpDialog';
+import { HistoryDialog } from './components/HistoryDialog';
 import { EmptyState } from './components/EmptyState';
 import { AdminPanel } from './admin/AdminPanel';
 
@@ -25,6 +26,7 @@ export default function App() {
   const hasResults = useStore((s) => s.order.length > 0);
   const [settingsOpen, setSettingsOpen] = useState(false);
   const [helpOpen, setHelpOpen] = useState(false);
+  const [historyOpen, setHistoryOpen] = useState(false);
   const [theme, setTheme] = useState<Theme>(
     () => ((localStorage.getItem('vteeee.theme') as Theme) || 'chalk'),
   );
@@ -56,6 +58,9 @@ export default function App() {
           onClick={() => setTheme((t) => (t === 'chalk' ? 'light' : 'chalk'))}
         >
           {theme === 'chalk' ? '☀' : '☾'}
+        </button>
+        <button className="btn btn-sm" onClick={() => setHistoryOpen(true)}>
+          History
         </button>
         <button className="btn btn-sm" onClick={() => setHelpOpen(true)}>
           Docs
@@ -95,6 +100,7 @@ export default function App() {
 
       {settingsOpen && <SettingsDialog onClose={() => setSettingsOpen(false)} />}
       {helpOpen && <HelpDialog onClose={() => setHelpOpen(false)} />}
+      {historyOpen && <HistoryDialog onClose={() => setHistoryOpen(false)} />}
       <DetailPanel />
     </div>
   );

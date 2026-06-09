@@ -11,6 +11,7 @@ export const DEFAULT_SETTINGS: AppSettings = {
   concurrency: 1,
   gti: false,
   submitUnknown: false,
+  historyRetentionDays: 30,
 };
 
 async function fetchJson<T>(path: string): Promise<T | null> {

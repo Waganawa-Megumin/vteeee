@@ -112,6 +112,22 @@ export function SettingsDialog({ onClose }: { onClose: () => void }) {
             />
           </label>
 
+          <label className="fld">
+            <span className="fld-label">
+              Search history (days)
+              <InfoTip
+                ja="検索履歴をこのブラウザ内に保持する日数。0 で無効。既定は30日。履歴は「History」から閲覧・復元できます。"
+                en="Days to keep search history in this browser. 0 disables it. Default 30. View/restore via the History button."
+              />
+            </span>
+            <input
+              type="number"
+              min={0}
+              value={draft.historyRetentionDays ?? 30}
+              onChange={(e) => up('historyRetentionDays', Math.max(0, Number(e.target.value) || 0))}
+            />
+          </label>
+
           <p className="hint">
             Free VT tier ≈ 4 req/min, 500/day — keep rpm low to avoid 429s. The access token is stored
             only in this browser and sent only to your proxy.

@@ -13,6 +13,7 @@ import {
 import { loadSettings, loadUsers, resolveMode, saveSettings, saveUsers, type Mode } from '../config';
 import { authenticate, persistSession, restoreSession } from '../auth/session';
 import { makeClient, type EnrichClient } from '../api/client';
+import { addHistory } from '../lib/history';
 
 export const indKey = (i: { type: string; value: string }) => `${i.type}|${i.value}`;
 
@@ -53,6 +54,7 @@ interface State {
   stop: () => void;
   clearResults: () => void;
   select: (value: string | null) => void;
+  restore: (results: NormalizedResult[], input: string) => void;
 
   setView: (v: 'app' | 'admin') => void;
   applySettings: (s: AppSettings) => void;
@@ -200,7 +202,31 @@ export const useStore = create<State>((set, get) => ({
             results: { ...s.results, [r.value]: r },
             order: s.order.includes(r.value) ? s.order : [...s.order, r.value],
           })),
-        onDone: () => set({ running: false }),
+        onDone: () => {
+          set({ running: false });
+          const s = get();
+          const out = s.order.map((v) => s.results[v]).filter(Boolean);
+          const days = s.settings.historyRetentionDays ?? 30;
+          if (out.length && days > 0) {
+            addHistory(
+              {
+                mode: s.mode,
+                input: s.rawInput,
+                stats:
+                  s.stats ?? {
+                    total: out.length,
+                    unique: out.length,
+                    duplicates: 0,
+                    unknown: 0,
+                    private: 0,
+                    enrichable: out.length,
+                  },
+                results: out,
+              },
+              days,
+            );
+          }
+        },
         onError: (m) => set({ error: m, running: false }),
       },
     );
@@ -217,6 +243,16 @@ export const useStore = create<State>((set, get) => ({
 
   select(value) {
     set({ selected: value });
+  },
+
+  restore(results, input) {
+    const map: Record<string, NormalizedResult> = {};
+    const order: string[] = [];
+    for (const r of results) {
+      if (!map[r.value]) order.push(r.value);
+      map[r.value] = r;
+    }
+    set({ results: map, order, selected: null, progress: null, running: false, view: 'app', rawInput: input });
   },
 
   setView(v) {
