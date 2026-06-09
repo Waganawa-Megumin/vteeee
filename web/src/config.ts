@@ -43,17 +43,22 @@ export function saveUsers(users: UserRecord[]): void {
 }
 
 export async function loadSettings(): Promise<AppSettings> {
+  // Built-in default proxy URL (set at build via VITE_API_BASE_URL). Applied
+  // whenever no proxy URL is stored, so the connection never "disappears" after
+  // a localStorage eviction or on a fresh device.
+  const envProxy = (import.meta.env.VITE_API_BASE_URL as string | undefined) || undefined;
   const ls = localStorage.getItem(LS_SETTINGS);
   if (ls) {
     try {
-      return { ...DEFAULT_SETTINGS, ...(JSON.parse(ls) as SettingsConfig).settings };
+      const s = { ...DEFAULT_SETTINGS, ...(JSON.parse(ls) as SettingsConfig).settings };
+      if (!s.proxyBaseUrl && envProxy) s.proxyBaseUrl = envProxy;
+      return s;
     } catch {
       /* fall through to baseline */
     }
   }
   const base = await fetchJson<SettingsConfig>('config/settings.json');
   const merged: AppSettings = { ...DEFAULT_SETTINGS, ...(base?.settings ?? {}) };
-  const envProxy = import.meta.env.VITE_API_BASE_URL as string | undefined;
   if (!merged.proxyBaseUrl && envProxy) merged.proxyBaseUrl = envProxy;
   return merged;
 }
