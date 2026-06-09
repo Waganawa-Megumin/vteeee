@@ -1,0 +1,22 @@
+{
+  "name": "vteeee",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "description": "Bulk IOC search tool for CTI analysts, powered by the VirusTotal / Google Threat Intelligence API v3.",
+  "packageManager": "pnpm@10.33.0",
+  "engines": {
+    "node": ">=20"
+  },
+  "scripts": {
+    "dev": "pnpm --filter @vteeee/web dev",
+    "build": "pnpm --filter @vteeee/web build",
+    "preview": "pnpm --filter @vteeee/web preview",
+    "proxy": "pnpm --filter @vteeee/proxy-node dev",
+    "test": "pnpm --filter @vteeee/shared test",
+    "typecheck": "pnpm -r --if-present typecheck"
+  },
+  "devDependencies": {
+    "typescript": "^5.6.3"
+  }
+}
