@@ -4,7 +4,7 @@ compatibility_date = "2024-11-01"
 
 # Non-secret config. Set ALLOWED_ORIGINS to your *.github.io origin + localhost.
 [vars]
-ALLOWED_ORIGINS = "http://localhost:5173"
+ALLOWED_ORIGINS = "https://waganawa-megumin.github.io,http://localhost:5173"
 VT_RPM = "4"
 VT_MAX_RPM = "1000"
 
