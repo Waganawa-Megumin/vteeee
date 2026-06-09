@@ -25,11 +25,9 @@ sortable table with per-row detail and one-click deep links back to virustotal.c
 
 ## At a glance
 
-<!--
-  Drop the infographic generated with NotebookLM here, then uncomment:
-  <p align="center"><img src="docs/assets/infographic.png" alt="vteeee infographic" width="900" /></p>
--->
-
+<p align="center">
+  <img src="docs/assets/infographic.png" alt="vteeee infographic — the problem, the 5-step pipeline, demo vs live, and key stats" width="900" />
+</p>
 | | |
 |---|---|
 | **Input** | newline list · CSV · messy pasted text · drag-and-drop file |
