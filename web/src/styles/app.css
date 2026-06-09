@@ -692,6 +692,19 @@ textarea:focus {
 .fld-row .fld {
   flex: 1;
 }
+.secret-field {
+  display: flex;
+  gap: 6px;
+  align-items: stretch;
+}
+.secret-field input {
+  flex: 1 1 auto;
+  min-width: 0;
+}
+.secret-field .btn {
+  flex: 0 0 auto;
+  white-space: nowrap;
+}
 .chk {
   display: flex;
   align-items: center;

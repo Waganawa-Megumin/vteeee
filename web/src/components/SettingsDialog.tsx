@@ -2,6 +2,7 @@ import { useState } from 'react';
 import type { AppSettings } from '@vteeee/shared';
 import { useStore } from '../state/store';
 import { InfoTip } from './InfoTip';
+import { SecretField } from './SecretField';
 
 export function SettingsDialog({ onClose }: { onClose: () => void }) {
   const settings = useStore((s) => s.settings);
@@ -47,14 +48,13 @@ export function SettingsDialog({ onClose }: { onClose: () => void }) {
             <span className="fld-label">
               Access token
               <InfoTip
-                ja="プロキシへ送る合言葉。プロキシの ACCESS_TOKEN と同じ値。ブラウザ内にのみ保存され、あなたのプロキシにだけ送られます。"
-                en="Shared secret sent to your proxy; must match its ACCESS_TOKEN. Stored only in this browser."
+                ja="プロキシへ送る合言葉。プロキシの ACCESS_TOKEN と同じ値。ブラウザ内にのみ保存され、あなたのプロキシにだけ送られます。Show で表示、Copy で別端末へコピーできます。"
+                en="Shared secret sent to your proxy; must match its ACCESS_TOKEN. Stored only in this browser. Use Show/Copy to carry it to another device."
               />
             </span>
-            <input
-              type="password"
+            <SecretField
               value={draft.accessToken ?? ''}
-              onChange={(e) => up('accessToken', e.target.value || null)}
+              onChange={(v) => up('accessToken', v || null)}
             />
           </label>
 
@@ -130,7 +130,8 @@ export function SettingsDialog({ onClose }: { onClose: () => void }) {
 
           <p className="hint">
             Free VT tier ≈ 4 req/min, 500/day — keep rpm low to avoid 429s. The access token is stored
-            only in this browser and sent only to your proxy.
+            only in this browser (now backed by persistent storage + IndexedDB so it survives much
+            longer). On mobile, “Add to Home Screen” prevents the browser from clearing it.
           </p>
         </div>
         <div className="modal-foot">

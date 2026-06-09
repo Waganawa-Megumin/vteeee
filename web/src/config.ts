@@ -1,4 +1,5 @@
 import type { AppSettings, SettingsConfig, UserRecord, UsersConfig } from '@vteeee/shared';
+import { idbSet, rehydrateFromIdb } from './lib/durable';
 
 const LS_USERS = 'vteeee.users';
 const LS_SETTINGS = 'vteeee.settings';
@@ -25,7 +26,7 @@ async function fetchJson<T>(path: string): Promise<T | null> {
 }
 
 export async function loadUsers(): Promise<UserRecord[]> {
-  const ls = localStorage.getItem(LS_USERS);
+  const ls = localStorage.getItem(LS_USERS) ?? (await rehydrateFromIdb(LS_USERS));
   if (ls) {
     try {
       return (JSON.parse(ls) as UsersConfig).users;
@@ -39,7 +40,9 @@ export async function loadUsers(): Promise<UserRecord[]> {
 
 export function saveUsers(users: UserRecord[]): void {
   const cfg: UsersConfig = { version: 1, users };
-  localStorage.setItem(LS_USERS, JSON.stringify(cfg));
+  const json = JSON.stringify(cfg);
+  localStorage.setItem(LS_USERS, json);
+  void idbSet(LS_USERS, json); // durable mirror (survives a localStorage eviction)
 }
 
 export async function loadSettings(): Promise<AppSettings> {
@@ -47,7 +50,7 @@ export async function loadSettings(): Promise<AppSettings> {
   // whenever no proxy URL is stored, so the connection never "disappears" after
   // a localStorage eviction or on a fresh device.
   const envProxy = (import.meta.env.VITE_API_BASE_URL as string | undefined) || undefined;
-  const ls = localStorage.getItem(LS_SETTINGS);
+  const ls = localStorage.getItem(LS_SETTINGS) ?? (await rehydrateFromIdb(LS_SETTINGS));
   if (ls) {
     try {
       const s = { ...DEFAULT_SETTINGS, ...(JSON.parse(ls) as SettingsConfig).settings };
@@ -65,7 +68,9 @@ export async function loadSettings(): Promise<AppSettings> {
 
 export function saveSettings(settings: AppSettings): void {
   const cfg: SettingsConfig = { version: 1, settings };
-  localStorage.setItem(LS_SETTINGS, JSON.stringify(cfg));
+  const json = JSON.stringify(cfg);
+  localStorage.setItem(LS_SETTINGS, json);
+  void idbSet(LS_SETTINGS, json); // durable mirror (survives a localStorage eviction)
 }
 
 export type Mode = 'demo' | 'live';

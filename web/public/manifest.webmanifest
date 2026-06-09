@@ -1,0 +1,13 @@
+{
+  "name": "vteeee — bulk IOC search",
+  "short_name": "vteeee",
+  "description": "Bulk IOC search for CTI analysts. Clean, classify and enrich indicators via VirusTotal / Google Threat Intelligence.",
+  "start_url": ".",
+  "scope": ".",
+  "display": "standalone",
+  "background_color": "#1f2a24",
+  "theme_color": "#1f2a24",
+  "icons": [
+    { "src": "favicon.svg", "sizes": "any", "type": "image/svg+xml", "purpose": "any maskable" }
+  ]
+}

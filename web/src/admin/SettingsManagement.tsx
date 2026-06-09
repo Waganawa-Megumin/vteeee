@@ -3,6 +3,7 @@ import type { AppSettings, SettingsConfig } from '@vteeee/shared';
 import { useStore } from '../state/store';
 import { exportSettings, importJsonFile } from './configIO';
 import { AdminClient } from '../api/adminClient';
+import { SecretField } from '../components/SecretField';
 
 export function SettingsManagement() {
   const settings = useStore((s) => s.settings);
@@ -56,11 +57,10 @@ export function SettingsManagement() {
       <h3>Credentials &amp; settings</h3>
 
       <label className="fld">
-        Admin token (required to write users/settings to the proxy)
-        <input
-          type="password"
+        Admin token (required to write users/settings + see all history)
+        <SecretField
           value={draft.adminToken ?? ''}
-          onChange={(e) => up('adminToken', e.target.value || null)}
+          onChange={(v) => up('adminToken', v || null)}
         />
       </label>
       <label className="fld">
@@ -111,8 +111,10 @@ export function SettingsManagement() {
       )}
 
       <p className="hint">
-        Tokens are stored only in this browser (localStorage), never in exported JSON or the
-        committed baseline. On the proxy they come from environment / GitHub Secrets.
+        Tokens are stored only in this browser (localStorage + a durable IndexedDB mirror so they
+        survive eviction), never in exported JSON or the committed baseline — the public repo and
+        Pages bundle are world-readable, so a real token must never be committed there. Use Show/Copy
+        above to carry a token to another device. On the proxy, tokens come from GitHub Secrets.
       </p>
 
       {msg && <div className="admin-msg">{msg}</div>}

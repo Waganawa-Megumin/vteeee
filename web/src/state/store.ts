@@ -15,6 +15,7 @@ import { loadSettings, loadUsers, resolveMode, saveSettings, saveUsers, type Mod
 import { authenticate, persistSession, restoreSession } from '../auth/session';
 import { makeClient, type EnrichClient } from '../api/client';
 import { saveHistory } from '../lib/historySource';
+import { requestPersistentStorage } from '../lib/durable';
 
 export const indKey = (i: { type: string; value: string }) => `${i.type}|${i.value}`;
 
@@ -90,6 +91,7 @@ export const useStore = create<State>((set, get) => ({
   view: 'app',
 
   async boot() {
+    void requestPersistentStorage(); // ask the browser not to evict our storage
     const [users, settings] = await Promise.all([loadUsers(), loadSettings()]);
     set({
       users,
