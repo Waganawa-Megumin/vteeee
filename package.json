@@ -4,6 +4,7 @@
   "private": true,
   "type": "module",
   "description": "Bulk IOC search tool for CTI analysts, powered by the VirusTotal / Google Threat Intelligence API v3.",
+  "license": "MIT",
   "packageManager": "pnpm@10.33.0",
   "engines": {
     "node": ">=20"

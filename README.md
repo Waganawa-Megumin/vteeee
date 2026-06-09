@@ -9,6 +9,8 @@
   <img alt="React + Vite" src="https://img.shields.io/badge/React-Vite-61dafb?style=flat&labelColor=1f2a24" />
   <img alt="Cloudflare Workers" src="https://img.shields.io/badge/proxy-Cloudflare%20Workers-f38020?style=flat&labelColor=1f2a24" />
   <img alt="VirusTotal / GTI" src="https://img.shields.io/badge/enrichment-VirusTotal%20%2F%20GTI-394eff?style=flat&labelColor=1f2a24" />
+  <a href="LICENSE"><img alt="License: MIT" src="https://img.shields.io/badge/license-MIT-74d3b1?style=flat&labelColor=1f2a24" /></a>
+  <a href="https://ko-fi.com/shonanboyeah"><img alt="Ko-fi" src="https://img.shields.io/badge/Ko--fi-support-ff5e5b?style=flat&logo=ko-fi&logoColor=white&labelColor=1f2a24" /></a>
 </p>
 
 <p align="center"><b>Triage a wall of indicators in one paste.</b></p>
@@ -150,6 +152,22 @@ CTIアナリスト向けの **IOC一括検索ツール** です。IP・ドメイ
 - ログインは共有ID/PASSの簡易ゲート（PBKDF2、平文非保存）＋ admin/viewer ロールと管理画面。
 - テーマは**黒板**と**オフホワイト**を切替可能。
 - 詳しい手順（GitHub Secrets・Cloudflare・接続）→ **[docs/GUIDE.ja.md](docs/GUIDE.ja.md)**
+
+---
+
+## Support / 開発を応援
+
+<p>
+  <a href="https://ko-fi.com/shonanboyeah"><img alt="Support on Ko-fi" src="https://img.shields.io/badge/Support%20on-Ko--fi-ff5e5b?style=for-the-badge&logo=ko-fi&logoColor=white&labelColor=1f2a24" /></a>
+</p>
+
+If vteeee saves you triage time, you can support development on **[Ko-fi](https://ko-fi.com/shonanboyeah)** ☕
+役に立ったら **[Ko-fi](https://ko-fi.com/shonanboyeah)** で開発を応援いただけると励みになります。
+
+## License
+
+**MIT** — see [LICENSE](./LICENSE). © 2026 Waganawa-Megumin.
+<br/><sub>社内・組織の所有物として公開する場合は、著作権者やライセンス種別を適宜変更してください（例: 企業利用なら特許条項のある Apache-2.0 も選択肢）。</sub>
 
 ---
 
