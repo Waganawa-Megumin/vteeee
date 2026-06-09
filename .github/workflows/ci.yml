@@ -1,0 +1,26 @@
+name: CI
+
+on:
+  push:
+    branches: ['**']
+  pull_request:
+
+jobs:
+  build-test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      - name: Typecheck (all packages)
+        run: pnpm -r --if-present typecheck
+      - name: Unit tests (shared, proxy-core, web)
+        run: pnpm -r --if-present test
+      - name: Build web (Pages base path)
+        run: pnpm --filter @vteeee/web build
+        env:
+          VITE_BASE: /vteeee/
