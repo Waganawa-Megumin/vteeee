@@ -165,6 +165,14 @@ export interface AppSettings {
   submitUnknown: boolean;
   /** Documentation-only note shown in the admin UI. */
   allowedOriginsNote?: string;
+  /**
+   * Runtime-only secrets for talking to the proxy (stored in localStorage, never
+   * in the committed baseline settings.json or in exports). On a static site these
+   * are as exposed as the soft login gate; the real protection is keeping the
+   * proxy URL + tokens off the public internet.
+   */
+  accessToken?: string | null;
+  adminToken?: string | null;
 }
 
 export interface SettingsConfig {

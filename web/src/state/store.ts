@@ -1,0 +1,235 @@
+import { create } from 'zustand';
+import {
+  extractIndicators,
+  type AppSettings,
+  type EnrichableType,
+  type EnrichOptions,
+  type ExtractStats,
+  type NormalizedResult,
+  type ParsedIndicator,
+  type Session,
+  type UserRecord,
+} from '@vteeee/shared';
+import { loadSettings, loadUsers, resolveMode, saveSettings, saveUsers, type Mode } from '../config';
+import { authenticate, persistSession, restoreSession } from '../auth/session';
+import { makeClient, type EnrichClient } from '../api/client';
+
+export const indKey = (i: { type: string; value: string }) => `${i.type}|${i.value}`;
+
+let abortController: AbortController | null = null;
+
+interface State {
+  booted: boolean;
+  session: Session | null;
+  users: UserRecord[];
+  settings: AppSettings;
+  mode: Mode;
+
+  rawInput: string;
+  parsed: ParsedIndicator[];
+  stats: ExtractStats | null;
+  includeMap: Record<string, boolean>;
+  parsing: boolean;
+
+  results: Record<string, NormalizedResult>;
+  order: string[];
+  progress: { done: number; total: number; inflight: number; rateLimitedUntil: number | null } | null;
+  running: boolean;
+  error: string | null;
+  selected: string | null;
+  view: 'app' | 'admin';
+
+  boot: () => Promise<void>;
+  login: (username: string, password: string) => Promise<boolean>;
+  logout: () => void;
+
+  setRawInput: (s: string) => void;
+  parse: () => void;
+  smartParse: () => Promise<void>;
+  toggleInclude: (key: string) => void;
+  setAllIncluded: (included: boolean) => void;
+
+  enrich: () => Promise<void>;
+  stop: () => void;
+  clearResults: () => void;
+  select: (value: string | null) => void;
+
+  setView: (v: 'app' | 'admin') => void;
+  applySettings: (s: AppSettings) => void;
+  applyUsers: (u: UserRecord[]) => void;
+}
+
+function defaultIncludes(parsed: ParsedIndicator[]): Record<string, boolean> {
+  const m: Record<string, boolean> = {};
+  for (const i of parsed) m[indKey(i)] = i.type !== 'unknown' && !i.private;
+  return m;
+}
+
+export const useStore = create<State>((set, get) => ({
+  booted: false,
+  session: null,
+  users: [],
+  settings: { proxyBaseUrl: null, rpm: 4, concurrency: 1, gti: false, submitUnknown: false },
+  mode: 'demo',
+
+  rawInput: '',
+  parsed: [],
+  stats: null,
+  includeMap: {},
+  parsing: false,
+
+  results: {},
+  order: [],
+  progress: null,
+  running: false,
+  error: null,
+  selected: null,
+  view: 'app',
+
+  async boot() {
+    const [users, settings] = await Promise.all([loadUsers(), loadSettings()]);
+    set({
+      users,
+      settings,
+      mode: resolveMode(settings),
+      session: restoreSession(),
+      booted: true,
+    });
+  },
+
+  async login(username, password) {
+    const session = await authenticate(get().users, username, password);
+    if (!session) return false;
+    persistSession(session);
+    set({ session });
+    return true;
+  },
+
+  logout() {
+    persistSession(null);
+    set({ session: null, view: 'app' });
+  },
+
+  setRawInput(s) {
+    set({ rawInput: s });
+  },
+
+  parse() {
+    const { indicators, stats } = extractIndicators(get().rawInput);
+    set({ parsed: indicators, stats, includeMap: defaultIncludes(indicators) });
+  },
+
+  async smartParse() {
+    set({ parsing: true, error: null });
+    try {
+      const client = await makeClient(get().settings);
+      const indicators = await client.smartParse(get().rawInput);
+      set({
+        parsed: indicators,
+        stats: {
+          total: indicators.length,
+          unique: indicators.length,
+          duplicates: 0,
+          unknown: indicators.filter((i) => i.type === 'unknown').length,
+          private: indicators.filter((i) => i.private).length,
+          enrichable: indicators.filter((i) => i.type !== 'unknown' && !i.private).length,
+        },
+        includeMap: defaultIncludes(indicators),
+      });
+    } catch (e) {
+      set({ error: `Smart parse failed: ${(e as Error).message}` });
+    } finally {
+      set({ parsing: false });
+    }
+  },
+
+  toggleInclude(key) {
+    set((s) => ({ includeMap: { ...s.includeMap, [key]: !s.includeMap[key] } }));
+  },
+
+  setAllIncluded(included) {
+    set((s) => {
+      const m: Record<string, boolean> = {};
+      for (const i of s.parsed) m[indKey(i)] = included && i.type !== 'unknown';
+      return { includeMap: m };
+    });
+  },
+
+  async enrich() {
+    const { parsed, includeMap, settings } = get();
+    const indicators = parsed
+      .filter((i) => i.type !== 'unknown' && includeMap[indKey(i)])
+      .map((i) => ({ value: i.value, type: i.type as EnrichableType, input: i.input }));
+    if (!indicators.length) {
+      set({ error: 'No indicators selected for enrichment.' });
+      return;
+    }
+
+    let client: EnrichClient;
+    try {
+      client = await makeClient(settings);
+    } catch (e) {
+      set({ error: (e as Error).message });
+      return;
+    }
+
+    abortController = new AbortController();
+    const options: EnrichOptions = {
+      rpm: settings.rpm,
+      concurrency: settings.concurrency,
+      includeRaw: true,
+      gti: settings.gti,
+      submitUnknown: settings.submitUnknown,
+    };
+    set({
+      running: true,
+      error: null,
+      results: {},
+      order: [],
+      selected: null,
+      progress: { done: 0, total: indicators.length, inflight: 0, rateLimitedUntil: null },
+    });
+
+    await client.enrich(
+      { indicators, options },
+      {
+        signal: abortController.signal,
+        onProgress: (p) => set({ progress: p }),
+        onResult: (r) =>
+          set((s) => ({
+            results: { ...s.results, [r.value]: r },
+            order: s.order.includes(r.value) ? s.order : [...s.order, r.value],
+          })),
+        onDone: () => set({ running: false }),
+        onError: (m) => set({ error: m, running: false }),
+      },
+    );
+  },
+
+  stop() {
+    abortController?.abort();
+    set({ running: false });
+  },
+
+  clearResults() {
+    set({ results: {}, order: [], progress: null, selected: null });
+  },
+
+  select(value) {
+    set({ selected: value });
+  },
+
+  setView(v) {
+    set({ view: v });
+  },
+
+  applySettings(s) {
+    saveSettings(s);
+    set({ settings: s, mode: resolveMode(s) });
+  },
+
+  applyUsers(u) {
+    saveUsers(u);
+    set({ users: u });
+  },
+}));

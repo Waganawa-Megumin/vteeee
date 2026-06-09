@@ -1,0 +1,17 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <title>vteeee</title>
+    <script>
+      // SPA fallback for GitHub Pages: redirect any unknown path back to the app root.
+      (function () {
+        var seg = location.pathname.split('/').filter(Boolean);
+        // Keep the project base (/<repo>/) when present.
+        var base = seg.length > 0 ? '/' + seg[0] + '/' : '/';
+        location.replace(base + location.search + location.hash);
+      })();
+    </script>
+  </head>
+  <body></body>
+</html>

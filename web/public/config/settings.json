@@ -1,0 +1,11 @@
+{
+  "version": 1,
+  "settings": {
+    "proxyBaseUrl": null,
+    "rpm": 4,
+    "concurrency": 1,
+    "gti": false,
+    "submitUnknown": false,
+    "allowedOriginsNote": "On the proxy, set ALLOWED_ORIGINS to your *.github.io origin and http://localhost:5173"
+  }
+}

@@ -1,0 +1,19 @@
+{
+  "version": 1,
+  "users": [
+    {
+      "username": "admin",
+      "salt": "B0WMXn68QExG9cwrZy0H6A==",
+      "hash": "yLztVDhrKOjSOL+raE1g70psaCORutS/0zg3kzNKdLA=",
+      "iterations": 200000,
+      "role": "admin"
+    },
+    {
+      "username": "analyst",
+      "salt": "4Ynmk7XvLxw5F6pNa1YgZg==",
+      "hash": "irBgeIrmbShdup7BeHowxFePZyyIGbXbMNK1Guffw/M=",
+      "iterations": 200000,
+      "role": "viewer"
+    }
+  ]
+}
