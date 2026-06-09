@@ -1,124 +1,158 @@
-# vteeee — bulk IOC search for CTI analysts
+<p align="center">
+  <img src="docs/assets/banner.svg" alt="vteeee — bulk IOC search" width="880" />
+</p>
 
-Paste / drag-drop / type a list of **IPs, domains, URLs or file hashes** (even
-defanged like `1[.]1[.]1[.]1` or `hxxps://evil[.]com`), and get a sortable table
-of the analyst-relevant **VirusTotal / Google Threat Intelligence** fields, with
-click-through detail and deep links to virustotal.com.
+<p align="center">
+  <a href="https://waganawa-megumin.github.io/vteeee/"><img alt="Live demo" src="https://img.shields.io/badge/live%20demo-vteeee-74d3b1?style=for-the-badge&labelColor=1f2a24" /></a>
+  <a href="https://github.com/Waganawa-Megumin/vteeee/actions/workflows/ci.yml"><img alt="CI" src="https://github.com/Waganawa-Megumin/vteeee/actions/workflows/ci.yml/badge.svg" /></a>
+  <img alt="TypeScript" src="https://img.shields.io/badge/TypeScript-strict-3178c6?style=flat&labelColor=1f2a24" />
+  <img alt="React + Vite" src="https://img.shields.io/badge/React-Vite-61dafb?style=flat&labelColor=1f2a24" />
+  <img alt="Cloudflare Workers" src="https://img.shields.io/badge/proxy-Cloudflare%20Workers-f38020?style=flat&labelColor=1f2a24" />
+  <img alt="VirusTotal / GTI" src="https://img.shields.io/badge/enrichment-VirusTotal%20%2F%20GTI-394eff?style=flat&labelColor=1f2a24" />
+</p>
 
-> 日本語: 改行リスト / CSV / 雑多なテキストを渡すと、無害化(defang)を高精度に解除して
-> IP・ドメイン・URL・ハッシュを分類し、VT/GTI API で一括エンリッチして一覧表示します。
-> 公開版は **GitHub Pages の静的モック（デモ）**、実データ検索は **APIキーをサーバー側で持つ
-> プロキシ** 経由です。ログインは共有ID/PASS（クライアント側の簡易ゲート）＋簡易な管理機能付き。
+<p align="center"><b>Triage a wall of indicators in one paste.</b></p>
 
-## How it works (demo vs live)
+**vteeee** is a bulk IOC search tool for CTI analysts. Paste, drop, or type a list of
+**IPs, domains, URLs, or file hashes** — even defanged like `1[.]1[.]1[.]1` or
+`hxxps://evil[.]com` — and vteeee cleans them up, classifies them, and enriches each one
+through the **VirusTotal / Google Threat Intelligence** API. Results stream into a
+sortable table with per-row detail and one-click deep links back to virustotal.com.
 
-A static site **cannot** safely hold a VirusTotal API key, and VT's API does not
-send CORS headers — so there are two modes:
+> 🇯🇵 日本語の概要は[こちら](#日本語概要)。詳しい運用・デプロイ手順は **[docs/GUIDE.ja.md](docs/GUIDE.ja.md)**。
 
-| | Demo mode (default, github.io) | Live mode |
-|---|---|---|
-| Data | bundled sample fixtures | real VT/GTI lookups |
-| Parsing | client-side regex | regex + optional Claude smart-parse |
-| API key | none (never in the browser) | held by the **proxy** only |
-| Enable | nothing to do | set a proxy URL in **Settings** (or `VITE_API_BASE_URL`) |
+---
 
-The **same** github.io bundle stays a demo by default; pointing it at your own
-proxy (in the in-app Settings, persisted to `localStorage`) switches it to live —
-no rebuild needed.
+## At a glance
 
-## Security model (read this)
+<!--
+  Drop the infographic generated with NotebookLM here, then uncomment:
+  <p align="center"><img src="docs/assets/infographic.png" alt="vteeee infographic" width="900" /></p>
+-->
 
-- The **VT API key lives only on the proxy** (env / GitHub Secrets), never in the
-  web bundle or in client requests.
-- The github.io login is an **intentionally soft, client-side gate** with a shared
-  credential. Passwords are stored as **PBKDF2 hashes** (no plaintext), but anyone
-  can read static code — so this is obfuscation-grade, not real access control.
-  The real protections are the proxy's **access token** (`/api/*`) and **admin
-  token** (`/api/admin/*`), plus a CORS allowlist.
-- Never commit plaintext passwords or tokens. `users.json` holds hashes only;
-  tokens come from the proxy environment / GitHub Secrets.
+| | |
+|---|---|
+| **Input** | newline list · CSV · messy pasted text · drag-and-drop file |
+| **Indicators** | IPv4 · IPv6 · domain · URL · MD5 · SHA-1 · SHA-256 |
+| **De-obfuscation** | `[.] (.) [dot] (dot) \.` · `hxxp/hxxps/fxp` · `[://] [:]` · `[@] (at)` · quotes/markdown/trailing punctuation |
+| **Enrichment** | detection ratio · reputation · GTI verdict/severity · ASN/country · registrar/categories · threat label · tags |
+| **Safety** | dedupes; flags & excludes RFC1918 / reserved IPs; never auto-submits unknowns (saves quota) |
+| **Modes** | **Demo** (static, sample data) · **Live** (real lookups via a key-holding proxy) |
 
-## Repository layout
+---
 
+## Why
+
+Analysts lose time pasting indicators into VirusTotal one by one — and most IOCs arrive
+**defanged** (`1[.]1[.]1[.]1`, `hxxp://…`) so they can't even be searched as-is. vteeee
+turns "a messy block of text from a report" into "a ranked, clickable triage table" in a
+single step, while keeping the API key off the browser entirely.
+
+## Features
+
+- **Accurate refang + classify** — 10+ obfuscation styles handled deterministically; IDNs punycoded; duplicates merged.
+- **Streaming results** — NDJSON over the wire, so rows appear as they resolve (vital on the free tier's 4 req/min).
+- **Analyst-first table** — sort by verdict/detections/reputation, filter, open a detail drawer, export CSV, jump to VirusTotal.
+- **GTI-aware** — surfaces `gti_assessment` verdict/severity/threat-score when a GTI key is used (sends the required `x-tool` header).
+- **Optional Claude smart-parse** — pull IOCs out of free-form report prose; the regex engine still has the final say on typing.
+- **Shared-credential login + admin** — PBKDF2-gated, `admin`/`viewer` roles, in-app user & settings management with JSON export/import.
+- **Two themes** — a chalkboard dark theme and an off-white light theme, toggled in the top bar.
+
+## Live demo
+
+▶︎ **https://waganawa-megumin.github.io/vteeee/**
+
+The public site is a **demo** (bundled sample data — no key, nothing sensitive).
+Sign in with `analyst` / `REDACTED` (viewer) or `admin` / `REDACTED`, then
+**Load sample → Parse → Enrich**. Point it at your own proxy in **Settings** to go live.
+
+## How it works
+
+```mermaid
+flowchart LR
+  A["Paste / drop / type<br/>IPs · domains · URLs · hashes<br/><i>defanged OK</i>"] --> B["Refang + classify<br/>(in the browser)"]
+  B --> C{Mode}
+  C -- Demo --> D["Bundled sample data"]
+  C -- Live --> E["Proxy holds the VT key<br/>(rate-limits · streams NDJSON)"]
+  E --> F[("VirusTotal / GTI")]
+  D --> G["Sortable results<br/>detail drawer · VT deep links · CSV"]
+  F --> G
 ```
-shared/            @vteeee/shared — defang/classify/extract, VT links + normalizer, PBKDF2
-web/               @vteeee/web — Vite + React static SPA (Demo + Live), login + admin
-proxy/shared-handler  @vteeee/proxy-core — rate limiting, enrich streaming, Claude parse, store
-proxy/node         @vteeee/proxy-node — Express adapter (local / self-host)
-proxy/cloudflare   @vteeee/proxy-cloudflare — Worker adapter (recommended deploy) + wrangler.toml
-.github/workflows  ci.yml · pages.yml · proxy-deploy.yml
-```
 
-## Quick start (demo, no keys)
+A static site can't safely hold a VirusTotal key, and VT's API sends no CORS headers — so
+the **key lives only on a small server-side proxy**. The same github.io bundle stays a demo
+by default; configuring a proxy URL (in-app, persisted locally) flips it to live with no rebuild.
+
+## Quick start
 
 ```bash
 pnpm install
-pnpm dev          # http://localhost:5173
+pnpm dev        # http://localhost:5173  (demo — no keys needed)
 ```
 
-Sign in with a demo credential (`admin / REDACTED` or `analyst / REDACTED`),
-click **Load sample → Parse → Enrich N selected**. Everything is sample data.
-
-## Live mode locally (real VT lookups)
+### Live mode locally
 
 ```bash
-cp proxy/node/.dev.vars.example proxy/node/.dev.vars   # fill in VT_API_KEY, ACCESS_TOKEN, ADMIN_TOKEN
-pnpm proxy        # Express proxy on http://localhost:8787
+cp proxy/node/.dev.vars.example proxy/node/.dev.vars   # set VT_API_KEY, ACCESS_TOKEN, ADMIN_TOKEN
+pnpm proxy      # Express proxy on http://localhost:8787
 ```
 
-Then in the web app's **Settings**: set **Proxy base URL** = `http://localhost:8787`
-and the **Access token** to your `ACCESS_TOKEN`. The mode pill flips to **LIVE**.
-
-(Free VT tier is ~4 req/min, 500/day — keep RPM low. Reserved/private indicators
-and never-analyzed 404s are handled without burning quota.)
+Then in the app's **Settings**: set the proxy URL to `http://localhost:8787` and your
+`ACCESS_TOKEN`. The badge flips to **LIVE**.
 
 ## Deploy
 
-### Web → GitHub Pages (demo)
+- **Web → GitHub Pages** (`pages.yml`): builds with `VITE_BASE=/vteeee/` and publishes the demo. No secrets injected, so the public site stays a demo.
+- **Proxy → Cloudflare Workers** (`proxy-deploy.yml`, recommended): holds `VT_API_KEY` (+ optional `ANTHROPIC_API_KEY`) and `ACCESS_TOKEN`/`ADMIN_TOKEN`, with a KV store for shared users/settings. A Node/Express variant is included for self-hosting.
 
-1. Repo **Settings → Pages → Source = GitHub Actions**.
-2. Push to `main` → `pages.yml` builds with `VITE_BASE=/vteeee/` and deploys.
-   (If your repo isn't named `vteeee`, change `VITE_BASE` in `pages.yml`.)
+Full, click-by-click instructions (GitHub Secrets, Cloudflare token, KV, connecting the app):
+**[docs/GUIDE.ja.md](docs/GUIDE.ja.md)**.
 
-### Proxy → Cloudflare Workers (recommended)
+## Security model
 
-1. `cd proxy/cloudflare && pnpm exec wrangler kv namespace create VTEEEE_KV`, paste
-   the id into `wrangler.toml`; set `ALLOWED_ORIGINS` to your `*.github.io` origin
-   + `http://localhost:5173`.
-2. Add repo secrets: `VT_API_KEY`, `ANTHROPIC_API_KEY` (optional), `ACCESS_TOKEN`,
-   `ADMIN_TOKEN`, `CLOUDFLARE_API_TOKEN`, `CLOUDFLARE_ACCOUNT_ID`.
-3. Run the **Deploy Proxy (Cloudflare)** workflow (or `pnpm exec wrangler deploy`
-   + `wrangler secret put ...`).
+- The **VT API key never reaches the browser** — only the proxy holds it (env / GitHub Secrets).
+- The github.io login is an intentionally **soft, client-side gate** (shared credential, PBKDF2-hashed — no plaintext). Real protection is the proxy's **access token** (`/api/*`) and **admin token** (`/api/admin/*`) plus a strict CORS allowlist.
+- Never commit plaintext passwords or tokens. `users.json` holds hashes only.
 
-Self-hosting the Node proxy instead is fine — it's the same core and gives strict
-global rate limiting (a single Worker isolate's limiter isn't globally shared).
+## Project layout
 
-## Auth & management
-
-- **Roles:** `viewer` (search) and `admin` (search + **Manage**).
-- **Admin → Users & permissions:** add/remove users, change role, reset password
-  (hashes generated in-browser), **export/import `users.json`**. Commit the exported
-  `users.json` to share the baseline with the team.
-- **Admin → Credentials & settings:** rotate the admin token, edit proxy URL / rate
-  limits, export/import `settings.json`; in live mode **push/pull** users + settings
-  to the proxy store (KV/D1) for live team sharing.
-
-## Defang / parsing
-
-The regex engine refangs `[.] (.) [dot] (dot) hxxp hxxps fxp [://] [:] [@] (at) \.`,
-strips wrappers/quotes/markdown/trailing punctuation, classifies IPv4/IPv6/domain/
-URL/MD5/SHA1/SHA256, punycodes IDNs, dedupes, and flags private/RFC1918 + reserved
-(`.test/.example/...`) so they're excluded from enrichment by default. For messy
-report prose, **Smart parse** (Claude `claude-haiku-4-5`, live mode) improves recall;
-its output is always re-validated by the same regex classifier.
-
-## Scripts
-
-```bash
-pnpm dev          # web dev server (demo)
-pnpm proxy        # node proxy (live, local)
-pnpm build        # build web (set VITE_BASE for Pages)
-pnpm test         # shared unit tests
-pnpm -r test      # all unit tests (shared, proxy-core, web)
-pnpm -r typecheck # typecheck everything
 ```
+shared/            defang/classify/extract · VT links + normalizer · PBKDF2  (browser + proxy)
+web/               Vite + React static SPA — input, parse preview, results, detail, login, admin
+proxy/shared-handler  rate limiting · NDJSON enrich · Claude parse · users/settings store
+proxy/node         Express adapter (local / self-host)
+proxy/cloudflare   Worker adapter (recommended deploy) + wrangler.toml
+.github/workflows  ci · pages · proxy-deploy
+```
+
+## Tech & quality
+
+TypeScript (strict) · React + Vite · Zustand · Cloudflare Workers / Express · Vitest.
+**45 unit/integration tests** cover the refang/classifier, VT id+link helpers, the response
+normalizer, PBKDF2, the enrich orchestration (rate-limit, 429 retry, NDJSON streaming), and
+the end-to-end demo path. `pnpm -r typecheck && pnpm -r test`.
+
+## Limitations
+
+- Static-site login/roles are bypassable by design — the proxy tokens + CORS are the real guard.
+- Free VT tier is small (~4 req/min, 500/day, non-commercial); keep RPM low. GTI keys are higher.
+- A single Cloudflare Worker isolate's rate limiter isn't globally shared — use the Node proxy when you need strict global pacing.
+
+---
+
+## 日本語概要
+
+CTIアナリスト向けの **IOC一括検索ツール** です。IP・ドメイン・URL・ハッシュの一覧（改行 / CSV /
+レポート本文のコピペ / ファイルのドラッグ&ドロップ）を渡すと、`1[.]1[.]1[.]1` や `hxxps://` などの
+**無害化(defang)を高精度に解除・分類**し、**VirusTotal / Google Threat Intelligence** で一括エンリッチ。
+判定・検出比・GTI評価・ASN/国・カテゴリ等を**並べ替え可能な一覧**で表示し、行クリックで詳細＆VTへ直リンク。
+
+- 公開版は **github.io の静的デモ**（サンプルデータ／キー不要）。実データ検索は **APIキーをサーバー側に
+  持つプロキシ**経由（キーはブラウザに出ません）。
+- ログインは共有ID/PASSの簡易ゲート（PBKDF2、平文非保存）＋ admin/viewer ロールと管理画面。
+- テーマは**黒板**と**オフホワイト**を切替可能。
+- 詳しい手順（GitHub Secrets・Cloudflare・接続）→ **[docs/GUIDE.ja.md](docs/GUIDE.ja.md)**
+
+---
+
+<sub>Built for analysts. Paste defanged, get answers. </sub>
