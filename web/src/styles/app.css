@@ -1039,6 +1039,11 @@ textarea:focus {
   font-size: 11px;
   color: var(--muted);
 }
+.h-owner {
+  font-size: 11px;
+  color: var(--accent);
+  font-family: var(--mono);
+}
 .history-editor {
   background: var(--bg2);
   border: 1px solid var(--line);

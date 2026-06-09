@@ -9,7 +9,7 @@ export function UserManagement() {
   const me = useStore((s) => s.session?.username);
   const [u, setU] = useState('');
   const [p, setP] = useState('');
-  const [role, setRole] = useState<Role>('viewer');
+  const [role, setRole] = useState<Role>('user');
   const [msg, setMsg] = useState<string | null>(null);
   const fileRef = useRef<HTMLInputElement>(null);
 
@@ -75,8 +75,8 @@ export function UserManagement() {
               </td>
               <td>
                 <select value={x.role} onChange={(e) => changeRole(x.username, e.target.value as Role)}>
-                  <option value="viewer">viewer</option>
-                  <option value="admin">admin</option>
+                  <option value="user">User</option>
+                  <option value="admin">Admin</option>
                 </select>
               </td>
               <td className="admin-actions">
@@ -101,8 +101,8 @@ export function UserManagement() {
           onChange={(e) => setP(e.target.value)}
         />
         <select value={role} onChange={(e) => setRole(e.target.value as Role)}>
-          <option value="viewer">viewer</option>
-          <option value="admin">admin</option>
+          <option value="user">User</option>
+          <option value="admin">Admin</option>
         </select>
         <button className="btn btn-primary" onClick={() => void add()}>
           Add user

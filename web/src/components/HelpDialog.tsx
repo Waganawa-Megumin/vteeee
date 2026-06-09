@@ -99,12 +99,12 @@ export function HelpDialog({ onClose }: { onClose: () => void }) {
           <section className="help-section">
             <h3>Roles &amp; admin / ロールと管理</h3>
             <p className="help-ja">
-              <b>viewer</b> は検索のみ、<b>admin</b> は上部「Manage」でユーザー追加/権限/パスワード変更、設定管理（共有トークン、
-              プロキシURL等）、users/settings の JSON エクスポート/インポートが可能です。
+              <b>User</b>（一般）は検索のみ、<b>Admin</b> は上部「Manage」でユーザー追加/権限/パスワード変更、設定管理（共有トークン、
+              プロキシURL等）、users/settings の JSON エクスポート/インポート、履歴の全件閲覧（ユーザー名・IP付き）が可能です。
             </p>
             <p className="help-en">
-              viewer = search only; admin = the "Manage" area to add users, change roles/passwords, edit settings, and
-              export/import users/settings as JSON.
+              User = search only; Admin = the "Manage" area to add users, change roles/passwords, edit settings,
+              export/import users/settings, and view everyone's history (with username + IP).
             </p>
           </section>
 

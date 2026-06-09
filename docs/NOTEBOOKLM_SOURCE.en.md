@@ -26,7 +26,7 @@ Subtitle: Clean, classify, and enrich thousands of indicators safely — in one 
 ## Key stats (big callouts)
 - **7** IOC types: IPv4, IPv6, domain, URL, MD5, SHA-1, SHA-256.
 - **10+** defang styles auto-reversed (brackets, hxxp, spaces, [dot]).
-- **PBKDF2** hashing, **200,000** iterations (SHA-256); role-based access (admin / viewer).
+- **PBKDF2** hashing, **200,000** iterations (SHA-256); role-based access (admin / user).
 - **45** automated tests; strict TypeScript.
 - **NDJSON** streaming — rows appear as they resolve.
 

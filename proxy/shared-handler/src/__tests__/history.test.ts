@@ -93,4 +93,27 @@ describe('historyRoute', () => {
     const r = await historyRoute('POST', null, { results: [] }, b, { retentionDays: 0 });
     expect(r.body).toEqual({ skipped: true });
   });
+
+  it('scopes by owner; admin sees all (with IP)', async () => {
+    const b = kvHistoryBackend(mockKV());
+    await historyRoute('POST', null, { results: [] }, b, {
+      retentionDays: 30,
+      user: 'alice',
+      ip: '1.2.3.4',
+    });
+    const bob = await historyRoute('GET', null, undefined, b, { retentionDays: 30, user: 'bob' });
+    expect((bob.body as { entries: unknown[] }).entries.length).toBe(0);
+
+    const alice = await historyRoute('GET', null, undefined, b, { retentionDays: 30, user: 'alice' });
+    const aliceEntries = (alice.body as { entries: { ip?: string }[] }).entries;
+    expect(aliceEntries.length).toBe(1);
+    expect(aliceEntries[0].ip).toBe('1.2.3.4');
+
+    const admin = await historyRoute('GET', null, undefined, b, {
+      retentionDays: 30,
+      user: 'bob',
+      adminView: true,
+    });
+    expect((admin.body as { entries: unknown[] }).entries.length).toBe(1);
+  });
 });

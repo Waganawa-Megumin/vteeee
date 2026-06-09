@@ -55,7 +55,7 @@ single step, while keeping the API key off the browser entirely.
 - **Analyst-first table** — sort by verdict/detections/reputation, filter, open a detail drawer, export CSV, jump to VirusTotal.
 - **GTI-aware** — surfaces `gti_assessment` verdict/severity/threat-score when a GTI key is used (sends the required `x-tool` header).
 - **Optional Claude smart-parse** — pull IOCs out of free-form report prose; the regex engine still has the final say on typing.
-- **Shared-credential login + admin** — PBKDF2-gated, `admin`/`viewer` roles, in-app user & settings management with JSON export/import.
+- **Shared-credential login + admin** — PBKDF2-gated, `admin`/`user` roles, in-app user & settings management with JSON export/import.
 - **Two themes** — a chalkboard dark theme and an off-white light theme, toggled in the top bar.
 
 ## Live demo
@@ -63,7 +63,7 @@ single step, while keeping the API key off the browser entirely.
 ▶︎ **https://waganawa-megumin.github.io/vteeee/**
 
 The public site is a **demo** (bundled sample data — no key, nothing sensitive).
-Sign in with `analyst` / `REDACTED` (viewer) or `admin` / `REDACTED`, then
+Sign in with `analyst` / `REDACTED` (user) or `admin` / `REDACTED`, then
 **Load sample → Parse → Enrich**. Point it at your own proxy in **Settings** to go live.
 
 ## How it works
@@ -149,7 +149,7 @@ CTIアナリスト向けの **IOC一括検索ツール** です。IP・ドメイ
 
 - 公開版は **github.io の静的デモ**（サンプルデータ／キー不要）。実データ検索は **APIキーをサーバー側に
   持つプロキシ**経由（キーはブラウザに出ません）。
-- ログインは共有ID/PASSの簡易ゲート（PBKDF2、平文非保存）＋ admin/viewer ロールと管理画面。
+- ログインは共有ID/PASSの簡易ゲート（PBKDF2、平文非保存）＋ admin/user ロールと管理画面。
 - テーマは**黒板**と**オフホワイト**を切替可能。
 - 詳しい手順（GitHub Secrets・Cloudflare・接続）→ **[docs/GUIDE.ja.md](docs/GUIDE.ja.md)**
 

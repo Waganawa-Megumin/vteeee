@@ -10,6 +10,7 @@ import {
   originAllowed,
   checkAccess,
   checkAdmin,
+  checkAdminToken,
   consumeDailyQuota,
   kvHistoryBackend,
   historyRoute,
@@ -141,7 +142,13 @@ export default {
         const id = url.pathname.startsWith('/api/history/')
           ? decodeURIComponent(url.pathname.slice('/api/history/'.length)) || null
           : null;
-        if (request.method === 'DELETE' && !id && !checkAdmin(auth, proxy))
+        const user = request.headers.get('x-vteeee-user') ?? undefined;
+        const ip =
+          request.headers.get('cf-connecting-ip') ??
+          request.headers.get('x-forwarded-for')?.split(',')[0]?.trim() ??
+          undefined;
+        const adminView = checkAdminToken(request.headers.get('x-vteeee-admin'), proxy);
+        if (request.method === 'DELETE' && !id && !adminView)
           return json({ error: 'admin token required to clear all history' }, 403);
         const hbody =
           request.method === 'POST' || request.method === 'PUT' ? await request.json() : undefined;
@@ -156,7 +163,7 @@ export default {
           id,
           hbody,
           kvHistoryBackend(env.VTEEEE_KV as unknown as KVLike),
-          { retentionDays },
+          { retentionDays, user, ip, adminView },
         );
         return json(r.body, r.status);
       }

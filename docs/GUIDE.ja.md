@@ -119,7 +119,7 @@ curl http://localhost:8787/health          # {"ok":true,"vtKey":true,...}
 
 ## 5. ログイン・ユーザー/権限・設定の管理
 
-- **ロール**: `viewer`(検索のみ) / `admin`(検索＋「Manage」)。
+- **ロール**: `user`(検索のみ) / `admin`(検索＋「Manage」)。
 - **Manage → Users & permissions**:
   - ユーザー追加（ユーザー名・パスワード・ロール）。パスワードは**ブラウザ内でPBKDF2ハッシュ化**して保存（平文は保存しない）。
   - ロール変更、パスワードリセット、削除。

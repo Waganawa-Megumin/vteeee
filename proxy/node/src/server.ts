@@ -13,6 +13,7 @@ import {
   originAllowed,
   checkAccess,
   checkAdmin,
+  checkAdminToken,
   consumeDailyQuota,
   historyRoute,
   type ProxyEnv,
@@ -176,7 +177,13 @@ app.put('/api/admin/settings', async (req, res) => {
 
 async function handleHistory(req: Request, res: Response, id: string | null) {
   if (!requireAccess(req, res)) return;
-  if (req.method === 'DELETE' && !id && !checkAdmin(req.headers.authorization, env)) {
+  const user = (req.headers['x-vteeee-user'] as string | undefined) || undefined;
+  const ip =
+    (req.headers['x-forwarded-for'] as string | undefined)?.split(',')[0]?.trim() ||
+    req.socket.remoteAddress ||
+    undefined;
+  const adminView = checkAdminToken((req.headers['x-vteeee-admin'] as string | undefined) ?? null, env);
+  if (req.method === 'DELETE' && !id && !adminView) {
     res.status(403).json({ error: 'admin token required to clear all history' });
     return;
   }
@@ -184,7 +191,7 @@ async function handleHistory(req: Request, res: Response, id: string | null) {
   if (req.method === 'POST' && typeof req.body?.retentionDays === 'number') {
     retentionDays = Math.min(Math.max(req.body.retentionDays, 0), 366);
   }
-  const r = await historyRoute(req.method, id, req.body, history, { retentionDays });
+  const r = await historyRoute(req.method, id, req.body, history, { retentionDays, user, ip, adminView });
   res.status(r.status).json(r.body);
 }
 app.all('/api/history', (req, res) => void handleHistory(req, res, null));

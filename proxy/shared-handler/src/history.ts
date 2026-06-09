@@ -46,6 +46,8 @@ export function summarize(rec: HistoryRecord): HistorySummary {
     inputPreview: rec.input.replace(/\s+/g, ' ').trim().slice(0, 90),
     tags: rec.tags?.slice(0, 8),
     note: rec.note ? rec.note.slice(0, NOTE_PREVIEW) : undefined,
+    owner: rec.owner,
+    ip: rec.ip,
   };
 }
 
@@ -98,13 +100,31 @@ export function kvHistoryBackend(kv: KVLike): HistoryBackend {
   };
 }
 
-/** Route /api/history* against a backend. Auth/CORS are handled by the caller. */
+export interface HistoryCtx {
+  retentionDays: number;
+  maxList?: number;
+  /** Login username of the caller (client-asserted). */
+  user?: string;
+  /** Source IP (server-derived). */
+  ip?: string;
+  /** True when the caller proved the admin token — sees everyone's history. */
+  adminView?: boolean;
+}
+
+const owns = (recOwner: string | undefined, user: string | undefined) =>
+  !recOwner || (!!user && recOwner === user);
+
+/**
+ * Route /api/history* against a backend. Auth/CORS are handled by the caller.
+ * Scoping: admins (adminView) see all records (with owner + IP); others see only
+ * their own (matched by the asserted username). The IP is set server-side.
+ */
 export async function historyRoute(
   method: string,
   id: string | null,
   body: unknown,
   backend: HistoryBackend,
-  opts: { retentionDays: number; maxList?: number },
+  opts: HistoryCtx,
 ): Promise<{ status: number; body: unknown }> {
   if (method === 'POST') {
     if (opts.retentionDays <= 0) return { status: 200, body: { skipped: true } };
@@ -127,6 +147,8 @@ export async function historyRoute(
       results: rec.results,
       tags: rec.tags,
       note: rec.note,
+      owner: opts.user, // authoritative-ish: from the request header, not the body
+      ip: opts.ip, // server-derived
     };
     await backend.save(full, opts.retentionDays * 86400);
     return { status: 200, body: { id: full.id } };
@@ -134,17 +156,32 @@ export async function historyRoute(
 
   if (method === 'GET' && id) {
     const r = await backend.get(id);
-    return r ? { status: 200, body: r } : { status: 404, body: { error: 'not found' } };
+    if (!r) return { status: 404, body: { error: 'not found' } };
+    if (!opts.adminView && !owns(r.owner, opts.user)) return { status: 404, body: { error: 'not found' } };
+    return { status: 200, body: r };
   }
-  if (method === 'GET') return { status: 200, body: { entries: await backend.list(opts.maxList ?? 100) } };
+  if (method === 'GET') {
+    const all = await backend.list(opts.maxList ?? 100);
+    const entries = opts.adminView ? all : all.filter((s) => owns(s.owner, opts.user));
+    return { status: 200, body: { entries } };
+  }
 
   if (method === 'PUT' && id) {
+    if (!opts.adminView) {
+      const r = await backend.get(id);
+      if (!r) return { status: 404, body: { error: 'not found' } };
+      if (!owns(r.owner, opts.user)) return { status: 403, body: { error: 'forbidden' } };
+    }
     const patch = (body ?? {}) as { tags?: string[]; note?: string };
     const s = await backend.update(id, patch, opts.retentionDays);
     return s ? { status: 200, body: s } : { status: 404, body: { error: 'not found' } };
   }
 
   if (method === 'DELETE' && id) {
+    if (!opts.adminView) {
+      const r = await backend.get(id);
+      if (r && !owns(r.owner, opts.user)) return { status: 403, body: { error: 'forbidden' } };
+    }
     await backend.del(id);
     return { status: 200, body: { ok: true } };
   }

@@ -68,6 +68,8 @@ export function summarizeLocal(rec: HistoryRecord): HistorySummary {
     inputPreview: rec.input.replace(/\s+/g, ' ').trim().slice(0, 90),
     tags: rec.tags,
     note: rec.note ? rec.note.slice(0, 160) : undefined,
+    owner: rec.owner,
+    ip: rec.ip,
   };
 }
 

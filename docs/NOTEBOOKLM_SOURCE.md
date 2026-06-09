@@ -80,7 +80,7 @@ community votes, last-analysis date, and a one-click link to VirusTotal.
   stored as PBKDF2 hashes (200,000 iterations, SHA-256) — never as plaintext.
 - The real protections are the proxy's shared access token (required on all API calls), an
   admin token (required to change users/settings), and a strict CORS origin allowlist.
-- Roles: "admin" (search + management) and "viewer" (search only).
+- Roles: "admin" (search + management) and "user" (search only).
 
 ## Rate limiting and quotas
 - The free VirusTotal tier is roughly 4 requests/minute and 500/day (non-commercial). GTI /
@@ -118,7 +118,7 @@ the top bar and remembered across visits.
 - Free-tier limits handled: ~4 requests/min, 500/day.
 - Results streamed as NDJSON (incremental, not all-at-once).
 - 45 automated tests; strict TypeScript; 0 secrets in the browser bundle.
-- 2 modes (Demo / Live), 2 themes (chalkboard / off-white), 2 roles (admin / viewer).
+- 2 modes (Demo / Live), 2 themes (chalkboard / off-white), 2 roles (admin / user).
 
 ## Suggested infographic structure (for the generator)
 1. Title band: "vteeee — bulk IOC search" with the one-liner.
@@ -170,7 +170,7 @@ vteeee は「無害化の自動復元(Refang)」と「一括エンリッチメ�
 
 ### セキュリティ
 APIキーは常にプロキシ側のみが保持し、ブラウザには出さない。ログインは共有ID/PASSの簡易ゲート
-（**PBKDF2・SHA-256・20万回試行**、平文非保存）と **ロールベースアクセス制御（admin / viewer）**。
+（**PBKDF2・SHA-256・20万回試行**、平文非保存）と **ロールベースアクセス制御（admin / user）**。
 実際の保護は、プロキシの **アクセストークン**／**管理者トークン** と **CORS許可リスト** が担う。
 
 ### 主要な数値（インフォグラフィックの見せ場）
@@ -182,7 +182,7 @@ APIキーは常にプロキシ側のみが保持し、ブラウザには出さ�
 
 ### 用語の正式表記（必ずこの表記を使う）
 - ハッシュ：**MD5** / **SHA-1** / **SHA-256**（"MDS" は誤り）
-- アクセス制御：**ロールベースアクセス制御**（admin / viewer）
+- アクセス制御：**ロールベースアクセス制御**（admin / user）
 - パスワード：**PBKDF2（SHA-256・20万回試行）**（"就行" ではなく "試行"）
 - 通信・構成：**CORS制約** ／ **NDJSONストリーミング** ／ **プロキシ（サーバー側）** ／ **ブラウザ側**
 - 課題表現：課題に**直面**する ／ **非効率**（"画面する" は誤り）

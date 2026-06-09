@@ -74,7 +74,7 @@ export default function App() {
           </button>
         )}
         <span className="user">
-          {session.username} · {session.role}
+          {session.username} · {session.role === 'admin' ? 'Admin' : 'User'}
         </span>
         <button className="btn btn-sm btn-ghost" onClick={logout}>
           Sign out

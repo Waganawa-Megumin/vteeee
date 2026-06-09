@@ -6,9 +6,11 @@ import { downloadCsv, resultsToCsv } from '../lib/csv-export';
 
 export function HistoryDialog({ onClose }: { onClose: () => void }) {
   const settings = useStore((s) => s.settings);
+  const session = useStore((s) => s.session);
   const restore = useStore((s) => s.restore);
-  const source = useMemo(() => historySource(settings), [settings]);
+  const source = useMemo(() => historySource(settings, session), [settings, session]);
   const retention = settings.historyRetentionDays ?? 30;
+  const isAdmin = session?.role === 'admin';
 
   const [entries, setEntries] = useState<HistorySummary[]>([]);
   const [loading, setLoading] = useState(true);
@@ -93,6 +95,12 @@ export function HistoryDialog({ onClose }: { onClose: () => void }) {
                           {e.malicious ? ` · ${e.malicious} malicious` : ''}
                           {e.suspicious ? ` · ${e.suspicious} suspicious` : ''}
                         </span>
+                        {(e.owner || e.ip) && (
+                          <span className="h-owner">
+                            👤 {e.owner ?? '—'}
+                            {isAdmin && e.ip ? ` · ${e.ip}` : ''}
+                          </span>
+                        )}
                       </span>
                       <span className="h-input">{e.inputPreview || '—'}</span>
                       {(e.tags?.length || e.note) && (

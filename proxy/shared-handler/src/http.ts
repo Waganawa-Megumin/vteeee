@@ -6,8 +6,8 @@ export function corsHeaders(origin: string | null, allowed: string[]): Record<st
   const ok = !!origin && (allowed.includes('*') || allowed.includes(origin));
   return {
     'Access-Control-Allow-Origin': ok ? origin! : allowed[0] ?? 'null',
-    'Access-Control-Allow-Methods': 'GET,POST,PUT,OPTIONS',
-    'Access-Control-Allow-Headers': 'Content-Type,Authorization',
+    'Access-Control-Allow-Methods': 'GET,POST,PUT,DELETE,OPTIONS',
+    'Access-Control-Allow-Headers': 'Content-Type,Authorization,X-Vteeee-User,X-Vteeee-Admin',
     'Access-Control-Max-Age': '86400',
     Vary: 'Origin',
   };
@@ -27,4 +27,9 @@ export function checkAccess(authHeader: string | null | undefined, env: ProxyEnv
 /** /api/admin/* writes require the admin token. */
 export function checkAdmin(authHeader: string | null | undefined, env: ProxyEnv): boolean {
   return checkToken(parseBearer(authHeader), env.adminToken);
+}
+
+/** Check a raw token value (e.g. the X-Vteeee-Admin header) against the admin token. */
+export function checkAdminToken(token: string | null | undefined, env: ProxyEnv): boolean {
+  return checkToken(token ?? null, env.adminToken);
 }

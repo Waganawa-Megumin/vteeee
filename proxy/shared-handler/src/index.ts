@@ -13,4 +13,4 @@ export {
   type KVLike,
   type HistoryBackend,
 } from './history';
-export { corsHeaders, originAllowed, checkAccess, checkAdmin } from './http';
+export { corsHeaders, originAllowed, checkAccess, checkAdmin, checkAdminToken } from './http';

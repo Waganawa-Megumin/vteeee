@@ -224,7 +224,7 @@ export const useStore = create<State>((set, get) => ({
                 },
               results: out,
             };
-            void saveHistory(rec, s.settings);
+            void saveHistory(rec, s.settings, s.session);
           }
         },
         onError: (m) => set({ error: m, running: false }),

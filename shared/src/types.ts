@@ -139,7 +139,7 @@ export interface ParseResponse {
 
 // ---- Auth / admin ----
 
-export type Role = 'admin' | 'viewer';
+export type Role = 'admin' | 'user';
 
 export interface UserRecord {
   username: string;
@@ -204,6 +204,9 @@ export interface HistoryRecord {
   results: NormalizedResult[];
   tags?: string[];
   note?: string;
+  /** Who ran it (login username, client-asserted) and the source IP (server-derived). */
+  owner?: string;
+  ip?: string;
 }
 
 /** Lightweight list item (stored as KV metadata; no need to fetch each record to list). */
@@ -217,4 +220,6 @@ export interface HistorySummary {
   inputPreview: string;
   tags?: string[];
   note?: string;
+  owner?: string;
+  ip?: string;
 }
