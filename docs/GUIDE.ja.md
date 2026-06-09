@@ -1,0 +1,261 @@
+# vteeee 運用・デプロイ詳細ガイド（日本語）
+
+このガイドは、本ツールを **GitHub に設定 → デモ公開 → 実データ用プロキシ稼働** まで
+一通り行うための手順書です。まず最初に「GitHub で何をどこに入れるか」を説明します。
+
+---
+
+## 0. 最重要の考え方（最初に読む）
+
+- **VT APIキーは絶対にブラウザ(静的サイト)に出しません。** キーは常に**プロキシ(サーバー側)だけ**が持ちます。
+- だから構成は2モード:
+  - **Demo（github.io 公開モック）**: サンプルデータのみ。キー不要。誰に見せてもOK。
+  - **Live（実データ）**: web → **プロキシ** → VirusTotal。キーはプロキシにだけ置く。
+- **GitHub Secrets は「GitHub Actions（ワークフロー）」からしか読めません。**
+  つまり Secrets は **プロキシをデプロイするワークフロー**が使います。**公開Webの静的ビルドは Secrets を一切使いません**
+  （使ったら漏れるため）。
+- web(github.io) からプロキシへ繋ぐ時は、**GitHubではなくアプリ内の「Settings」**に「プロキシURL＋アクセストークン」を入れます。
+
+```
+[ブラウザ: github.io 静的サイト]  --(プロキシURL+トークンはアプリ内Settings)-->  [プロキシ: VT_API_KEY を保持]  -->  [VirusTotal/GTI]
+       ↑ GitHub Secrets は読めない                                               ↑ ここに GitHub Secrets を流し込む
+```
+
+---
+
+## 1. ★ GitHub でやること（今あなたが見ている画面）
+
+あなたが開いている **Settings → Secrets and variables →「Actions」** が正しい場所です
+（Agents / Codespaces / Dependabot は使いません）。
+
+### 1-1. 「New repository secret」で登録する Secrets
+
+| Secret 名 | 必須? | 用途 | 使うワークフロー |
+|---|---|---|---|
+| `VT_API_KEY` | **必須(実データ)** | VirusTotal / GTI のAPIキー | proxy-deploy |
+| `ACCESS_TOKEN` | 推奨 | `/api/*` 保護。webのSettingsに同じ値を入れて送信 | proxy-deploy |
+| `ADMIN_TOKEN` | 推奨 | `/api/admin/*`(ユーザー/設定の書込)保護 | proxy-deploy |
+| `ANTHROPIC_API_KEY` | 任意 | Claudeスマートパース(無ければ正規表現にフォールバック) | proxy-deploy |
+| `CLOUDFLARE_API_TOKEN` | Cloudflare使用時のみ | Worker デプロイ認証 | proxy-deploy |
+| `CLOUDFLARE_ACCOUNT_ID` | Cloudflare使用時のみ | Cloudflare アカウントID | proxy-deploy |
+
+- `ACCESS_TOKEN` / `ADMIN_TOKEN` は**任意の長いランダム文字列**でOK。例:
+  ```bash
+  openssl rand -hex 32   # これを ACCESS_TOKEN に
+  openssl rand -hex 32   # これを ADMIN_TOKEN に
+  ```
+- **デモだけ公開する段階では Secrets は1つも要りません。** 上記は「実データ用プロキシ」を動かす時に使います。
+
+### 1-2. デモを公開する設定（Secrets不要）
+
+1. **Settings → Pages → Build and deployment → Source = 「GitHub Actions」** を選択。
+2. ブランチ `claude/compassionate-edison-u5fjjz` を **`main` にマージ**（または下記で手動実行）。
+3. 公開URL: `https://waganawa-megumin.github.io/vteeee/`
+   - 手動実行する場合: **Actions タブ → 「Deploy Pages」→ Run workflow**。
+
+> リポジトリ名が `vteeee` 以外の場合は `.github/workflows/pages.yml` の `VITE_BASE: /vteeee/` を
+> `/<リポジトリ名>/` に変更してください。
+
+### 1-3. 実データ用プロキシを動かす（任意・Cloudflare推奨）
+
+1. 上の表の Secrets（最低 `VT_API_KEY`、推奨 `ACCESS_TOKEN`/`ADMIN_TOKEN`、Cloudflareの2つ）を登録。
+2. Cloudflare 側準備（後述「7章」）: KV作成 → `proxy/cloudflare/wrangler.toml` に id と `ALLOWED_ORIGINS` を記入してコミット。
+3. **Actions タブ → 「Deploy Proxy (Cloudflare)」→ Run workflow** を実行。
+   - これがワークフロー内で `wrangler deploy` と `wrangler secret put` を行い、**キーをCloudflare側のSecretに格納**します。
+4. デプロイされた Worker のURL（例 `https://vteeee-proxy.<アカウント>.workers.dev`）を控える。
+5. 公開Webを開き、**アプリ内 Settings** に「プロキシURL」と「アクセストークン(`ACCESS_TOKEN`の値)」を入力 → 右上が **LIVE** に。
+
+> GitHubでの作業はここまで。要点は「**Secretsは Actions タブに入れる／公開Webビルドはキーを使わない／キーはプロキシに届く**」。
+
+---
+
+## 2. ローカルでデモを試す（キー不要）
+
+```bash
+pnpm install
+pnpm dev                 # http://localhost:5173
+```
+ログイン:
+- 管理者 `admin / REDACTED`
+- 閲覧 `analyst / REDACTED`
+
+「Load sample → Parse → Enrich N selected」でサンプル結果を確認。行クリックで詳細、右上 Settings、管理者は「Manage」。
+
+> **本番前に必ずデフォルトの資格情報を変更**してください（5章）。
+
+---
+
+## 3. ローカルで実データを試す（Nodeプロキシ）
+
+```bash
+cp proxy/node/.dev.vars.example proxy/node/.dev.vars
+# .dev.vars を編集:
+#   VT_API_KEY=<本物のVTキー>
+#   ACCESS_TOKEN=<任意の文字列>
+#   ADMIN_TOKEN=<任意の文字列>
+#   ALLOWED_ORIGINS=http://localhost:5173
+pnpm proxy               # http://localhost:8787
+```
+別ターミナルで `pnpm dev` → アプリ内 **Settings** に
+- Proxy base URL: `http://localhost:8787`
+- Access token: `.dev.vars` の `ACCESS_TOKEN`
+を入力して保存 → **LIVE**。少数のIOCで試す（無料枠は約4req/分・500/日）。
+
+動作確認:
+```bash
+curl http://localhost:8787/health          # {"ok":true,"vtKey":true,...}
+```
+
+---
+
+## 4. デモ公開（GitHub Pages）詳細
+
+- `pages.yml` が `main` への push で起動 → `VITE_BASE=/vteeee/` でビルド → `web/dist` を Pages に配信。
+- **Secrets も プロキシURLも注入しない**ので、公開サイトは既定で **Demo** のまま（サンプルデータ）。
+- 公開サイトでも、各利用者がアプリ内Settingsに自分のプロキシURL＋トークンを入れれば LIVE で使えます（プロキシ側CORSで
+  github.ioオリジンを許可していることが前提）。
+
+---
+
+## 5. ログイン・ユーザー/権限・設定の管理
+
+- **ロール**: `viewer`(検索のみ) / `admin`(検索＋「Manage」)。
+- **Manage → Users & permissions**:
+  - ユーザー追加（ユーザー名・パスワード・ロール）。パスワードは**ブラウザ内でPBKDF2ハッシュ化**して保存（平文は保存しない）。
+  - ロール変更、パスワードリセット、削除。
+  - **Export users.json / Import users.json**。チーム共有の初期値にするには、エクスポートした `users.json` を
+    `web/public/config/users.json` に置いて**コミット**します。
+- **Manage → Credentials & settings**:
+  - 管理者トークン、プロキシURL、許可オリジンメモの編集、`settings.json` のExport/Import。
+  - **Live時**は「Push to proxy / Pull from proxy」で users+settings をプロキシ(KV)に共有保存できます（要 `ADMIN_TOKEN`）。
+- **デフォルト資格情報の変更手順（推奨・最初にやる）**:
+  1. `admin / REDACTED` でログイン → Manage → Users。
+  2. 新しい管理者を追加 → 既存 `admin`/`analyst` を削除 or パスワード変更。
+  3. **Export users.json** → 中身を `web/public/config/users.json` に上書きコミット → 全員へ反映。
+
+> 注意: 静的サイトのログイン/権限は設計どおり**突破可能な「目隠し」**です。実際の保護は
+> プロキシの `ACCESS_TOKEN`/`ADMIN_TOKEN` と CORS が担います。強い共有パスワードを使ってください。
+
+---
+
+## 6. 入力・パース（defang解除）の仕様
+
+- 入力: テキストエリアへ貼り付け / ファイルのドラッグ&ドロップ / 「Upload file…」（.txt/.csv/.log等）。
+- 自動で解除する無害化(defang): `[.] (.) {.} [dot] (dot) \.` / `hxxp hxxps fxp` / `[://] [:]` / `[@] (at)` /
+  前後の引用符・山括弧・Markdownリンク・末尾の句読点 など。
+- 分類: IPv4 / IPv6 / domain / URL / MD5 / SHA1 / SHA256。IDNは punycode 化。重複排除。
+- **既定で除外（送信しない）**: RFC1918等のプライベートIP、ループバック/リンクローカル、予約TLD(`.test/.example/...`)、単一ラベル。
+  → 「Parsed indicators」で行ごとにチェックして手動で含める/外す調整が可能。
+- **Smart parse**: 雑多なレポート本文からのIOC抽出。Demoは正規表現、Liveは Claude(`claude-haiku-4-5`)。Claudeの結果も必ず
+  正規表現分類器で再判定します。
+
+---
+
+## 7. プロキシ本番デプロイ
+
+### 7-A. Cloudflare Workers（推奨）
+```bash
+cd proxy/cloudflare
+pnpm exec wrangler login                       # 初回のみ
+pnpm exec wrangler kv namespace create VTEEEE_KV
+# 出力された id を wrangler.toml の id="REPLACE_WITH_KV_NAMESPACE_ID" に貼る
+# wrangler.toml の ALLOWED_ORIGINS を "https://waganawa-megumin.github.io,http://localhost:5173" に
+```
+- デプロイ＋Secret投入は **GitHub の「Deploy Proxy」ワークフロー**が自動化（1-3）。手動なら:
+  ```bash
+  pnpm exec wrangler deploy
+  printf '%s' "<VTキー>" | pnpm exec wrangler secret put VT_API_KEY
+  printf '%s' "<ACCESS>" | pnpm exec wrangler secret put ACCESS_TOKEN
+  printf '%s' "<ADMIN>"  | pnpm exec wrangler secret put ADMIN_TOKEN
+  ```
+- 注意: Workerのレート制限カウンタはisolate間で共有されません。厳密な全体ペースが要るなら Node版を推奨。
+
+### 7-B. Node 自前ホスト
+- `proxy/node` を任意のサーバーで `pnpm --filter @vteeee/proxy-node start`（環境変数 or `.dev.vars`）。
+- この場合 **GitHub Secrets は使わず**、ホストの環境変数に `VT_API_KEY` 等を設定します。
+- リバースプロキシでHTTPS終端し、`ALLOWED_ORIGINS` に github.io を設定。
+
+---
+
+## 8. レート制限・クォータ・404の扱い
+
+- 無料枠 ≈ **4 req/分・500/日**（商用不可）。GTI/有料は上限が高い → web Settings の **rpm/concurrency** を調整。
+- 429 は `Retry-After` 優先＋指数バックオフ（UIに残り秒を表示）。リトライ超過は当該行 `rate_limited`。
+- VT未知のIOCは **404 = not_found**。**自動再提出はしません**（クォータ節約）。必要なら設定の「Submit never-analyzed」をON。
+- 401/403（キー不正）はバッチ全体を停止しエラー表示。
+- Node版は日次上限ガード（既定500、`VT_DAILY`）あり。
+
+---
+
+## 9. 一覧・詳細・エクスポート
+
+- 一覧列: インジケータ / 種別 / 判定(verdict) / 検出比(malicious+suspicious/total) / reputation / GTI / コンテキスト(国・ASN・レジストラ等) / VTリンク。
+- ヘッダクリックでソート、フィルタ入力、**Export CSV**。
+- 行クリックで詳細ドロワー（解析統計内訳、whois系、カテゴリ、タグ、GTI、ハッシュ、生VT属性、**Open in VirusTotal**）。
+- URLのVTリンクは GUI仕様の **SHA-256** を使用（API取得は base64 ID）。両方を内部で算出。
+
+---
+
+## 10. Secrets / 環境変数 早見表
+
+| 名前 | 置き場所 | 必須 | 説明 |
+|---|---|---|---|
+| `VT_API_KEY` | プロキシ(GitHub Secrets→Cloudflare / Nodeのenv) | ◎ | VirusTotal/GTIキー |
+| `ACCESS_TOKEN` | プロキシ + webのSettings | ○ | `/api/*` 共有トークン |
+| `ADMIN_TOKEN` | プロキシ + webのManage | ○ | `/api/admin/*` 書込トークン |
+| `ANTHROPIC_API_KEY` | プロキシ | △ | Claudeスマートパース |
+| `ALLOWED_ORIGINS` | プロキシ(wrangler.toml / env) | ○ | 許可オリジン(カンマ区切り) |
+| `VT_RPM` / `VT_MAX_RPM` / `VT_DAILY` | プロキシ | △ | レート/日次上限 |
+| `CLAUDE_MODEL` | プロキシ | △ | 既定 `claude-haiku-4-5` |
+| `CLOUDFLARE_API_TOKEN` / `CLOUDFLARE_ACCOUNT_ID` | GitHub Secrets | Cloudflare時 | Workerデプロイ |
+| `VITE_BASE` | Pagesワークフロー | ○ | `/<repo>/` |
+| `VITE_API_BASE_URL` | (任意)webビルド時 | × | 既定でLive化したい場合のみ |
+
+> web側のプロキシURL/トークンは基本 **アプリ内Settings**（localStorage保存）で持ちます。
+
+---
+
+## 11. トラブルシュート
+
+| 症状 | 原因/対処 |
+|---|---|
+| LIVEにしたのに結果が出ない | Settingsの「Proxy base URL」「Access token」を確認。`curl <proxy>/health`。 |
+| ブラウザのCORSエラー | プロキシの `ALLOWED_ORIGINS` に github.io オリジンと `http://localhost:5173` を追加。 |
+| `401 unauthorized` | webのAccess token と プロキシの `ACCESS_TOKEN` が一致しているか。 |
+| `VirusTotal auth error 401/403` | `VT_API_KEY` が未設定/不正。 |
+| 全部 not_found / demoのまま | proxyBaseUrl未設定＝Demo。Settingsで設定。 |
+| GTI項目が出ない | GTIキー＋Settingsの「Request GTI fields」ON。プロキシは `x-tool: vteeee` を送出済み。 |
+| Pagesが404/真っ白 | `VITE_BASE` がリポジトリ名と一致しているか（`/vteeee/`）。 |
+| 管理のPush/Pullが失敗 | `ADMIN_TOKEN` 一致とプロキシのKV設定を確認。 |
+
+---
+
+## 12. 開発コマンド / ファイル早見
+
+```bash
+pnpm dev          # webデモ
+pnpm proxy        # Nodeプロキシ(ローカル実データ)
+pnpm build        # webビルド（Pagesは VITE_BASE=/vteeee/）
+pnpm -r test      # 全テスト（shared/proxy-core/web）
+pnpm -r typecheck # 全型チェック
+```
+
+| 変更したい内容 | 触るファイル |
+|---|---|
+| defang/分類の精度 | `shared/src/defang.ts` / `classify.ts` / `extract.ts` |
+| VTの取得項目・正規化 | `shared/src/vt-normalize.ts` / `vt-links.ts` |
+| レート制御/ストリーミング | `proxy/shared-handler/src/enrich.ts` / `rateLimiter.ts` |
+| Claudeプロンプト/モデル | `proxy/shared-handler/src/parse.ts` |
+| デモのサンプル | `web/src/fixtures/samples.ts` |
+| 一覧/詳細UI | `web/src/components/*` |
+| 管理画面 | `web/src/admin/*` |
+| デプロイ | `.github/workflows/*` / `proxy/cloudflare/wrangler.toml` |
+
+---
+
+## 13. 既知の制限・未検証
+
+- 静的サイトのログイン/権限は突破可能（設計どおり）。実保護はプロキシのトークン＋CORS。
+- **実VTキーでの成功レスポンス**と**ブラウザでのUIクリック通し**は未検証（キー投入後 `pnpm dev`/LIVEで確認可能）。ロジックは45テストで検証済み。
+- Cloudflare Worker のレート/日次カウンタは isolate間で非共有（厳密運用はNode版）。
+- カンマ無害化IP(`1,1,1,1`)はCSV区切りと衝突するため非対応。雑多本文はSmart parse推奨。
