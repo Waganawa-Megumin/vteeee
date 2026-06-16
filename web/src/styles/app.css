@@ -1,10 +1,10 @@
 :root {
-  /* Chalkboard (default dark green) */
-  --bg: #1f2a24;
-  --bg2: #273429;
-  --bg3: #32443a;
-  --panel: #25322b;
-  --line: #44564a;
+  /* Chalkboard (default dark green) — lifted off near-black for an authentic slate-green look */
+  --bg: #243630;
+  --bg2: #2b3f37;
+  --bg3: #374d43;
+  --panel: #2a3f37;
+  --line: #45594e;
   --text: #eae7d7;
   --muted: #a6b3a4;
   --accent: #74d3b1;
@@ -47,7 +47,9 @@ body,
 }
 body {
   background-color: var(--bg);
-  background-image: radial-gradient(1200px 520px at 72% -8%, rgba(255, 255, 255, 0.05), transparent 60%);
+  background-image:
+    radial-gradient(1100px 480px at 72% -8%, rgba(255, 255, 255, 0.06), transparent 60%),
+    radial-gradient(820px 560px at 8% 112%, rgba(255, 255, 255, 0.035), transparent 55%);
   color: var(--text);
   font: 14.5px/1.55 system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif;
   transition: background-color 0.2s ease, color 0.2s ease;
@@ -262,7 +264,7 @@ textarea:focus {
 .layout {
   flex: 1;
   width: 100%;
-  max-width: 1500px;
+  max-width: 1840px;
   margin: 0 auto;
   display: grid;
   grid-template-columns: minmax(400px, 480px) 1fr;
