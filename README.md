@@ -163,9 +163,17 @@ CTIアナリスト向けの **IOC一括検索ツール** です。IP・ドメイ
 
 If vteeee saves you triage time, you can support development on **[Ko-fi](https://ko-fi.com/shonanboyeah)** ☕
 役に立ったら **[Ko-fi](https://ko-fi.com/shonanboyeah)**
-## License
+## License &amp; AI use
 
-**MIT** — see [LICENSE](./LICENSE). © 2026 Waganawa-Megumin.
+**Code: [MIT](./LICENSE).** © 2026 Waganawa-Megumin. You're welcome to read, run, fork and build on it — just keep the copyright notice.
+
+**Reserved: AI/LLM training &amp; text-and-data-mining (TDM).** Permissive reuse of the *code* is fine, but the author does **not** consent to this repository or the hosted site being ingested for AI/ML model training or TDM. It's declared in a machine-readable way (a legally meaningful opt-out under the EU TDM regime, and honoured by many crawlers):
+
+- [`web/public/robots.txt`](./web/public/robots.txt) — disallows GPTBot, Google-Extended, ClaudeBot / anthropic-ai, CCBot, PerplexityBot, Bytespider and other training crawlers.
+- `<meta name="robots" content="noai, noimageai">` + `<meta name="tdm-reservation" content="1">` on every page.
+- [`/.well-known/tdmrep.json`](./web/public/.well-known/tdmrep.json) — TDM Reservation Protocol opt-out.
+
+> **GitHub Pages note:** crawlers read `robots.txt` from the **domain root** (`https://<user>.github.io/robots.txt`), not from `/vteeee/`. For a site-wide block, copy the same rules into your root `*.github.io` repo's `robots.txt`. No license or signal can *physically* stop scraping of public content — these establish intent and (in the EU) a binding reservation.
 
 ---
 
