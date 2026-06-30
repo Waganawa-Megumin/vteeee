@@ -30,6 +30,8 @@ export const FIXTURES: Fixture[] = [
       regional_internet_registry: 'APNIC',
       tags: [],
       last_analysis_date: now - 2 * day,
+      last_modification_date: now - 1 * day,
+      whois_date: now - 40 * day,
     },
     shodan: {
       found: true,
@@ -64,6 +66,8 @@ export const FIXTURES: Fixture[] = [
       regional_internet_registry: 'RIPE NCC',
       tags: ['tor', 'malicious'],
       last_analysis_date: now - 1 * day,
+      last_modification_date: now - 1 * day,
+      whois_date: now - 12 * day,
       gti_assessment: {
         verdict: { value: 'VERDICT_MALICIOUS' },
         severity: { value: 'SEVERITY_HIGH' },
@@ -115,10 +119,13 @@ export const FIXTURES: Fixture[] = [
       total_votes: { harmless: 540, malicious: 12 },
       registrar: 'MarkMonitor Inc.',
       creation_date: 874296000,
+      expiration_date: now + 300 * day,
+      last_dns_records_date: now - 1 * day,
       categories: { Forcepoint: 'search engines and portals', BitDefender: 'searchengines' },
       popularity_ranks: { Majestic: { rank: 1 }, 'Cisco Umbrella': { rank: 1 } },
       tags: [],
       last_analysis_date: now - 3 * day,
+      last_modification_date: now - 1 * day,
     },
   },
   {
@@ -131,9 +138,12 @@ export const FIXTURES: Fixture[] = [
       total_votes: { harmless: 0, malicious: 14 },
       registrar: 'NameCheap, Inc.',
       creation_date: now - 20 * day,
+      expiration_date: now + 345 * day,
+      last_dns_records_date: now - 1 * day,
       categories: { BitDefender: 'phishing', 'Forcepoint ThreatSeeker': 'malicious websites' },
       tags: ['phishing'],
       last_analysis_date: now - 1 * day,
+      last_modification_date: now - 1 * day,
       gti_assessment: {
         verdict: { value: 'VERDICT_MALICIOUS' },
         severity: { value: 'SEVERITY_MEDIUM' },
@@ -228,6 +238,7 @@ export const FIXTURES: Fixture[] = [
       first_submission_date: now - 3400 * day,
       last_submission_date: now - 1 * day,
       times_submitted: 1840277,
+      last_modification_date: now - 1 * day,
       gti_assessment: {
         verdict: { value: 'VERDICT_MALICIOUS' },
         severity: { value: 'SEVERITY_LOW' },

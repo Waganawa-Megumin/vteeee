@@ -24,6 +24,7 @@ export function resultsToCsv(results: NormalizedResult[]): string {
     'first_seen',
     'last_seen',
     'times_submitted',
+    'last_modified',
     'vt_link',
   ];
   const rows = results.map((r) => [
@@ -43,6 +44,7 @@ export function resultsToCsv(results: NormalizedResult[]): string {
     r.firstSeen ?? '',
     r.lastSeen ?? '',
     r.timesSubmitted ?? '',
+    r.lastModified ?? '',
     r.links.gui,
   ]);
   return [header, ...rows].map((row) => row.map(cell).join(',')).join('\n');

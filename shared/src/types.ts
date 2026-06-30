@@ -123,6 +123,8 @@ export interface NormalizedResult {
   lastSeen: string | null;
   /** VT `times_submitted` — how many times this file/URL was submitted to VT. */
   timesSubmitted: number | null;
+  /** VT `last_modification_date` — when VT last modified this record (all types). */
+  lastModified: string | null;
   tags: string[];
 
   gti?: GtiAssessment;
@@ -130,12 +132,24 @@ export interface NormalizedResult {
   /** Shodan OSINT context (IP indicators only; present in live mode when a Shodan key is configured). */
   shodan?: ShodanContext;
 
-  ip?: { country?: string; asn?: number; asOwner?: string; network?: string; rir?: string };
+  ip?: {
+    country?: string;
+    asn?: number;
+    asOwner?: string;
+    network?: string;
+    rir?: string;
+    /** VT `whois_date` — when VT last fetched the WHOIS record. */
+    whoisDate?: string;
+  };
   domain?: {
     registrar?: string;
     creationDate?: string;
     categories?: Record<string, string>;
     popularityRanks?: Record<string, { rank: number }>;
+    /** VT `last_dns_records_date` — when VT last retrieved the DNS records. */
+    lastDnsRecordsDate?: string;
+    /** VT `expiration_date` — domain registration expiry (WHOIS). */
+    expiration?: string;
   };
   url?: { finalUrl?: string; title?: string; httpResponseCode?: number; categories?: Record<string, string> };
   file?: {

@@ -89,6 +89,7 @@ export function normalizeVt(inp: NormalizeInput): NormalizedResult {
     firstSeen: null,
     lastSeen: null,
     timesSubmitted: null,
+    lastModified: null,
     tags: [],
     links,
   };
@@ -113,6 +114,7 @@ export function normalizeVt(inp: NormalizeInput): NormalizedResult {
     firstSeen: isoDate(attr.first_submission_date),
     lastSeen: isoDate(attr.last_submission_date),
     timesSubmitted: typeof attr.times_submitted === 'number' ? attr.times_submitted : null,
+    lastModified: isoDate(attr.last_modification_date),
     tags: Array.isArray(attr.tags) ? attr.tags : [],
     gti,
     raw: inp.includeRaw ? attr : undefined,
@@ -125,6 +127,7 @@ export function normalizeVt(inp: NormalizeInput): NormalizedResult {
       asOwner: attr.as_owner,
       network: attr.network,
       rir: attr.regional_internet_registry,
+      whoisDate: isoDate(attr.whois_date) ?? undefined,
     };
   } else if (type === 'domain') {
     result.domain = {
@@ -132,6 +135,8 @@ export function normalizeVt(inp: NormalizeInput): NormalizedResult {
       creationDate: isoDate(attr.creation_date) ?? undefined,
       categories: attr.categories,
       popularityRanks: attr.popularity_ranks,
+      lastDnsRecordsDate: isoDate(attr.last_dns_records_date) ?? undefined,
+      expiration: isoDate(attr.expiration_date) ?? undefined,
     };
   } else if (type === 'url') {
     result.url = {

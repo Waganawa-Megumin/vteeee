@@ -150,6 +150,7 @@ export function DetailPanel() {
           )}
           {r.firstSeen && <Field k="First seen" v={new Date(r.firstSeen).toLocaleString()} />}
           {r.lastSeen && <Field k="Last seen" v={new Date(r.lastSeen).toLocaleString()} />}
+          {r.lastModified && <Field k="Last modified (VT)" v={new Date(r.lastModified).toLocaleString()} />}
           {r.timesSubmitted != null && <Field k="Times submitted" v={r.timesSubmitted.toLocaleString()} />}
           {r.gti && (
             <Field
@@ -167,6 +168,10 @@ export function DetailPanel() {
               <Field k="AS owner" v={r.ip.asOwner} />
               <Field k="Network" v={r.ip.network} mono />
               <Field k="RIR" v={r.ip.rir} />
+              <Field
+                k="WHOIS date"
+                v={r.ip.whoisDate ? new Date(r.ip.whoisDate).toLocaleDateString() : undefined}
+              />
             </>
           )}
           {r.domain && (
@@ -175,6 +180,18 @@ export function DetailPanel() {
               <Field
                 k="Created"
                 v={r.domain.creationDate ? new Date(r.domain.creationDate).toLocaleDateString() : undefined}
+              />
+              <Field
+                k="Expires"
+                v={r.domain.expiration ? new Date(r.domain.expiration).toLocaleDateString() : undefined}
+              />
+              <Field
+                k="Last DNS records"
+                v={
+                  r.domain.lastDnsRecordsDate
+                    ? new Date(r.domain.lastDnsRecordsDate).toLocaleDateString()
+                    : undefined
+                }
               />
               <Field
                 k="Categories"

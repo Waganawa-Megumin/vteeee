@@ -40,6 +40,7 @@ function res(verdict: Verdict): NormalizedResult {
     firstSeen: null,
     lastSeen: null,
     timesSubmitted: null,
+    lastModified: null,
     tags: [],
     links: { gui: '' },
   };

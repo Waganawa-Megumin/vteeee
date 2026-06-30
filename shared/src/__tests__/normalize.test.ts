@@ -43,6 +43,8 @@ describe('normalizeVt', () => {
           asn: 12345,
           as_owner: 'Example AS',
           tags: ['tor'],
+          last_modification_date: 1717200000,
+          whois_date: 1700000000,
           gti_assessment: {
             verdict: { value: 'VERDICT_MALICIOUS' },
             severity: { value: 'SEVERITY_HIGH' },
@@ -56,10 +58,12 @@ describe('normalizeVt', () => {
     expect(r.reputation).toBe(-40);
     expect(r.ip).toMatchObject({ country: 'DE', asn: 12345, asOwner: 'Example AS' });
     expect(r.gti).toMatchObject({ verdict: 'VERDICT_MALICIOUS', severity: 'SEVERITY_HIGH', threatScore: 88 });
-    // VT has no first/last submission for IPs.
+    // VT has no first/last submission for IPs, but last_modification_date / whois_date do exist.
     expect(r.firstSeen).toBeNull();
     expect(r.lastSeen).toBeNull();
     expect(r.timesSubmitted).toBeNull();
+    expect(r.lastModified).toBe(new Date(1717200000 * 1000).toISOString());
+    expect(r.ip?.whoisDate).toBe(new Date(1700000000 * 1000).toISOString());
   });
 
   it('maps first/last seen + times submitted for files and URLs', () => {
