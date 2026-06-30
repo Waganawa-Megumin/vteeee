@@ -23,8 +23,12 @@ HISTORY_DAYS = "30"
 binding = "VTEEEE_KV"
 id = "64fde3553d4b4272a3afa346945a0ce0"
 
+# Optional: cap Shodan host lookups per minute (free plan ≈ 1/s → 60).
+# SHODAN_RPM = "60"
+
 # Secrets are NOT stored here. Set them with:
 #   wrangler secret put VT_API_KEY
 #   wrangler secret put ANTHROPIC_API_KEY   # optional (Claude smart-parse)
+#   wrangler secret put SHODAN_API_KEY      # optional (Shodan OSINT on IP rows)
 #   wrangler secret put ACCESS_TOKEN        # required on /api/*
 #   wrangler secret put ADMIN_TOKEN         # required on /api/admin/*

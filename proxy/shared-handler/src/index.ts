@@ -1,6 +1,7 @@
 export * from './types';
 export { runEnrich, ndjson } from './enrich';
 export { vtLookup, type VtLookup } from './vtFetch';
+export { shodanHostLookup, mapShodanHost } from './shodanFetch';
 export { smartParse } from './parse';
 export { RateLimiter } from './rateLimiter';
 export { AsyncQueue, sleep, clamp, backoffMs } from './util';

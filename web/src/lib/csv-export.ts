@@ -18,6 +18,8 @@ export function resultsToCsv(results: NormalizedResult[]): string {
     'gti_severity',
     'country_or_registrar',
     'asn_or_categories',
+    'shodan_ports',
+    'shodan_vulns',
     'last_analysis',
     'vt_link',
   ];
@@ -32,6 +34,8 @@ export function resultsToCsv(results: NormalizedResult[]): string {
     r.gti?.severity ?? '',
     r.ip?.country ?? r.domain?.registrar ?? '',
     r.ip?.asOwner ?? (r.domain?.categories ? Object.values(r.domain.categories).join('|') : ''),
+    r.shodan?.found ? (r.shodan.ports?.join('|') ?? '') : '',
+    r.shodan?.found ? (r.shodan.vulns?.join('|') ?? '') : '',
     r.lastAnalysisDate ?? '',
     r.links.gui,
   ]);

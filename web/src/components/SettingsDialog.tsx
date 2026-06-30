@@ -112,6 +112,16 @@ export function SettingsDialog({ onClose }: { onClose: () => void }) {
             />
           </label>
 
+          <p className="hint shodan-hint">
+            <strong>🛰 Shodan OSINT</strong>
+            <InfoTip
+              ja="プロキシに SHODAN_API_KEY を登録すると、IP の行に開放ポート・稼働サービス・既知の脆弱性(CVE)が自動で付与されます。キーはサーバー側（プロキシ）にのみ保持され、ブラウザには出ません。ここでの追加設定は不要です。"
+              en="Set SHODAN_API_KEY on your proxy and IP rows are automatically enriched with open ports, running services and known CVEs. The key stays on the proxy (never in the browser). No extra setup here."
+            />{' '}
+            — set <code>SHODAN_API_KEY</code> on your proxy and IP rows gain open ports, services and
+            known CVEs automatically. The key stays server-side.
+          </p>
+
           <label className="fld">
             <span className="fld-label">
               Search history (days)

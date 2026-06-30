@@ -23,11 +23,13 @@ import type { AppSettings, EnrichRequest, UserRecord } from '@vteeee/shared';
 interface Env {
   VT_API_KEY: string;
   ANTHROPIC_API_KEY?: string;
+  SHODAN_API_KEY?: string;
   ACCESS_TOKEN?: string;
   ADMIN_TOKEN?: string;
   ALLOWED_ORIGINS?: string;
   VT_RPM?: string;
   VT_MAX_RPM?: string;
+  SHODAN_RPM?: string;
   CLAUDE_MODEL?: string;
   MAX_BATCH?: string;
   VT_DAILY?: string;
@@ -48,11 +50,13 @@ function build(env: Env): { proxy: ProxyEnv; allowed: string[]; store: Storage }
   const proxy: ProxyEnv = {
     vtApiKey: env.VT_API_KEY,
     anthropicApiKey: env.ANTHROPIC_API_KEY,
+    shodanApiKey: env.SHODAN_API_KEY,
     accessToken: env.ACCESS_TOKEN,
     adminToken: env.ADMIN_TOKEN,
     allowedOrigins: allowed,
     defaultRpm: Number(env.VT_RPM ?? 4),
     maxRpm: Number(env.VT_MAX_RPM ?? 1000),
+    shodanRpm: env.SHODAN_RPM ? Number(env.SHODAN_RPM) : undefined,
     claudeModel: env.CLAUDE_MODEL,
     xTool: 'vteeee',
     maxBatch: Number(env.MAX_BATCH ?? 1000),
@@ -78,7 +82,13 @@ export default {
     if (request.method === 'OPTIONS') return new Response(null, { status: 204, headers: cors });
 
     try {
-      if (url.pathname === '/health') return json({ ok: true, vtKey: Boolean(proxy.vtApiKey) });
+      if (url.pathname === '/health')
+        return json({
+          ok: true,
+          vtKey: Boolean(proxy.vtApiKey),
+          claude: Boolean(proxy.anthropicApiKey),
+          shodan: Boolean(proxy.shodanApiKey),
+        });
 
       if (url.pathname === '/api/enrich' && request.method === 'POST') {
         if (origin && !originAllowed(origin, allowed)) return json({ error: 'origin not allowed' }, 403);

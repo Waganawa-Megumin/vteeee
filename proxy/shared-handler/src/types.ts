@@ -2,6 +2,10 @@
 export interface ProxyEnv {
   vtApiKey: string;
   anthropicApiKey?: string;
+  /** Shodan API key. When set, IP indicators are enriched with Shodan OSINT context. */
+  shodanApiKey?: string;
+  /** Per-minute cap on Shodan host lookups (free plan ≈ 1/s). Default 60. */
+  shodanRpm?: number;
   /** Shared token required on /api/* (enrich, parse). */
   accessToken?: string;
   /** Token required to write users/settings via /api/admin/*. */

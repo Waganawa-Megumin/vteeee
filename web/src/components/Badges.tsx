@@ -25,3 +25,26 @@ export function GtiBadge({ r }: { r: NormalizedResult }) {
   const parts = [v, sev, r.gti.threatScore != null ? String(r.gti.threatScore) : null].filter(Boolean);
   return <span className="badge gti" title="Google Threat Intelligence assessment">GTI {parts.join(' · ')}</span>;
 }
+
+/** Compact Shodan summary for the results table: open-port count + CVE count. */
+export function ShodanChips({ r }: { r: NormalizedResult }) {
+  const s = r.shodan;
+  if (!s?.found) return null;
+  const portCount = s.ports?.length ?? 0;
+  const vulnCount = s.vulns?.length ?? 0;
+  if (!portCount && !vulnCount) return null;
+  return (
+    <span className="shodan-chips">
+      {portCount > 0 && (
+        <span className="chip shodan" title={`Shodan open ports: ${s.ports!.join(', ')}`}>
+          ⚓ {portCount} {portCount === 1 ? 'port' : 'ports'}
+        </span>
+      )}
+      {vulnCount > 0 && (
+        <span className="chip shodan-vuln" title={`Shodan CVEs: ${s.vulns!.join(', ')}`}>
+          ⚠ {vulnCount} CVE
+        </span>
+      )}
+    </span>
+  );
+}

@@ -1,4 +1,4 @@
-import type { IocType, ResultStatus } from '@vteeee/shared';
+import type { IocType, ResultStatus, ShodanContext } from '@vteeee/shared';
 
 export interface Fixture {
   value: string;
@@ -6,6 +6,8 @@ export interface Fixture {
   status: ResultStatus;
   /** VT-style `data.attributes` (omitted for not_found). */
   attributes?: Record<string, unknown>;
+  /** Sample Shodan OSINT context (IPs), so the demo previews the live enrichment. */
+  shodan?: ShodanContext;
 }
 
 const day = 86400;
@@ -29,6 +31,23 @@ export const FIXTURES: Fixture[] = [
       tags: [],
       last_analysis_date: now - 2 * day,
     },
+    shodan: {
+      found: true,
+      org: 'Cloudflare, Inc.',
+      isp: 'Cloudflare, Inc.',
+      country: 'Australia',
+      city: 'Sydney',
+      asn: 'AS13335',
+      hostnames: ['one.one.one.one'],
+      ports: [53, 80, 443],
+      tags: ['cdn'],
+      services: [
+        { port: 53, transport: 'udp', module: 'dns', product: 'Cloudflare DNS' },
+        { port: 80, transport: 'tcp', module: 'http', product: 'cloudflare' },
+        { port: 443, transport: 'tcp', module: 'https', product: 'cloudflare' },
+      ],
+      lastUpdate: new Date((now - 1 * day) * 1000).toISOString(),
+    },
   },
   {
     value: '185.220.101.1',
@@ -50,6 +69,23 @@ export const FIXTURES: Fixture[] = [
         severity: { value: 'SEVERITY_HIGH' },
         threat_score: { value: 85 },
       },
+    },
+    shodan: {
+      found: true,
+      org: 'Zwiebelfreunde e.V.',
+      isp: 'Zwiebelfreunde e.V.',
+      country: 'Germany',
+      city: 'Frankfurt',
+      asn: 'AS60729',
+      ports: [22, 80, 9001, 9030],
+      tags: ['tor', 'self-signed'],
+      vulns: ['CVE-2023-38408', 'CVE-2016-20012'],
+      services: [
+        { port: 22, transport: 'tcp', module: 'ssh', product: 'OpenSSH', version: '8.4p1' },
+        { port: 9001, transport: 'tcp', module: 'tor', product: 'Tor OR' },
+        { port: 9030, transport: 'tcp', module: 'http', product: 'Tor directory' },
+      ],
+      lastUpdate: new Date((now - 2 * day) * 1000).toISOString(),
     },
   },
   {

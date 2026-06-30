@@ -1,3 +1,4 @@
+import type { ShodanContext, ShodanService } from '@vteeee/shared';
 import { useStore } from '../state/store';
 import { GtiBadge, VerdictBadge } from './Badges';
 import { detectionRatio } from '../lib/verdict';
@@ -8,6 +9,97 @@ function Field({ k, v, mono }: { k: string; v?: string; mono?: boolean }) {
     <div className="field">
       <div className="fk">{k}</div>
       <div className={`fv${mono ? ' mono' : ''}`}>{v}</div>
+    </div>
+  );
+}
+
+function serviceLabel(s: ShodanService): string {
+  return [s.port, s.product ?? s.module, s.version].filter(Boolean).join(' ');
+}
+
+/** Shodan OSINT block (IPs). Renders the host's ports, services, known CVEs and tags. */
+function ShodanSection({ s, ip }: { s: ShodanContext; ip: string }) {
+  return (
+    <div className="shodan-block">
+      <div className="shodan-head">
+        <span className="shodan-logo" aria-hidden>
+          🛰
+        </span>
+        Shodan · OSINT
+        {s.found && s.lastUpdate && (
+          <span className="shodan-when">seen {new Date(s.lastUpdate).toLocaleDateString()}</span>
+        )}
+      </div>
+
+      {!s.found ? (
+        <div className="detail-note">{s.error ?? 'No Shodan record for this host.'}</div>
+      ) : (
+        <div className="detail-grid">
+          <Field k="Org" v={s.org} />
+          <Field k="ISP" v={s.isp && s.isp !== s.org ? s.isp : undefined} />
+          <Field k="OS" v={s.os} />
+          <Field k="Location" v={[s.city, s.country].filter(Boolean).join(', ') || undefined} />
+          <Field k="ASN" v={s.asn} />
+          {s.ports && s.ports.length > 0 && <Field k="Open ports" v={s.ports.join(', ')} mono />}
+          {s.services && s.services.length > 0 && (
+            <div className="field">
+              <div className="fk">Services</div>
+              <div className="fv chips">
+                {s.services.map((svc, i) => (
+                  <span key={`${svc.port}-${i}`} className="chip shodan mono">
+                    {serviceLabel(svc)}
+                  </span>
+                ))}
+              </div>
+            </div>
+          )}
+          {s.vulns && s.vulns.length > 0 && (
+            <div className="field">
+              <div className="fk">Vulnerabilities</div>
+              <div className="fv chips">
+                {s.vulns.map((cve) => (
+                  <a
+                    key={cve}
+                    className="chip shodan-vuln mono"
+                    href={`https://nvd.nist.gov/vuln/detail/${cve}`}
+                    target="_blank"
+                    rel="noreferrer"
+                    title="Open in NVD"
+                  >
+                    {cve}
+                  </a>
+                ))}
+              </div>
+            </div>
+          )}
+          {s.hostnames && s.hostnames.length > 0 && (
+            <Field k="Hostnames" v={s.hostnames.join(', ')} mono />
+          )}
+          {s.tags && s.tags.length > 0 && (
+            <div className="field">
+              <div className="fk">Shodan tags</div>
+              <div className="fv chips">
+                {s.tags.map((t) => (
+                  <span key={t} className="chip">
+                    {t}
+                  </span>
+                ))}
+              </div>
+            </div>
+          )}
+        </div>
+      )}
+
+      {s.found && (
+        <a
+          className="btn btn-ghost shodan-link"
+          href={`https://www.shodan.io/host/${encodeURIComponent(ip)}`}
+          target="_blank"
+          rel="noreferrer"
+        >
+          Open in Shodan ↗
+        </a>
+      )}
     </div>
   );
 }
@@ -114,6 +206,8 @@ export function DetailPanel() {
           {r.tags.length > 0 && <Field k="Tags" v={r.tags.join(', ')} />}
           {r.links.apiId && <Field k="VT URL id (base64)" v={r.links.apiId} mono />}
         </div>
+
+        {r.shodan && <ShodanSection s={r.shodan} ip={r.value} />}
 
         <a className="btn btn-primary detail-vt" href={r.links.gui} target="_blank" rel="noreferrer">
           Open in VirusTotal ↗

@@ -5,14 +5,17 @@ import {
   type EnrichRequest,
   type NormalizedResult,
   type ResultStatus,
+  type ShodanContext,
 } from '@vteeee/shared';
 import { FatalError, RateLimitError, type ProxyEnv } from './types';
 import { RateLimiter } from './rateLimiter';
 import { vtLookup } from './vtFetch';
+import { shodanHostLookup } from './shodanFetch';
 import { AsyncQueue, backoffMs, clamp, sleep } from './util';
 
 const MAX_RL_RETRIES = 3;
 const MAX_TRANSIENT_RETRIES = 2;
+const DEFAULT_SHODAN_RPM = 60;
 
 interface LookupOutcome {
   status: ResultStatus;
@@ -30,6 +33,10 @@ export async function* runEnrich(
   const concurrency = clamp(req.options?.concurrency ?? 1, 1, 20);
   const includeRaw = req.options?.includeRaw ?? true;
   const limiter = new RateLimiter(rpm);
+  // Shodan has its own quota/rate budget, so it runs under a separate limiter.
+  const shodanLimiter = env.shodanApiKey
+    ? new RateLimiter(clamp(env.shodanRpm ?? DEFAULT_SHODAN_RPM, 1, 600))
+    : null;
   const queue = new AsyncQueue<EnrichEvent>();
   const tasks = [...req.indicators];
   const total = tasks.length;
@@ -73,6 +80,18 @@ export async function* runEnrich(
     }
   }
 
+  /** Supplementary OSINT for IPs. Never throws; failures surface as an error note on the row. */
+  async function enrichShodan(value: string): Promise<ShodanContext | undefined> {
+    if (!shodanLimiter) return undefined;
+    try {
+      await shodanLimiter.acquire(signal);
+      return await shodanHostLookup(value, env, signal);
+    } catch (e) {
+      if ((e as Error).name === 'AbortError') return undefined;
+      return { found: false, error: (e as Error).message };
+    }
+  }
+
   async function worker(): Promise<void> {
     while (tasks.length && !fatal) {
       if (signal?.aborted) return;
@@ -92,6 +111,9 @@ export async function* runEnrich(
           includeRaw,
           errorMessage: outcome.errorMessage,
         });
+        if (shodanLimiter && (ind.type === 'ipv4' || ind.type === 'ipv6')) {
+          result.shodan = await enrichShodan(ind.value);
+        }
         queue.push({ event: 'result', result });
       } catch (e) {
         if (e instanceof FatalError) {

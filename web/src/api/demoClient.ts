@@ -37,6 +37,7 @@ export class DemoClient implements EnrichClient {
           links,
           includeRaw: true,
         });
+        if (fx.shodan) result.shodan = fx.shodan;
       } else {
         result = normalizeVt({
           input: ind.input,

@@ -1,7 +1,7 @@
 import { useMemo, useState } from 'react';
 import type { NormalizedResult } from '@vteeee/shared';
 import { useStore } from '../state/store';
-import { GtiBadge, VerdictBadge } from './Badges';
+import { GtiBadge, ShodanChips, VerdictBadge } from './Badges';
 import { detectionRatio, verdictRank } from '../lib/verdict';
 import { downloadCsv, resultsToCsv } from '../lib/csv-export';
 
@@ -133,7 +133,10 @@ export function ResultsTable() {
                 <td>
                   <GtiBadge r={r} />
                 </td>
-                <td className="context">{contextCell(r)}</td>
+                <td className="context">
+                  {contextCell(r)}
+                  <ShodanChips r={r} />
+                </td>
                 <td onClick={(e) => e.stopPropagation()}>
                   <a className="vt-link" href={r.links.gui} target="_blank" rel="noreferrer" title="Open in VirusTotal">
                     ↗

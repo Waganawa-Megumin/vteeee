@@ -39,11 +39,13 @@ const allowedOrigins = (process.env.ALLOWED_ORIGINS ?? 'http://localhost:5173')
 const env: ProxyEnv = {
   vtApiKey: process.env.VT_API_KEY ?? '',
   anthropicApiKey: process.env.ANTHROPIC_API_KEY || undefined,
+  shodanApiKey: process.env.SHODAN_API_KEY || undefined,
   accessToken: process.env.ACCESS_TOKEN || undefined,
   adminToken: process.env.ADMIN_TOKEN || undefined,
   allowedOrigins,
   defaultRpm: Number(process.env.VT_RPM ?? 4),
   maxRpm: Number(process.env.VT_MAX_RPM ?? 1000),
+  shodanRpm: process.env.SHODAN_RPM ? Number(process.env.SHODAN_RPM) : undefined,
   claudeModel: process.env.CLAUDE_MODEL || undefined,
   xTool: process.env.VT_X_TOOL ?? 'vteeee',
   maxBatch: Number(process.env.MAX_BATCH ?? 1000),
@@ -101,7 +103,12 @@ function requireAdmin(req: Request, res: Response): boolean {
 }
 
 app.get('/health', (_req, res) => {
-  res.json({ ok: true, vtKey: Boolean(env.vtApiKey), claude: Boolean(env.anthropicApiKey) });
+  res.json({
+    ok: true,
+    vtKey: Boolean(env.vtApiKey),
+    claude: Boolean(env.anthropicApiKey),
+    shodan: Boolean(env.shodanApiKey),
+  });
 });
 
 app.post('/api/enrich', async (req, res) => {
@@ -200,5 +207,5 @@ app.all('/api/history/:id', (req, res) => void handleHistory(req, res, req.param
 app.listen(PORT, () => {
   console.log(`vteeee proxy listening on :${PORT}`);
   console.log(`  allowed origins: ${allowedOrigins.join(', ')}`);
-  console.log(`  VT key: ${env.vtApiKey ? 'set' : 'MISSING'} · Claude: ${env.anthropicApiKey ? 'set' : 'off (regex fallback)'}`);
+  console.log(`  VT key: ${env.vtApiKey ? 'set' : 'MISSING'} · Claude: ${env.anthropicApiKey ? 'set' : 'off (regex fallback)'} · Shodan: ${env.shodanApiKey ? 'set' : 'off'}`);
 });

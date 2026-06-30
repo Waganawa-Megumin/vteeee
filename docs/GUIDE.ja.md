@@ -36,6 +36,7 @@
 | `ACCESS_TOKEN` | 推奨 | `/api/*` 保護。webのSettingsに同じ値を入れて送信 | proxy-deploy |
 | `ADMIN_TOKEN` | 推奨 | `/api/admin/*`(ユーザー/設定の書込)保護 | proxy-deploy |
 | `ANTHROPIC_API_KEY` | 任意 | Claudeスマートパース(無ければ正規表現にフォールバック) | proxy-deploy |
+| `SHODAN_API_KEY` | 任意 | **Shodan OSINT**。IP行に開放ポート/サービス/CVE等を自動付与(無ければ付与なし) | proxy-deploy |
 | `CLOUDFLARE_API_TOKEN` | Cloudflare使用時のみ | Worker デプロイ認証 | proxy-deploy |
 | `CLOUDFLARE_ACCOUNT_ID` | Cloudflare使用時のみ | Cloudflare アカウントID | proxy-deploy |
 
@@ -167,6 +168,7 @@ pnpm exec wrangler kv namespace create VTEEEE_KV
   printf '%s' "<VTキー>" | pnpm exec wrangler secret put VT_API_KEY
   printf '%s' "<ACCESS>" | pnpm exec wrangler secret put ACCESS_TOKEN
   printf '%s' "<ADMIN>"  | pnpm exec wrangler secret put ADMIN_TOKEN
+  printf '%s' "<Shodanキー>" | pnpm exec wrangler secret put SHODAN_API_KEY  # 任意: IPにOSINT付与
   ```
 - 注意: Workerのレート制限カウンタはisolate間で共有されません。厳密な全体ペースが要るなら Node版を推奨。
 
@@ -204,8 +206,10 @@ pnpm exec wrangler kv namespace create VTEEEE_KV
 | `ACCESS_TOKEN` | プロキシ + webのSettings | ○ | `/api/*` 共有トークン |
 | `ADMIN_TOKEN` | プロキシ + webのManage | ○ | `/api/admin/*` 書込トークン |
 | `ANTHROPIC_API_KEY` | プロキシ | △ | Claudeスマートパース |
+| `SHODAN_API_KEY` | プロキシ | △ | Shodan OSINT(IPに開放ポート/サービス/CVE付与) |
 | `ALLOWED_ORIGINS` | プロキシ(wrangler.toml / env) | ○ | 許可オリジン(カンマ区切り) |
 | `VT_RPM` / `VT_MAX_RPM` / `VT_DAILY` | プロキシ | △ | レート/日次上限 |
+| `SHODAN_RPM` | プロキシ | △ | Shodan検索の毎分上限(既定60≒1/秒) |
 | `CLAUDE_MODEL` | プロキシ | △ | 既定 `claude-haiku-4-5` |
 | `CLOUDFLARE_API_TOKEN` / `CLOUDFLARE_ACCOUNT_ID` | GitHub Secrets | Cloudflare時 | Workerデプロイ |
 | `VITE_BASE` | Pagesワークフロー | ○ | `/<repo>/` |

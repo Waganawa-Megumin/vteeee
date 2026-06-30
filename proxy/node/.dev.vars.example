@@ -2,6 +2,10 @@
 VT_API_KEY=
 # Optional — enables Claude smart-parse (falls back to regex if unset):
 ANTHROPIC_API_KEY=
+# Optional — enables Shodan OSINT context on IP rows (ports / services / CVEs):
+SHODAN_API_KEY=
+# Optional — per-minute cap on Shodan host lookups (free plan ≈ 1/s → 60):
+# SHODAN_RPM=60
 # Shared token required on /api/* (set the same value in the web Settings dialog):
 ACCESS_TOKEN=
 # Token required to write users/settings via /api/admin/* :

@@ -65,6 +65,45 @@ export interface GtiAssessment {
   threatScore: number | null;
 }
 
+/** A single open service Shodan observed on the host. */
+export interface ShodanService {
+  port: number;
+  /** 'tcp' | 'udp' */
+  transport?: string;
+  /** Detected product, e.g. 'nginx', 'OpenSSH'. */
+  product?: string;
+  version?: string;
+  /** Shodan module / protocol, e.g. 'http', 'ssh'. */
+  module?: string;
+}
+
+/**
+ * Shodan host OSINT context (IP indicators only). `found: false` means the host
+ * is not in Shodan's dataset, or the lookup was unavailable (see `error`).
+ */
+export interface ShodanContext {
+  found: boolean;
+  org?: string;
+  isp?: string;
+  os?: string;
+  country?: string;
+  city?: string;
+  /** e.g. 'AS13335'. */
+  asn?: string;
+  hostnames?: string[];
+  /** Open ports, ascending. */
+  ports?: number[];
+  /** Shodan tags, e.g. 'cdn', 'tor', 'self-signed'. */
+  tags?: string[];
+  /** Known CVEs across all services, e.g. ['CVE-2021-44228']. */
+  vulns?: string[];
+  services?: ShodanService[];
+  /** ISO date Shodan last saw the host. */
+  lastUpdate?: string;
+  /** Set when the lookup itself failed (bad key / rate-limited / network). */
+  error?: string;
+}
+
 /** The single shape the results table & detail panel consume, for all IOC types. */
 export interface NormalizedResult {
   input: string;
@@ -81,6 +120,9 @@ export interface NormalizedResult {
   tags: string[];
 
   gti?: GtiAssessment;
+
+  /** Shodan OSINT context (IP indicators only; present in live mode when a Shodan key is configured). */
+  shodan?: ShodanContext;
 
   ip?: { country?: string; asn?: number; asOwner?: string; network?: string; rir?: string };
   domain?: {

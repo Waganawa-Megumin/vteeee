@@ -9,6 +9,7 @@
   <img alt="React + Vite" src="https://img.shields.io/badge/React-Vite-61dafb?style=flat&labelColor=1f2a24" />
   <img alt="Cloudflare Workers" src="https://img.shields.io/badge/proxy-Cloudflare%20Workers-f38020?style=flat&labelColor=1f2a24" />
   <img alt="VirusTotal / GTI" src="https://img.shields.io/badge/enrichment-VirusTotal%20%2F%20GTI-394eff?style=flat&labelColor=1f2a24" />
+  <img alt="Shodan OSINT" src="https://img.shields.io/badge/OSINT-Shodan-c4302b?style=flat&labelColor=1f2a24" />
   <a href="LICENSE"><img alt="License: MIT" src="https://img.shields.io/badge/license-MIT-74d3b1?style=flat&labelColor=1f2a24" /></a>
   <a href="https://ko-fi.com/shonanboyeah"><img alt="Ko-fi" src="https://img.shields.io/badge/Ko--fi-support-ff5e5b?style=flat&logo=ko-fi&logoColor=white&labelColor=1f2a24" /></a>
 </p>
@@ -36,6 +37,7 @@ sortable table with per-row detail and one-click deep links back to virustotal.c
 | **Indicators** | IPv4 · IPv6 · domain · URL · MD5 · SHA-1 · SHA-256 |
 | **De-obfuscation** | `[.] (.) [dot] (dot) \.` · `hxxp/hxxps/fxp` · `[://] [:]` · `[@] (at)` · quotes/markdown/trailing punctuation |
 | **Enrichment** | detection ratio · reputation · GTI verdict/severity · ASN/country · registrar/categories · threat label · tags |
+| **OSINT (IPs)** | **Shodan** — open ports · running services · known CVEs · org/ISP/OS · hostnames · tags *(set `SHODAN_API_KEY` on the proxy)* |
 | **Safety** | dedupes; flags & excludes RFC1918 / reserved IPs; never auto-submits unknowns (saves quota) |
 | **Modes** | **Demo** (static, sample data) · **Live** (real lookups via a key-holding proxy) |
 
@@ -54,6 +56,7 @@ single step, while keeping the API key off the browser entirely.
 - **Streaming results** — NDJSON over the wire, so rows appear as they resolve (vital on the free tier's 4 req/min).
 - **Analyst-first table** — sort by verdict/detections/reputation, filter, open a detail drawer, export CSV, jump to VirusTotal.
 - **GTI-aware** — surfaces `gti_assessment` verdict/severity/threat-score when a GTI key is used (sends the required `x-tool` header).
+- **Shodan OSINT** — drop a `SHODAN_API_KEY` on the proxy and every IP row gains open ports, running services, known CVEs and org/ISP/OS context, with a deep link to shodan.io. Key stays server-side; CVEs link out to NVD.
 - **Optional Claude smart-parse** — pull IOCs out of free-form report prose; the regex engine still has the final say on typing.
 - **Shared-credential login + admin** — PBKDF2-gated, `admin`/`user` roles, in-app user & settings management with JSON export/import.
 - **Two themes** — a chalkboard dark theme and an off-white light theme, toggled in the top bar.
@@ -103,7 +106,7 @@ Then in the app's **Settings**: set the proxy URL to `http://localhost:8787` and
 ## Deploy
 
 - **Web → GitHub Pages** (`pages.yml`): builds with `VITE_BASE=/vteeee/` and publishes the demo. No secrets injected, so the public site stays a demo.
-- **Proxy → Cloudflare Workers** (`proxy-deploy.yml`, recommended): holds `VT_API_KEY` (+ optional `ANTHROPIC_API_KEY`) and `ACCESS_TOKEN`/`ADMIN_TOKEN`, with a KV store for shared users/settings. A Node/Express variant is included for self-hosting.
+- **Proxy → Cloudflare Workers** (`proxy-deploy.yml`, recommended): holds `VT_API_KEY` (+ optional `ANTHROPIC_API_KEY`, `SHODAN_API_KEY`) and `ACCESS_TOKEN`/`ADMIN_TOKEN`, with a KV store for shared users/settings. A Node/Express variant is included for self-hosting.
 
 Full, click-by-click instructions (GitHub Secrets, Cloudflare token, KV, connecting the app):
 **[docs/GUIDE.ja.md](docs/GUIDE.ja.md)**.
@@ -119,7 +122,7 @@ Full, click-by-click instructions (GitHub Secrets, Cloudflare token, KV, connect
 ```
 shared/            defang/classify/extract · VT links + normalizer · PBKDF2  (browser + proxy)
 web/               Vite + React static SPA — input, parse preview, results, detail, login, admin
-proxy/shared-handler  rate limiting · NDJSON enrich · Claude parse · users/settings store
+proxy/shared-handler  rate limiting · NDJSON enrich · Shodan OSINT · Claude parse · users/settings store
 proxy/node         Express adapter (local / self-host)
 proxy/cloudflare   Worker adapter (recommended deploy) + wrangler.toml
 .github/workflows  ci · pages · proxy-deploy
@@ -149,6 +152,8 @@ CTIアナリスト向けの **IOC一括検索ツール** です。IP・ドメイ
 
 - 公開版は **github.io の静的デモ**（サンプルデータ／キー不要）。実データ検索は **APIキーをサーバー側に
   持つプロキシ**経由（キーはブラウザに出ません）。
+- **Shodan OSINT**：プロキシに `SHODAN_API_KEY` を登録するだけで、IP行に**開放ポート・稼働サービス・既知のCVE**・
+  組織/ISP/OS などが自動付与され、詳細パネルに分かりやすく表示（shodan.io へ直リンク、CVEはNVDへリンク）。
 - ログインは共有ID/PASSの簡易ゲート（PBKDF2、平文非保存）＋ admin/user ロールと管理画面。
 - テーマは**黒板**と**オフホワイト**を切替可能。
 - 詳しい手順（GitHub Secrets・Cloudflare・接続）→ **[docs/GUIDE.ja.md](docs/GUIDE.ja.md)**
