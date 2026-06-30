@@ -117,6 +117,12 @@ export interface NormalizedResult {
   reputation: number | null;
   totalVotes: { harmless: number; malicious: number } | null;
   lastAnalysisDate: string | null;
+  /** VT `first_submission_date` — when VT first received this file/URL. null for IP/domain (VT has none). */
+  firstSeen: string | null;
+  /** VT `last_submission_date` — when VT last received this file/URL. */
+  lastSeen: string | null;
+  /** VT `times_submitted` — how many times this file/URL was submitted to VT. */
+  timesSubmitted: number | null;
   tags: string[];
 
   gti?: GtiAssessment;

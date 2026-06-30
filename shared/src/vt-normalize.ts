@@ -86,6 +86,9 @@ export function normalizeVt(inp: NormalizeInput): NormalizedResult {
     reputation: null,
     totalVotes: null,
     lastAnalysisDate: null,
+    firstSeen: null,
+    lastSeen: null,
+    timesSubmitted: null,
     tags: [],
     links,
   };
@@ -106,6 +109,10 @@ export function normalizeVt(inp: NormalizeInput): NormalizedResult {
       ? { harmless: attr.total_votes.harmless ?? 0, malicious: attr.total_votes.malicious ?? 0 }
       : null,
     lastAnalysisDate: isoDate(attr.last_analysis_date),
+    // first/last_submission_date are present on VT file & URL objects (not IP/domain).
+    firstSeen: isoDate(attr.first_submission_date),
+    lastSeen: isoDate(attr.last_submission_date),
+    timesSubmitted: typeof attr.times_submitted === 'number' ? attr.times_submitted : null,
     tags: Array.isArray(attr.tags) ? attr.tags : [],
     gti,
     raw: inp.includeRaw ? attr : undefined,

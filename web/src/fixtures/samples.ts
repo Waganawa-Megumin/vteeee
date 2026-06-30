@@ -160,6 +160,9 @@ export const FIXTURES: Fixture[] = [
       categories: { Forcepoint: 'search engines and portals' },
       tags: [],
       last_analysis_date: now - 4 * day,
+      first_submission_date: now - 1500 * day,
+      last_submission_date: now - 1 * day,
+      times_submitted: 98213,
     },
   },
   {
@@ -177,6 +180,9 @@ export const FIXTURES: Fixture[] = [
       threat_names: ['Phishing.Generic'],
       tags: ['phishing'],
       last_analysis_date: now - 1 * day,
+      first_submission_date: now - 22 * day,
+      last_submission_date: now - 1 * day,
+      times_submitted: 37,
       gti_assessment: {
         verdict: { value: 'VERDICT_MALICIOUS' },
         severity: { value: 'SEVERITY_HIGH' },
@@ -219,6 +225,9 @@ export const FIXTURES: Fixture[] = [
       },
       tags: ['eicar', 'via-tor'],
       last_analysis_date: now - 6 * day,
+      first_submission_date: now - 3400 * day,
+      last_submission_date: now - 1 * day,
+      times_submitted: 1840277,
       gti_assessment: {
         verdict: { value: 'VERDICT_MALICIOUS' },
         severity: { value: 'SEVERITY_LOW' },
@@ -245,6 +254,9 @@ export const FIXTURES: Fixture[] = [
       },
       tags: ['eicar'],
       last_analysis_date: now - 6 * day,
+      first_submission_date: now - 3400 * day,
+      last_submission_date: now - 2 * day,
+      times_submitted: 1840277,
     },
   },
   {
@@ -259,6 +271,9 @@ export const FIXTURES: Fixture[] = [
       size: 0,
       tags: [],
       last_analysis_date: now - 30 * day,
+      first_submission_date: now - 3000 * day,
+      last_submission_date: now - 1 * day,
+      times_submitted: 502931,
     },
   },
   {

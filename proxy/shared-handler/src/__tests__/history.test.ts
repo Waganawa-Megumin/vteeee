@@ -37,6 +37,9 @@ function res(verdict: Verdict): NormalizedResult {
     reputation: null,
     totalVotes: null,
     lastAnalysisDate: null,
+    firstSeen: null,
+    lastSeen: null,
+    timesSubmitted: null,
     tags: [],
     links: { gui: '' },
   };

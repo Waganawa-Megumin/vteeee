@@ -21,6 +21,9 @@ export function resultsToCsv(results: NormalizedResult[]): string {
     'shodan_ports',
     'shodan_vulns',
     'last_analysis',
+    'first_seen',
+    'last_seen',
+    'times_submitted',
     'vt_link',
   ];
   const rows = results.map((r) => [
@@ -37,6 +40,9 @@ export function resultsToCsv(results: NormalizedResult[]): string {
     r.shodan?.found ? (r.shodan.ports?.join('|') ?? '') : '',
     r.shodan?.found ? (r.shodan.vulns?.join('|') ?? '') : '',
     r.lastAnalysisDate ?? '',
+    r.firstSeen ?? '',
+    r.lastSeen ?? '',
+    r.timesSubmitted ?? '',
     r.links.gui,
   ]);
   return [header, ...rows].map((row) => row.map(cell).join(',')).join('\n');

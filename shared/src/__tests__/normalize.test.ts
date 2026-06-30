@@ -56,6 +56,30 @@ describe('normalizeVt', () => {
     expect(r.reputation).toBe(-40);
     expect(r.ip).toMatchObject({ country: 'DE', asn: 12345, asOwner: 'Example AS' });
     expect(r.gti).toMatchObject({ verdict: 'VERDICT_MALICIOUS', severity: 'SEVERITY_HIGH', threatScore: 88 });
+    // VT has no first/last submission for IPs.
+    expect(r.firstSeen).toBeNull();
+    expect(r.lastSeen).toBeNull();
+    expect(r.timesSubmitted).toBeNull();
+  });
+
+  it('maps first/last seen + times submitted for files and URLs', () => {
+    const r = normalizeVt({
+      input: 'http://x/',
+      value: 'http://x/',
+      type: 'url',
+      status: 'success',
+      links: { gui: 'x' },
+      data: {
+        attributes: {
+          first_submission_date: 1577836800, // 2020-01-01T00:00:00Z
+          last_submission_date: 1717200000, // 2024-06-01T00:00:00Z
+          times_submitted: 42,
+        },
+      },
+    });
+    expect(r.firstSeen).toBe(new Date(1577836800 * 1000).toISOString());
+    expect(r.lastSeen).toBe(new Date(1717200000 * 1000).toISOString());
+    expect(r.timesSubmitted).toBe(42);
   });
 
   it('handles a not_found result', () => {

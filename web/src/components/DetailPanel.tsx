@@ -148,6 +148,9 @@ export function DetailPanel() {
           {r.lastAnalysisDate && (
             <Field k="Last analysis" v={new Date(r.lastAnalysisDate).toLocaleString()} />
           )}
+          {r.firstSeen && <Field k="First seen" v={new Date(r.firstSeen).toLocaleString()} />}
+          {r.lastSeen && <Field k="Last seen" v={new Date(r.lastSeen).toLocaleString()} />}
+          {r.timesSubmitted != null && <Field k="Times submitted" v={r.timesSubmitted.toLocaleString()} />}
           {r.gti && (
             <Field
               k="GTI assessment"
