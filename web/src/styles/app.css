@@ -389,6 +389,14 @@ textarea:focus {
   gap: 14px;
   min-height: 0;
 }
+/* On a short window, scroll the left column instead of letting panels overlap. */
+.col-left {
+  overflow-y: auto;
+}
+/* Never collapse the Input panel — its Parse/Clear buttons must stay visible. */
+.input-panel {
+  flex-shrink: 0;
+}
 @media (max-width: 900px) {
   .layout {
     grid-template-columns: 1fr;

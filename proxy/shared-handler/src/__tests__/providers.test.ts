@@ -186,6 +186,20 @@ describe('runEnrich routing by IOC type', () => {
     expect(r.dnslytics).toMatchObject({ kind: 'domain', found: true });
   });
 
+  it('falls back to Iris Investigate for domains when Enrich returns 403', async () => {
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(async (url: string) => {
+        if (url.includes('iris-enrich')) return resp(403, { error: { code: 403, message: 'no access' } });
+        if (url.includes('iris-investigate')) return resp(200, { response: { results: [ENRICH_RESULT] } });
+        if (url.includes('dnslytics')) return resp(200, DNSL_HH);
+        return resp(200, { data: { attributes: {} } });
+      }),
+    );
+    const [r] = await collect([{ type: 'domain', value: 'evil.com', input: 'evil.com' }]);
+    expect(r.domaintools).toMatchObject({ found: true, mode: 'enrich', riskScore: 88 });
+  });
+
   it('client opt-out (options) skips a provider even when configured', async () => {
     stubFetch();
     const [r] = await collect(

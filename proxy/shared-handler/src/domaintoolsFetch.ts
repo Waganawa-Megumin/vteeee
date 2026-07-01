@@ -155,7 +155,12 @@ async function irisFetch(base: string, query: string, env: ProxyEnv, signal?: Ab
   }
 }
 
-/** DomainTools Iris Enrich for a single domain (forward lookup). */
+/**
+ * DomainTools forward lookup for a single domain. Tries Iris Enrich (the batch product)
+ * first, and falls back to Iris Investigate `?domain=` on 403 — Investigate returns the same
+ * per-domain profile and is often the product an account actually has provisioned. Both
+ * return `response.results[0]` in the same shape, so one mapper handles either.
+ */
 export async function domaintoolsEnrichDomain(
   domain: string,
   env: ProxyEnv,
@@ -163,7 +168,12 @@ export async function domaintoolsEnrichDomain(
 ): Promise<DomainToolsContext | undefined> {
   if (!env.domaintoolsApiUsername || !env.domaintoolsApiKey) return undefined;
   if (signal?.aborted) return undefined;
-  const json = await irisFetch(IRIS_ENRICH, `domain=${encodeURIComponent(domain)}`, env, signal);
+  const q = `domain=${encodeURIComponent(domain)}`;
+  let json = await irisFetch(IRIS_ENRICH, q, env, signal);
+  // No Enrich subscription? Investigate does domain profiles too.
+  if (typeof json?.__error === 'string' && json.__error.includes('403')) {
+    json = await irisFetch(IRIS_INVESTIGATE, q, env, signal);
+  }
   if (json?.__error) return { found: false, mode: 'enrich', error: json.__error };
   if (json?.__notFound) return { found: false, mode: 'enrich' };
   const result = json?.response?.results?.[0];
