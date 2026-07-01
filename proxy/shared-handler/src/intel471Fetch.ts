@@ -138,7 +138,11 @@ export async function intel471IocLookup(
   return mapIntel471Ioc(r.json, value);
 }
 
-/** Intel 471 Global Search — cross-entity counts for an IOC (on-demand, count=0 = counts only). */
+/**
+ * Intel 471 Global Search — cross-entity counts for an IOC (on-demand). The `*TotalCount`
+ * fields are returned independently of the item arrays, so a minimal `count=1` keeps the
+ * payload small. (count=0 is rejected with 412 by /search.)
+ */
 export async function intel471GlobalSearch(
   value: string,
   type: EnrichableType,
@@ -147,7 +151,7 @@ export async function intel471GlobalSearch(
 ): Promise<Intel471Search | undefined> {
   if (!env.intel471ApiUser || !env.intel471ApiKey) return undefined;
   const iocType = IOC_TYPE[type];
-  const url = `${baseUrl(env)}/search?ioc=${encodeURIComponent(value)}${iocType ? `&iocType=${iocType}` : ''}&count=0`;
+  const url = `${baseUrl(env)}/search?ioc=${encodeURIComponent(value)}${iocType ? `&iocType=${iocType}` : ''}&count=1`;
   const r = await i471Fetch(url, env, signal);
   if (r.__error) return { error: r.__error };
   return mapIntel471Search(r.json);
