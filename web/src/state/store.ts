@@ -8,6 +8,7 @@ import {
   type HistoryRecord,
   type NormalizedResult,
   type ParsedIndicator,
+  type ProxyHealth,
   type Session,
   type UserRecord,
 } from '@vteeee/shared';
@@ -27,6 +28,8 @@ interface State {
   users: UserRecord[];
   settings: AppSettings;
   mode: Mode;
+  /** Integrations reported by the proxy /health (live mode). null = demo / not yet checked. */
+  health: ProxyHealth | null;
 
   rawInput: string;
   parsed: ParsedIndicator[];
@@ -61,6 +64,7 @@ interface State {
   setView: (v: 'app' | 'admin') => void;
   applySettings: (s: AppSettings) => void;
   applyUsers: (u: UserRecord[]) => void;
+  refreshHealth: () => Promise<void>;
 }
 
 function defaultIncludes(parsed: ParsedIndicator[]): Record<string, boolean> {
@@ -73,8 +77,9 @@ export const useStore = create<State>((set, get) => ({
   booted: false,
   session: null,
   users: [],
-  settings: { proxyBaseUrl: null, rpm: 4, concurrency: 1, gti: false, submitUnknown: false },
+  settings: { proxyBaseUrl: null, rpm: 4, concurrency: 1, gti: false, submitUnknown: false, shodan: true },
   mode: 'demo',
+  health: null,
 
   rawInput: '',
   parsed: [],
@@ -100,6 +105,7 @@ export const useStore = create<State>((set, get) => ({
       session: restoreSession(),
       booted: true,
     });
+    void get().refreshHealth();
   },
 
   async login(username, password) {
@@ -185,6 +191,7 @@ export const useStore = create<State>((set, get) => ({
       includeRaw: true,
       gti: settings.gti,
       submitUnknown: settings.submitUnknown,
+      shodan: settings.shodan ?? true,
     };
     set({
       running: true,
@@ -264,10 +271,37 @@ export const useStore = create<State>((set, get) => ({
   applySettings(s) {
     saveSettings(s);
     set({ settings: s, mode: resolveMode(s) });
+    void get().refreshHealth();
   },
 
   applyUsers(u) {
     saveUsers(u);
     set({ users: u });
+  },
+
+  async refreshHealth() {
+    const base = get().settings.proxyBaseUrl?.replace(/\/$/, '');
+    if (!base) {
+      set({ health: null }); // demo mode — no proxy to query
+      return;
+    }
+    try {
+      const res = await fetch(`${base}/health`, { cache: 'no-store' });
+      if (!res.ok) {
+        set({ health: { ok: false, vtKey: false, claude: false, shodan: false } });
+        return;
+      }
+      const h = (await res.json()) as Partial<ProxyHealth>;
+      set({
+        health: {
+          ok: Boolean(h.ok),
+          vtKey: Boolean(h.vtKey),
+          claude: Boolean(h.claude),
+          shodan: Boolean(h.shodan),
+        },
+      });
+    } catch {
+      set({ health: { ok: false, vtKey: false, claude: false, shodan: false } });
+    }
   },
 }));

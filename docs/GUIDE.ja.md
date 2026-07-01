@@ -23,6 +23,27 @@
 
 ---
 
+## 0.5 連携サービス（基本＝VT／任意＝Shodan・Claude）
+
+APIキーはすべて**プロキシ側のみ**が保持します。**VirusTotal が基本（必須）**で、**Shodan** と **Claude** は
+任意で追加できます。現在どれが有効かは、アプリ**上部ヘッダーのチップ**と **Settings** の状態表示、
+および `<プロキシURL>/health`（`{"vtKey":…,"claude":…,"shodan":…}`）で確認できます。
+
+| サービス | 役割 | 必須? | プロキシの環境変数 | 付与される情報 |
+|---|---|---|---|---|
+| **VirusTotal / GTI** | 脅威情報（基本） | ✅ 必須 | `VT_API_KEY` | 判定・検出比・レピュテーション・ASN/国・カテゴリ・脅威ラベル・First/Last seen(ファイル・URL)・GTI評価 |
+| **Shodan** | OSINT（IP限定） | 任意 | `SHODAN_API_KEY` | 開放ポート・稼働サービス・既知CVE・組織/ISP/OS・ホスト名・タグ |
+| **Claude (Anthropic)** | スマートパース | 任意 | `ANTHROPIC_API_KEY` | レポート本文からIOC抽出 |
+
+**任意サービスを有効化する手順（3ステップ）:**
+1. 上表の環境変数を **リポジトリ Secret**（GitHub → Settings → Secrets → Actions）に登録。
+2. **「Deploy Proxy」ワークフロー**を実行（Cloudflare）／Nodeプロキシを再起動 → Secret がプロキシに反映。
+3. アプリをリロード → ヘッダーのチップが **ON** に。`<プロキシURL>/health` でも確認可。
+
+> Shodan は Settings の **「Shodan OSINT enrichment」** で実行ON/OFFを切替できます（キーがあってもOFFなら問い合わせしない＝クレジット節約）。
+
+---
+
 ## 1. ★ GitHub でやること（今あなたが見ている画面）
 
 あなたが開いている **Settings → Secrets and variables →「Actions」** が正しい場所です

@@ -245,6 +245,107 @@ textarea:focus {
   background: #11331d;
   color: var(--harm);
 }
+
+/* integration status (header cluster + settings + help) */
+.intg-cluster {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  background: none;
+  border: none;
+  padding: 0;
+  cursor: pointer;
+}
+.intg-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  font-size: 11px;
+  font-weight: 600;
+  padding: 2px 8px;
+  border-radius: 20px;
+  background: var(--bg3);
+  color: var(--muted);
+  border: 1px solid var(--line);
+  white-space: nowrap;
+}
+.intg-dot {
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: var(--undet);
+  flex: none;
+}
+.intg-chip.on {
+  color: var(--harm);
+  border-color: rgba(134, 217, 143, 0.4);
+}
+.intg-chip.on .intg-dot {
+  background: var(--harm);
+  box-shadow: 0 0 5px rgba(134, 217, 143, 0.55);
+}
+.intg-chip.off {
+  opacity: 0.7;
+}
+.intg-cluster:hover .intg-chip {
+  border-color: var(--accent);
+}
+.intg-status {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px;
+  margin: 6px 0 4px;
+}
+.intg-status-label {
+  font-size: 11px;
+  color: var(--muted);
+  margin-right: 2px;
+}
+.intg-list {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  margin: 8px 0;
+}
+.intg-row {
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  padding: 8px 10px;
+  background: var(--bg2);
+}
+.intg-row-head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 4px;
+}
+.intg-row-head code {
+  font-size: 11px;
+}
+.intg-row-body {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  font-size: 12px;
+}
+.intg-tag {
+  font-size: 10px;
+  font-weight: 700;
+  text-transform: uppercase;
+  padding: 1px 6px;
+  border-radius: 4px;
+  letter-spacing: 0.4px;
+}
+.intg-tag.req {
+  background: rgba(116, 211, 177, 0.16);
+  color: var(--accent);
+}
+.intg-tag.opt {
+  background: var(--bg3);
+  color: var(--muted);
+}
 .demo-banner {
   background: #2a2410;
   color: #e7c97a;

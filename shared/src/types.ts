@@ -174,6 +174,19 @@ export interface EnrichOptions {
   includeRaw?: boolean;
   gti?: boolean;
   submitUnknown?: boolean;
+  /** Request Shodan OSINT on IPs (default true). Ignored if the proxy has no Shodan key. */
+  shodan?: boolean;
+}
+
+/** What the proxy `GET /health` reports — which integrations are configured server-side. */
+export interface ProxyHealth {
+  ok: boolean;
+  /** VirusTotal / GTI key present (base, required). */
+  vtKey: boolean;
+  /** Anthropic key present (optional — Claude smart-parse). */
+  claude: boolean;
+  /** Shodan key present (optional — IP OSINT). */
+  shodan: boolean;
 }
 
 export interface EnrichRequest {
@@ -225,6 +238,8 @@ export interface AppSettings {
   concurrency: number;
   gti: boolean;
   submitUnknown: boolean;
+  /** Request Shodan OSINT enrichment for IPs (default true; only used if the proxy has a Shodan key). */
+  shodan?: boolean;
   /** Days to keep local search history (per browser). 0 = disabled. Default 30. */
   historyRetentionDays?: number;
   /** Documentation-only note shown in the admin UI. */

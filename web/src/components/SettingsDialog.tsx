@@ -7,6 +7,7 @@ import { SecretField } from './SecretField';
 export function SettingsDialog({ onClose }: { onClose: () => void }) {
   const settings = useStore((s) => s.settings);
   const applySettings = useStore((s) => s.applySettings);
+  const health = useStore((s) => s.health);
   const [draft, setDraft] = useState<AppSettings>(settings);
 
   function up<K extends keyof AppSettings>(k: K, v: AppSettings[K]) {
@@ -28,6 +29,26 @@ export function SettingsDialog({ onClose }: { onClose: () => void }) {
           <div className={`mode-pill ${live ? 'live' : 'demo'}`}>
             {live ? 'LIVE — real VT lookups via proxy' : 'Not connected — add a proxy URL to go live'}
           </div>
+
+          {live && (
+            <div className="intg-status">
+              <span className="intg-status-label">Integrations (from proxy /health)</span>
+              <span className={`intg-chip ${health?.vtKey ? 'on' : 'off'}`}>
+                <span className="intg-dot" />
+                VirusTotal {health?.vtKey ? 'on' : 'off'}
+              </span>
+              <span className={`intg-chip ${health?.shodan && draft.shodan !== false ? 'on' : 'off'}`}>
+                <span className="intg-dot" />
+                Shodan{' '}
+                {health?.shodan ? (draft.shodan !== false ? 'on' : 'key set · off') : 'not configured'}
+              </span>
+              <span className={`intg-chip ${health?.claude ? 'on' : 'off'}`}>
+                <span className="intg-dot" />
+                Claude {health?.claude ? 'on' : 'not configured'}
+              </span>
+              {health && !health.ok && <span className="hint">proxy /health unreachable</span>}
+            </div>
+          )}
 
           <label className="fld">
             <span className="fld-label">
@@ -112,14 +133,21 @@ export function SettingsDialog({ onClose }: { onClose: () => void }) {
             />
           </label>
 
-          <p className="hint shodan-hint">
-            <strong>🛰 Shodan OSINT</strong>
+          <label className="chk">
+            <input
+              type="checkbox"
+              checked={draft.shodan !== false}
+              onChange={(e) => up('shodan', e.target.checked)}
+            />
+            🛰 Shodan OSINT enrichment (IPs)
             <InfoTip
-              ja="プロキシに SHODAN_API_KEY を登録すると、IP の行に開放ポート・稼働サービス・既知の脆弱性(CVE)が自動で付与されます。キーはサーバー側（プロキシ）にのみ保持され、ブラウザには出ません。ここでの追加設定は不要です。"
-              en="Set SHODAN_API_KEY on your proxy and IP rows are automatically enriched with open ports, running services and known CVEs. The key stays on the proxy (never in the browser). No extra setup here."
-            />{' '}
-            — set <code>SHODAN_API_KEY</code> on your proxy and IP rows gain open ports, services and
-            known CVEs automatically. The key stays server-side.
+              ja="ONにすると、IPの行に開放ポート・稼働サービス・既知の脆弱性(CVE)を付与します。実際に付与されるのはプロキシに SHODAN_API_KEY が登録されている場合のみ（キーはサーバー側のみ保持）。OFFにするとShodanへの問い合わせを行わず、クレジットを節約できます。登録手順は Docs の『Integrations / 連携サービス』を参照。"
+              en="When ON, IP rows are enriched with open ports, services and known CVEs — but only if the proxy has a SHODAN_API_KEY (key stays server-side). Turn OFF to skip Shodan lookups and save credits. Setup steps are in Docs → Integrations."
+            />
+          </label>
+          <p className="hint shodan-hint">
+            Enable it by adding <code>SHODAN_API_KEY</code> to your proxy (then run “Deploy Proxy”). Status
+            shows above &amp; in the header. Full steps: <strong>Docs → Integrations</strong>.
           </p>
 
           <label className="fld">

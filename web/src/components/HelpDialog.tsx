@@ -1,4 +1,42 @@
+import type { ReactNode } from 'react';
+import { useStore } from '../state/store';
+
+function IntegrationRow({
+  name,
+  required,
+  env,
+  on,
+  live,
+  children,
+}: {
+  name: string;
+  required?: boolean;
+  env: string;
+  on: boolean | null;
+  live: boolean;
+  children: ReactNode;
+}) {
+  const status = !live ? 'demo' : on == null ? 'unknown' : on ? 'on' : 'off';
+  const label = { demo: 'demo', unknown: '—', on: 'ON', off: 'off' }[status];
+  return (
+    <div className="intg-row">
+      <div className="intg-row-head">
+        <span className={`intg-chip ${status === 'on' ? 'on' : 'off'}`}>
+          <span className="intg-dot" />
+          {label}
+        </span>
+        <b>{name}</b>
+        <span className={`intg-tag ${required ? 'req' : 'opt'}`}>{required ? 'base / 必須' : 'optional / 任意'}</span>
+        <code>{env}</code>
+      </div>
+      <div className="intg-row-body">{children}</div>
+    </div>
+  );
+}
+
 export function HelpDialog({ onClose }: { onClose: () => void }) {
+  const health = useStore((s) => s.health);
+  const live = useStore((s) => s.mode) === 'live';
   return (
     <div className="modal-overlay" onClick={onClose}>
       <div className="modal help-modal" onClick={(e) => e.stopPropagation()}>
@@ -49,6 +87,44 @@ export function HelpDialog({ onClose }: { onClose: () => void }) {
           </section>
 
           <section className="help-section">
+            <h3>Integrations / 連携サービス</h3>
+            <p className="help-ja">
+              実データ検索は<b>プロキシ（サーバー側）</b>が各サービスのAPIキーを保持して行います。基本は
+              <b>VirusTotal</b>、任意で <b>Shodan</b>・<b>Claude</b> を足せます。現在の有効状況は
+              <b>上部ヘッダーのチップ</b>と下の一覧（{live ? 'LIVE' : 'DEMO'}）で確認できます。キーはブラウザには出ません。
+            </p>
+            <div className="intg-list">
+              <IntegrationRow name="VirusTotal / GTI" required env="VT_API_KEY" on={health?.vtKey ?? null} live={live}>
+                <span className="help-ja">
+                  基本の脅威情報。判定・検出比・レピュテーション・ASN/国・カテゴリ・脅威ラベル等。GTIキーなら
+                  verdict/severity/threat score も（Settingsの「Request GTI fields」をON）。
+                </span>
+                <span className="help-en">Base enrichment (verdict, detections, reputation, ASN/country, GTI when a GTI key is used).</span>
+              </IntegrationRow>
+
+              <IntegrationRow name="Shodan (OSINT)" env="SHODAN_API_KEY" on={health?.shodan ?? null} live={live}>
+                <span className="help-ja">
+                  <b>IP限定</b>。開放ポート・稼働サービス・既知のCVE・組織/ISP/OS等を付与し、詳細に「🛰 Shodan」節と
+                  shodan.ioリンクを表示。ON/OFFは Settings の「Shodan OSINT enrichment」。
+                </span>
+                <span className="help-en">IPs only — open ports, services, known CVEs, org/ISP/OS. Toggle in Settings.</span>
+              </IntegrationRow>
+
+              <IntegrationRow name="Claude (smart-parse)" env="ANTHROPIC_API_KEY" on={health?.claude ?? null} live={live}>
+                <span className="help-ja">
+                  レポート本文などの雑多なテキストからIOCを抽出（「Smart parse (Claude)」ボタン）。無ければ正規表現で代替。
+                </span>
+                <span className="help-en">Pull IOCs out of free-form report prose (the “Smart parse” button). Falls back to regex if absent.</span>
+              </IntegrationRow>
+            </div>
+            <p className="help-en" style={{ marginTop: 8 }}>
+              <b>Enable an optional service (3 steps):</b> ① add the env var above as a repo secret /
+              proxy env → ② run the <b>“Deploy Proxy”</b> workflow (Cloudflare) or restart the Node proxy →
+              ③ reload here; the header chip flips ON. Full walkthrough: <code>docs/GUIDE.ja.md</code>.
+            </p>
+          </section>
+
+          <section className="help-section">
             <h3>Settings explained / 設定の意味</h3>
             <dl className="help-kv">
               <dt>Proxy base URL</dt>
@@ -80,6 +156,12 @@ export function HelpDialog({ onClose }: { onClose: () => void }) {
               <dd>
                 VT未登録(404)のURL/ファイルを解析に提出。クォータを消費するため既定オフ。
                 <span className="en">Submit never-analyzed (404) URLs/files for analysis. Uses quota; off by default.</span>
+              </dd>
+              <dt>Shodan OSINT enrichment</dt>
+              <dd>
+                IP行にShodanの開放ポート/サービス/CVEを付与（既定ON）。プロキシに <code>SHODAN_API_KEY</code>
+                がある時のみ実際に付与。OFFで問い合わせを止めてクレジット節約。
+                <span className="en">Enrich IPs with Shodan ports/services/CVEs (on by default; only if the proxy has a Shodan key). Turn off to save credits.</span>
               </dd>
             </dl>
           </section>

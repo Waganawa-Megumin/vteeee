@@ -7,6 +7,7 @@ import { ResultsTable } from './components/ResultsTable';
 import { DetailPanel } from './components/DetailPanel';
 import { ProgressBar } from './components/ProgressBar';
 import { SettingsDialog } from './components/SettingsDialog';
+import { IntegrationStatus } from './components/IntegrationStatus';
 import { HelpDialog } from './components/HelpDialog';
 import { HistoryDialog } from './components/HistoryDialog';
 import { EmptyState } from './components/EmptyState';
@@ -18,7 +19,6 @@ export default function App() {
   const booted = useStore((s) => s.booted);
   const boot = useStore((s) => s.boot);
   const session = useStore((s) => s.session);
-  const mode = useStore((s) => s.mode);
   const view = useStore((s) => s.view);
   const setView = useStore((s) => s.setView);
   const logout = useStore((s) => s.logout);
@@ -50,7 +50,7 @@ export default function App() {
           <span className="logo">vteeee</span>
           <span className="tagline">bulk IOC search</span>
         </div>
-        {mode === 'live' && <span className="mode-pill live">LIVE</span>}
+        <IntegrationStatus onManage={() => setSettingsOpen(true)} />
         <div className="spacer" />
         <button
           className="btn btn-sm theme-toggle"

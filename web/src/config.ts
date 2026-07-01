@@ -12,6 +12,7 @@ export const DEFAULT_SETTINGS: AppSettings = {
   concurrency: 1,
   gti: false,
   submitUnknown: false,
+  shodan: true,
   historyRetentionDays: 30,
 };
 

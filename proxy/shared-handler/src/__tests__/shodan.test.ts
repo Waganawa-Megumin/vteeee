@@ -127,6 +127,29 @@ describe('runEnrich + Shodan', () => {
     expect(dom?.shodan).toBeUndefined(); // domains are not Shodan-enriched
   });
 
+  it('skips Shodan when the client opts out (options.shodan === false)', async () => {
+    const f = vi.fn(async (url: string) => {
+      if (url.includes('api.shodan.io')) return resp(200, SAMPLE_HOST);
+      return resp(200, { data: { attributes: { last_analysis_stats: { harmless: 9 } } } });
+    });
+    vi.stubGlobal('fetch', f);
+
+    const events: EnrichEvent[] = [];
+    for await (const ev of runEnrich(
+      {
+        indicators: [{ type: 'ipv4', value: '1.1.1.1', input: '1.1.1.1' }],
+        options: { shodan: false },
+      },
+      env,
+    )) {
+      events.push(ev);
+    }
+    const r = events.flatMap((e) => (e.event === 'result' ? [e.result] : []))[0];
+    expect(r.shodan).toBeUndefined();
+    // No Shodan HTTP call should have been made.
+    expect(f.mock.calls.every(([u]) => !String(u).includes('api.shodan.io'))).toBe(true);
+  });
+
   it('leaves Shodan undefined when no key is configured', async () => {
     vi.stubGlobal('fetch', vi.fn(async () => resp(200, { data: { attributes: {} } })));
     const events: EnrichEvent[] = [];

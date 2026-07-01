@@ -34,7 +34,9 @@ export async function* runEnrich(
   const includeRaw = req.options?.includeRaw ?? true;
   const limiter = new RateLimiter(rpm);
   // Shodan has its own quota/rate budget, so it runs under a separate limiter.
-  const shodanLimiter = env.shodanApiKey
+  // Gated by both the server key and the client's opt-out (options.shodan === false).
+  const shodanEnabled = Boolean(env.shodanApiKey) && req.options?.shodan !== false;
+  const shodanLimiter = shodanEnabled
     ? new RateLimiter(clamp(env.shodanRpm ?? DEFAULT_SHODAN_RPM, 1, 600))
     : null;
   const queue = new AsyncQueue<EnrichEvent>();

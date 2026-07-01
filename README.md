@@ -61,6 +61,26 @@ single step, while keeping the API key off the browser entirely.
 - **Shared-credential login + admin** — PBKDF2-gated, `admin`/`user` roles, in-app user & settings management with JSON export/import.
 - **Two themes** — a chalkboard dark theme and an off-white light theme, toggled in the top bar.
 
+## Integrations / 連携サービス
+
+The proxy holds each service's API key — the browser never sees them. **VirusTotal is the base
+(required);** Shodan and Claude are optional add-ons. The app header shows which are live (read from
+the proxy's `/health`), and each optional one is toggled in **Settings**.
+
+| Service | Role | Required? | Proxy env var | Adds |
+|---|---|---|---|---|
+| **VirusTotal / GTI** | Threat intel (base) | ✅ **required** | `VT_API_KEY` | verdict · detections · reputation · ASN/country · categories · threat label · first/last seen (files/URLs) · GTI verdict/severity/score |
+| **Shodan** | OSINT — IPs | optional | `SHODAN_API_KEY` | open ports · services · known CVEs · org/ISP/OS · hostnames · tags |
+| **Claude (Anthropic)** | Smart-parse | optional | `ANTHROPIC_API_KEY` | extract IOCs from free-form report prose |
+
+**Enable an optional service — 3 steps:**
+1. Add the env var above as a **repo secret** (GitHub → Settings → Secrets) or a proxy env var.
+2. Run the **“Deploy Proxy” workflow** (Cloudflare) or restart the Node proxy — this pushes the secret.
+3. Reload the app; the header chip flips **ON**. Verify at `<proxy>/health` → `{"vtKey":true,"claude":…,"shodan":…}`.
+
+Turn Shodan lookups off per run in **Settings → Shodan OSINT enrichment** to save Shodan credits even
+when the key is present. Step-by-step (GitHub Secrets / Cloudflare / Node): **[docs/GUIDE.ja.md](docs/GUIDE.ja.md)**.
+
 ## Live demo
 
 ▶︎ **https://waganawa-megumin.github.io/vteeee/**
