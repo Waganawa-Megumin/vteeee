@@ -7,6 +7,7 @@ import type {
   DomainToolsContext,
   EnrichableType,
   Intel471Context,
+  Intel471Malware,
   Intel471Search,
   ShodanContext,
   ShodanService,
@@ -295,11 +296,19 @@ function intelCounts(s: Intel471Search): [string, number][] {
 /** Intel 471 (Titan) IOC block — auto IOC context + on-demand Global Search counts. */
 function Intel471Section({ d, value, type }: { d: Intel471Context; value: string; type: EnrichableType }) {
   const search = useStore((s) => s.intel471Search);
+  const malware = useStore((s) => s.intel471Malware);
   const [gs, setGs] = useState<{ loading: boolean; data?: Intel471Search }>({ loading: false });
+  const [mw, setMw] = useState<{ loading: boolean; data?: Intel471Malware } | null>(null);
 
   async function runSearch() {
     setGs({ loading: true });
     setGs({ loading: false, data: await search(value, type) });
+  }
+
+  async function runMalware() {
+    if (!d.malwareFamilyUid) return;
+    setMw({ loading: true });
+    setMw({ loading: false, data: await malware(d.malwareFamilyUid, d.malwareFamily) });
   }
 
   const activeRange =
@@ -337,7 +346,17 @@ function Intel471Section({ d, value, type }: { d: Intel471Context; value: string
             <div className="field">
               <div className="fk">Malware family</div>
               <div className="fv chips">
-                <span className="chip shodan-vuln">{d.malwareFamily}</span>
+                {d.malwareFamilyUid ? (
+                  <button
+                    className="chip shodan-vuln"
+                    onClick={runMalware}
+                    title="Fetch Intel 471 malware details (reports · aka · MITRE) + open in Titan"
+                  >
+                    🔎 {d.malwareFamily}
+                  </button>
+                ) : (
+                  <span className="chip shodan-vuln">{d.malwareFamily}</span>
+                )}
                 {d.confidence && <span className="chip">confidence {d.confidence}</span>}
               </div>
             </div>
@@ -361,6 +380,56 @@ function Intel471Section({ d, value, type }: { d: Intel471Context; value: string
             </div>
           )}
           <Field k="GIR" v={d.girs && d.girs.length > 0 ? d.girs.join(', ') : undefined} />
+        </div>
+      )}
+
+      {mw && (
+        <div className="cyfirma-actor">
+          {mw.loading ? (
+            <div className="detail-note">Loading malware profile…</div>
+          ) : mw.data?.error ? (
+            <div className="detail-note">{mw.data.error}</div>
+          ) : mw.data ? (
+            <>
+              <div className="cyfirma-actor-title">
+                Malware · {mw.data.family ?? d.malwareFamily}
+                {mw.data.reportCount != null ? ` · ${mw.data.reportCount.toLocaleString()} reports` : ''}
+              </div>
+              <div className="detail-grid">
+                <Field k="aka" v={mw.data.aka && mw.data.aka.length ? mw.data.aka.join(', ') : undefined} />
+                <Field k="Summary" v={mw.data.summary} />
+                <Field
+                  k="MITRE tactics"
+                  v={mw.data.mitreTactics?.map((t) => t.replace(/_/g, ' ')).join(', ')}
+                />
+                <Field k="GIR" v={mw.data.girs && mw.data.girs.length ? mw.data.girs.join(', ') : undefined} />
+                <Field
+                  k="Active"
+                  v={
+                    [mw.data.activeFrom, mw.data.activeTill]
+                      .filter(Boolean)
+                      .map((s) => new Date(s!).toLocaleDateString())
+                      .join(' – ') || undefined
+                  }
+                />
+                {mw.data.reports && mw.data.reports.length > 0 && (
+                  <div className="field">
+                    <div className="fk">Reports</div>
+                    <div className="fv">
+                      {mw.data.reports.map((t, i) => (
+                        <div key={i}>• {t}</div>
+                      ))}
+                    </div>
+                  </div>
+                )}
+              </div>
+              {mw.data.portalUrl && (
+                <a className="btn btn-ghost shodan-link" href={mw.data.portalUrl} target="_blank" rel="noreferrer">
+                  Open malware profile ↗
+                </a>
+              )}
+            </>
+          ) : null}
         </div>
       )}
 

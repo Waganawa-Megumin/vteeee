@@ -3,6 +3,7 @@ import type {
   CyfirmaSearch,
   EnrichableType,
   EnrichRequest,
+  Intel471Malware,
   Intel471Search,
   NormalizedResult,
   ParsedIndicator,
@@ -24,6 +25,8 @@ export interface EnrichClient {
   smartParse(text: string): Promise<ParsedIndicator[]>;
   /** On-demand Intel 471 Global Search — cross-entity counts for one IOC. */
   intel471Search(ioc: string, type: EnrichableType): Promise<Intel471Search>;
+  /** On-demand Intel 471 malware family details (reports + profile) by family profile UID. */
+  intel471Malware(uid: string, family?: string): Promise<Intel471Malware>;
   /** On-demand CYFIRMA Threat-Actor deep-dive (broad search) by actor name. */
   cyfirmaSearch(name: string): Promise<CyfirmaSearch>;
 }

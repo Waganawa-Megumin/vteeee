@@ -6,6 +6,7 @@ import {
   ndjson,
   smartParse,
   intel471GlobalSearch,
+  intel471MalwareProfile,
   cyfirmaActorSearch,
   getUsers,
   putUsers,
@@ -143,6 +144,21 @@ app.get('/api/intel471/search', async (req, res) => {
     return;
   }
   res.json((await intel471GlobalSearch(ioc, type, env)) ?? { error: 'unavailable' });
+});
+
+app.get('/api/intel471/malware', async (req, res) => {
+  if (!requireAccess(req, res)) return;
+  if (!env.intel471ApiUser || !env.intel471ApiKey) {
+    res.status(400).json({ error: 'Intel 471 not configured' });
+    return;
+  }
+  const uid = (req.query.uid as string) || '';
+  const family = (req.query.family as string) || undefined;
+  if (!uid) {
+    res.status(400).json({ error: 'uid required' });
+    return;
+  }
+  res.json((await intel471MalwareProfile(uid, env, undefined, family)) ?? { error: 'unavailable' });
 });
 
 app.get('/api/cyfirma/search', async (req, res) => {

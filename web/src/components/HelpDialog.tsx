@@ -137,10 +137,12 @@ export function HelpDialog({ onClose }: { onClose: () => void }) {
                 live={live}
               >
                 <span className="help-ja">
-                  <b>全種別</b>（IP/ドメイン/URL/ハッシュ）。IOC照合で active期間・ISP・<b>関連レポート/アクター</b>等を付与。詳細の
-                  <b>「Global Search」</b>ボタンで、そのIOCが横断的に何件（reports/posts/actors/events/credentials/data-leaks…）に出るかをオンデマンド取得。
+                  <b>全種別</b>（IP/ドメイン/URL/ハッシュ）。IOC照合で active期間・ISP・<b>関連レポート/アクター</b>・
+                  <b>マルウェアファミリ</b>等を付与。詳細で<b>マルウェア名のチップ</b>を押すと、そのファミリの
+                  マルウェアレポート・aka・MITRE・GIRを取得し Titan の malware ページへ深リンク。
+                  <b>「Global Search」</b>ボタンで横断件数（reports/posts/actors/events/credentials/data-leaks…）もオンデマンド取得。
                 </span>
-                <span className="help-en">All IOC types. IOC search adds active window/ISP/linked reports+actors; the “Global Search” button fetches cross-entity counts on demand.</span>
+                <span className="help-en">All IOC types. IOC search adds active window/ISP/linked reports+actors + malware family; click the malware-family chip to fetch that family's malware reports/aka/MITRE and deep-link to the Titan malware page. The “Global Search” button fetches cross-entity counts on demand.</span>
               </IntegrationRow>
 
               <IntegrationRow

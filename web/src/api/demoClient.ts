@@ -4,6 +4,7 @@ import {
   normalizeVt,
   type CyfirmaSearch,
   type EnrichRequest,
+  type Intel471Malware,
   type Intel471Search,
   type NormalizedResult,
   type ParsedIndicator,
@@ -71,6 +72,27 @@ export class DemoClient implements EnrichClient {
   async intel471Search(): Promise<Intel471Search> {
     await sleep(300);
     return { reports: 35, posts: 132, actors: 41, entities: 13, news: 1, credentials: 1, dataLeakPosts: 1, events: 0 };
+  }
+
+  /** Sample Intel 471 malware family details (demo). */
+  async intel471Malware(uid: string, family?: string): Promise<Intel471Malware> {
+    await sleep(300);
+    return {
+      family: family || 'orcus',
+      uid: uid || '6e6ca74063416138a3fbf03dd2e189a6',
+      aka: ['Schnorchel', 'Snorkel'],
+      summary: 'Orcus is a popular remote access trojan (RAT) written in C#, sold since 2016; supports plugins, audio/video capture and credential theft.',
+      reports: [
+        'Orcus RAT operators expand plugin marketplace',
+        'Commodity RAT orcus bundled in phishing campaign targeting finance',
+      ],
+      reportCount: 7,
+      mitreTactics: ['command_and_control', 'collection'],
+      girs: ['1.1.3'],
+      activeFrom: '2022-08-18T01:39:08.000Z',
+      activeTill: '2026-06-29T18:22:27.000Z',
+      portalUrl: `https://titan.intel471.com/malware/${uid || '6e6ca74063416138a3fbf03dd2e189a6'}`,
+    };
   }
 
   /** Sample CYFIRMA Threat-Actor deep-dive (demo). */

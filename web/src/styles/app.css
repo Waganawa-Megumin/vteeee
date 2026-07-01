@@ -837,16 +837,23 @@ a.chip.shodan-vuln:hover {
   color: var(--accent);
 }
 
-/* CYFIRMA — clickable actor pivot chips + related-infra rows + actor deep-dive */
-button.chip-btn {
+/* clickable chips (CYFIRMA actor pivots, Intel 471 malware family) */
+button.chip {
   cursor: pointer;
   font-family: inherit;
+  font-size: 11px;
+}
+button.chip:hover {
+  filter: brightness(1.14);
+}
+button.chip-btn {
   background: rgba(116, 211, 177, 0.14);
   color: var(--accent);
   border-color: rgba(116, 211, 177, 0.32);
 }
 button.chip-btn:hover {
   background: rgba(116, 211, 177, 0.26);
+  filter: none;
 }
 .cyfirma-rel-row {
   display: flex;

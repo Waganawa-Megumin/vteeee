@@ -154,6 +154,7 @@ export const FIXTURES: Fixture[] = [
       totalCount: 4,
       indicatorCount: 1,
       malwareFamily: 'orcus',
+      malwareFamilyUid: '6e6ca74063416138a3fbf03dd2e189a6',
       confidence: 'high',
       threatType: 'malware',
       context: 'orcus controller endpoint',

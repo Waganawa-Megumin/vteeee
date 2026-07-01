@@ -3,6 +3,7 @@ import {
   ndjson,
   smartParse,
   intel471GlobalSearch,
+  intel471MalwareProfile,
   cyfirmaActorSearch,
   getUsers,
   putUsers,
@@ -167,6 +168,16 @@ export default {
         const iocType = (url.searchParams.get('type') ?? 'unknown') as EnrichableType;
         if (!ioc) return json({ error: 'ioc required' }, 400);
         return json((await intel471GlobalSearch(ioc, iocType, proxy, request.signal)) ?? { error: 'unavailable' });
+      }
+
+      // On-demand Intel 471 malware family details (reports + profile) by malware family profile UID.
+      if (url.pathname === '/api/intel471/malware' && request.method === 'GET') {
+        if (!checkAccess(auth, proxy)) return json({ error: 'unauthorized' }, 401);
+        if (!proxy.intel471ApiUser || !proxy.intel471ApiKey) return json({ error: 'Intel 471 not configured' }, 400);
+        const uid = url.searchParams.get('uid') ?? '';
+        const family = url.searchParams.get('family') ?? undefined;
+        if (!uid) return json({ error: 'uid required' }, 400);
+        return json((await intel471MalwareProfile(uid, proxy, request.signal, family)) ?? { error: 'unavailable' });
       }
 
       // On-demand CYFIRMA Threat-Actor deep-dive (broad search) by actor name.

@@ -200,6 +200,8 @@ export interface Intel471Context {
   indicatorCount?: number;
   /** Malware family (threat.data.family), e.g. "orcus", "redline". */
   malwareFamily?: string;
+  /** Malware family profile UID (threat.data.malware_family_profile_uid) → Titan /malware/{uid}. */
+  malwareFamilyUid?: string;
   /** Confidence: high / medium / low. */
   confidence?: string;
   /** Threat type (threat.type), e.g. "malware". */
@@ -253,6 +255,35 @@ export interface Intel471Search {
   breachAlerts?: number;
   cveReports?: number;
   error?: string;
+}
+
+/**
+ * Intel 471 malware family details — fetched on demand (by clicking the malware-family chip in the
+ * detail panel) from `GET /malwareFamilies` (profile: aka/summary) + `GET /malwareReports?
+ * malwareFamilyProfileUid=` (recent analysis reports). Mirrors CYFIRMA's actor deep-dive.
+ */
+export interface Intel471Malware {
+  family?: string;
+  uid?: string;
+  /** aka / alias names for the family. */
+  aka?: string[];
+  /** Free-text overview/summary from the family profile, when present. */
+  summary?: string;
+  /** Recent malware-report subjects (titles) for this family. */
+  reports?: string[];
+  /** Total malware reports Intel 471 has for the family. */
+  reportCount?: number;
+  /** MITRE ATT&CK tactics seen across the family's reports/profile. */
+  mitreTactics?: string[];
+  /** General Intel Requirements referenced by the reports. */
+  girs?: string[];
+  /** Activity window across the family's reports. */
+  activeFrom?: string;
+  activeTill?: string;
+  /** Deep link to the Titan malware profile page. */
+  portalUrl?: string;
+  error?: string;
+  raw?: unknown;
 }
 
 /**

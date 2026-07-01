@@ -2,7 +2,13 @@ import { describe, it, expect, vi, afterEach } from 'vitest';
 import type { EnrichEvent } from '@vteeee/shared';
 import { mapIrisEnrich, mapIrisInvestigateReverseIp } from '../domaintoolsFetch';
 import { mapDnslyticsIp, mapDnslyticsHostingHistory } from '../dnslyticsFetch';
-import { mapIntel471Ioc, mapIntel471Indicator, mapIntel471Search } from '../intel471Fetch';
+import {
+  mapIntel471Ioc,
+  mapIntel471Indicator,
+  mapIntel471Search,
+  mapIntel471MalwareReports,
+  mapIntel471Family,
+} from '../intel471Fetch';
 import { mapRiskDossier, mapStixSearch, mapThreatActor } from '../cyfirmaFetch';
 import { runEnrich } from '../enrich';
 import type { ProxyEnv } from '../types';
@@ -133,6 +139,41 @@ const I471_INDICATORS = {
       last_updated: 1615345743440,
       uid: '03966eb21fe3b33e026f3363b9f012af',
       activity: { first: 1615345265000, last: 1615345719000 },
+    },
+  ],
+};
+
+// Intel 471 /malwareReports?malwareFamilyProfileUid= (subjects + activity + GIR/MITRE).
+const I471_MALWARE_REPORTS = {
+  malwareReportTotalCount: 7,
+  malwareReports: [
+    {
+      uid: 'r1',
+      subject: 'Orcus RAT operators expand plugin marketplace',
+      data: { threat: { data: { family: 'orcus', mitre_tactics: 'command_and_control' } }, malware_report_data: {} },
+      classification: { intelRequirements: ['1.1.3'] },
+      activity: { first: 1660784348000, last: 1751221347000 },
+      last_updated: 1751221347000,
+    },
+    {
+      uid: 'r2',
+      subject: 'Commodity RAT orcus bundled in phishing campaign',
+      data: { threat: { data: { family: 'orcus', mitre_tactics: 'collection' } } },
+      classification: { intelRequirements: ['1.1.3', '2.4'] },
+      activity: { first: 1670000000000, last: 1700000000000 },
+    },
+  ],
+};
+
+// Intel 471 /malwareFamilies?malwareFamily= (family profile: aka + summary).
+const I471_MALWARE_FAMILIES = {
+  malware_family_total_count: 1,
+  malware_families: [
+    {
+      uid: '6e6ca74063416138a3fbf03dd2e189a6',
+      name: 'orcus',
+      aliases: ['Schnorchel', 'Snorkel'],
+      description: 'Orcus is a popular RAT written in C#.',
     },
   ],
 };
@@ -336,6 +377,28 @@ describe('Intel 471 mappers', () => {
     });
     expect(c.girs).toEqual(['1.1.5', '1.1.6']);
     expect(c.activeFrom).toBe(new Date(1615345265000).toISOString());
+  });
+  it('mapIntel471Indicator captures the malware family profile UID (→ Titan /malware/{uid})', () => {
+    const c = mapIntel471Indicator(I471_INDICATORS, 'http://45.67.231.78:3214');
+    expect(c.malwareFamilyUid).toBe('29f5');
+  });
+  it('mapIntel471MalwareReports maps subjects, count, MITRE, GIR and the activity window', () => {
+    const m = mapIntel471MalwareReports(I471_MALWARE_REPORTS);
+    expect(m.reportCount).toBe(7);
+    expect(m.reports).toEqual([
+      'Orcus RAT operators expand plugin marketplace',
+      'Commodity RAT orcus bundled in phishing campaign',
+    ]);
+    expect(m.mitreTactics).toEqual(expect.arrayContaining(['command_and_control', 'collection']));
+    expect(m.girs).toEqual(expect.arrayContaining(['1.1.3', '2.4']));
+    expect(m.activeFrom).toBe(new Date(1660784348000).toISOString()); // min first
+    expect(m.activeTill).toBe(new Date(1751221347000).toISOString()); // max last
+  });
+  it('mapIntel471Family picks the profile by UID and maps aka + summary', () => {
+    const f = mapIntel471Family(I471_MALWARE_FAMILIES, '6e6ca74063416138a3fbf03dd2e189a6', 'orcus');
+    expect(f.family).toBe('orcus');
+    expect(f.aka).toEqual(['Schnorchel', 'Snorkel']);
+    expect(f.summary).toContain('RAT');
   });
   it('mapIntel471Search maps cross-entity counts (camelCase + snake_case)', () => {
     const s = mapIntel471Search(I471_SEARCH);

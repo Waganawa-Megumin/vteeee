@@ -4,6 +4,7 @@ import type {
   EnrichableType,
   EnrichEvent,
   EnrichRequest,
+  Intel471Malware,
   Intel471Search,
   ParsedIndicator,
   ParseResponse,
@@ -149,6 +150,13 @@ export class LiveClient implements EnrichClient {
     );
     if (!res.ok) return { error: `Intel 471 search failed: ${res.status}` };
     return (await res.json()) as Intel471Search;
+  }
+
+  async intel471Malware(uid: string, family?: string): Promise<Intel471Malware> {
+    const q = `uid=${encodeURIComponent(uid)}${family ? `&family=${encodeURIComponent(family)}` : ''}`;
+    const res = await fetch(`${this.base}/api/intel471/malware?${q}`, { headers: this.headers(false) });
+    if (!res.ok) return { error: `Intel 471 malware lookup failed: ${res.status}` };
+    return (await res.json()) as Intel471Malware;
   }
 
   async cyfirmaSearch(name: string): Promise<CyfirmaSearch> {

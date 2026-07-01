@@ -1,4 +1,4 @@
-import type { EnrichableType, Intel471Context, Intel471Search } from '@vteeee/shared';
+import type { EnrichableType, Intel471Context, Intel471Malware, Intel471Search } from '@vteeee/shared';
 import type { ProxyEnv } from './types';
 
 /* eslint-disable @typescript-eslint/no-explicit-any */
@@ -94,6 +94,8 @@ export function mapIntel471Indicator(json: any, value: string): Intel471Context 
   const ctx: Intel471Context = { found: true, indicatorCount: total };
   const family = threat?.data?.family;
   if (typeof family === 'string' && family) ctx.malwareFamily = family;
+  const famUid = threat?.data?.malware_family_profile_uid;
+  if (typeof famUid === 'string' && famUid) ctx.malwareFamilyUid = famUid;
   if (typeof data.confidence === 'string' && data.confidence) ctx.confidence = data.confidence;
   if (typeof threat.type === 'string' && threat.type) ctx.threatType = threat.type;
   const desc = data.context?.description;
@@ -219,6 +221,7 @@ export async function intel471Lookup(
   if (ind?.found) {
     merged.indicatorCount = ind.indicatorCount;
     merged.malwareFamily = ind.malwareFamily;
+    merged.malwareFamilyUid = ind.malwareFamilyUid;
     merged.confidence = ind.confidence;
     merged.threatType = ind.threatType;
     merged.context = ind.context;
@@ -262,4 +265,95 @@ export async function intel471GlobalSearch(
   const r = await i471Fetch(url, env, signal);
   if (r.__error) return { error: r.__error };
   return mapIntel471Search(r.json);
+}
+
+/** GUI deep link for a malware family profile (matches the Titan URL the analyst sees). */
+const TITAN_MALWARE_URL = 'https://titan.intel471.com/malware/';
+
+/** Map `GET /malwareReports` (searched by family) to report subjects + activity window + MITRE/GIR. */
+export function mapIntel471MalwareReports(json: any): Partial<Intel471Malware> {
+  const list: any[] = Array.isArray(json?.malwareReports) ? json.malwareReports : [];
+  const out: Partial<Intel471Malware> = {};
+  const total = typeof json?.malwareReportTotalCount === 'number' ? json.malwareReportTotalCount : list.length;
+  if (total) out.reportCount = total;
+  const subjects = list.map((r) => r?.subject).filter((s: any): s is string => typeof s === 'string' && s.trim().length > 0);
+  if (subjects.length) out.reports = subjects.slice(0, 8);
+  const tactics = new Set<string>();
+  const girs = new Set<string>();
+  let first = Infinity;
+  let last = 0;
+  for (const r of list) {
+    const t = r?.data?.threat?.data?.mitre_tactics ?? r?.data?.malware_report_data?.mitre_tactics;
+    if (typeof t === 'string' && t) tactics.add(t);
+    else if (Array.isArray(t)) for (const x of t) if (typeof x === 'string') tactics.add(x);
+    const ir = r?.classification?.intelRequirements;
+    if (Array.isArray(ir)) for (const g of ir) if (typeof g === 'string') girs.add(g);
+    const f = r?.activity?.first;
+    const l = r?.activity?.last;
+    if (typeof f === 'number' && f > 0) first = Math.min(first, f);
+    if (typeof l === 'number' && l > 0) last = Math.max(last, l);
+  }
+  if (tactics.size) out.mitreTactics = [...tactics].slice(0, 12);
+  if (girs.size) out.girs = [...girs].slice(0, 12);
+  if (first !== Infinity) out.activeFrom = new Date(first).toISOString();
+  if (last > 0) out.activeTill = new Date(last).toISOString();
+  return out;
+}
+
+/** Map `GET /malwareFamilies` to the family profile's aka/summary (loose schema → defensive). */
+export function mapIntel471Family(json: any, uid: string, family?: string): Partial<Intel471Malware> {
+  const list: any[] = Array.isArray(json?.malware_families) ? json.malware_families : [];
+  const pick =
+    list.find((f) => f && typeof f === 'object' && JSON.stringify(f).includes(uid)) ??
+    (family
+      ? list.find((f) => typeof f?.name === 'string' && f.name.toLowerCase() === family.toLowerCase())
+      : undefined) ??
+    list[0];
+  const out: Partial<Intel471Malware> = {};
+  if (!pick || typeof pick !== 'object') return out;
+  const name = pick.name ?? pick.malware_family ?? pick.generic_name;
+  if (typeof name === 'string' && name) out.family = name;
+  const aka = pick.aliases ?? pick.aka ?? pick.names ?? pick.alternative_names;
+  if (Array.isArray(aka)) {
+    const a = aka.filter((x: any): x is string => typeof x === 'string' && x.trim().length > 0);
+    if (a.length) out.aka = Array.from(new Set(a)).slice(0, 20);
+  }
+  const summary = pick.description ?? pick.summary ?? pick.overview ?? pick.profile;
+  if (typeof summary === 'string' && summary.trim()) out.summary = summary.trim();
+  return out;
+}
+
+/**
+ * On-demand Intel 471 malware family details (clicking the malware-family chip): the family's recent
+ * malware reports (by `malwareFamilyProfileUid`) + the family profile (aka/summary), run together and
+ * deep-linked to the Titan malware page. Never throws; failures surface via `error`.
+ */
+export async function intel471MalwareProfile(
+  uid: string,
+  env: ProxyEnv,
+  signal?: AbortSignal,
+  family?: string,
+): Promise<Intel471Malware | undefined> {
+  if (!env.intel471ApiUser || !env.intel471ApiKey) return undefined;
+  if (!uid) return { error: 'no malware family profile uid' };
+  const portalUrl = `${TITAN_MALWARE_URL}${uid}`;
+  const reportsUrl = `${baseUrl(env)}/malwareReports?malwareFamilyProfileUid=${encodeURIComponent(uid)}&count=10&sort=latest`;
+  const famUrl = family ? `${baseUrl(env)}/malwareFamilies?malwareFamily=${encodeURIComponent(family)}&count=5` : undefined;
+  const [reportsR, famR] = await Promise.all([
+    i471Fetch(reportsUrl, env, signal),
+    famUrl ? i471Fetch(famUrl, env, signal) : Promise.resolve({ json: undefined } as { json?: any; __error?: string }),
+  ]);
+  const out: Intel471Malware = { uid, portalUrl };
+  if (family) out.family = family;
+  if (reportsR.__error && !famR?.json) return { ...out, error: reportsR.__error };
+  if (reportsR.json) Object.assign(out, mapIntel471MalwareReports(reportsR.json));
+  if (famR?.json) {
+    const fam = mapIntel471Family(famR.json, uid, family);
+    out.aka = fam.aka ?? out.aka;
+    out.summary = fam.summary ?? out.summary;
+    if (fam.family) out.family = fam.family;
+  }
+  out.family = out.family ?? family;
+  out.raw = { malwareReports: reportsR.json, malwareFamilies: famR?.json };
+  return out;
 }

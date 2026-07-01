@@ -7,6 +7,7 @@ import {
   type EnrichOptions,
   type ExtractStats,
   type HistoryRecord,
+  type Intel471Malware,
   type Intel471Search,
   type NormalizedResult,
   type ParsedIndicator,
@@ -68,6 +69,7 @@ interface State {
   applyUsers: (u: UserRecord[]) => void;
   refreshHealth: () => Promise<void>;
   intel471Search: (ioc: string, type: EnrichableType) => Promise<Intel471Search>;
+  intel471Malware: (uid: string, family?: string) => Promise<Intel471Malware>;
   cyfirmaSearch: (name: string) => Promise<CyfirmaSearch>;
 }
 
@@ -321,6 +323,15 @@ export const useStore = create<State>((set, get) => ({
     try {
       const client = await makeClient(get().settings);
       return await client.intel471Search(ioc, type);
+    } catch (e) {
+      return { error: (e as Error).message };
+    }
+  },
+
+  async intel471Malware(uid, family) {
+    try {
+      const client = await makeClient(get().settings);
+      return await client.intel471Malware(uid, family);
     } catch (e) {
       return { error: (e as Error).message };
     }

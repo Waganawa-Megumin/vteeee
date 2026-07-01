@@ -9,9 +9,12 @@ export {
   intel471Indicators,
   intel471Lookup,
   intel471GlobalSearch,
+  intel471MalwareProfile,
   mapIntel471Ioc,
   mapIntel471Indicator,
   mapIntel471Search,
+  mapIntel471MalwareReports,
+  mapIntel471Family,
 } from './intel471Fetch';
 export {
   cyfirmaRiskDossier,
