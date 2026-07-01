@@ -77,7 +77,7 @@ export const useStore = create<State>((set, get) => ({
   booted: false,
   session: null,
   users: [],
-  settings: { proxyBaseUrl: null, rpm: 4, concurrency: 1, gti: false, submitUnknown: false, shodan: true },
+  settings: { proxyBaseUrl: null, rpm: 4, concurrency: 1, gti: false, submitUnknown: false, shodan: true, domaintools: true, dnslytics: true },
   mode: 'demo',
   health: null,
 
@@ -192,6 +192,8 @@ export const useStore = create<State>((set, get) => ({
       gti: settings.gti,
       submitUnknown: settings.submitUnknown,
       shodan: settings.shodan ?? true,
+      domaintools: settings.domaintools ?? true,
+      dnslytics: settings.dnslytics ?? true,
     };
     set({
       running: true,
@@ -288,7 +290,7 @@ export const useStore = create<State>((set, get) => ({
     try {
       const res = await fetch(`${base}/health`, { cache: 'no-store' });
       if (!res.ok) {
-        set({ health: { ok: false, vtKey: false, claude: false, shodan: false } });
+        set({ health: { ok: false, vtKey: false, claude: false, shodan: false, domaintools: false, dnslytics: false } });
         return;
       }
       const h = (await res.json()) as Partial<ProxyHealth>;
@@ -298,10 +300,12 @@ export const useStore = create<State>((set, get) => ({
           vtKey: Boolean(h.vtKey),
           claude: Boolean(h.claude),
           shodan: Boolean(h.shodan),
+          domaintools: Boolean(h.domaintools),
+          dnslytics: Boolean(h.dnslytics),
         },
       });
     } catch {
-      set({ health: { ok: false, vtKey: false, claude: false, shodan: false } });
+      set({ health: { ok: false, vtKey: false, claude: false, shodan: false, domaintools: false, dnslytics: false } });
     }
   },
 }));

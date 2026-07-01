@@ -2,6 +2,8 @@ export * from './types';
 export { runEnrich, ndjson } from './enrich';
 export { vtLookup, type VtLookup } from './vtFetch';
 export { shodanHostLookup, mapShodanHost } from './shodanFetch';
+export { domaintoolsEnrichDomain, domaintoolsReverseIp, mapIrisEnrich, mapIrisInvestigateReverseIp } from './domaintoolsFetch';
+export { dnslyticsIpInfo, dnslyticsDomainInfo, mapDnslyticsIp, mapDnslyticsDomain } from './dnslyticsFetch';
 export { smartParse } from './parse';
 export { RateLimiter } from './rateLimiter';
 export { AsyncQueue, sleep, clamp, backoffMs } from './util';

@@ -110,6 +110,26 @@ export function HelpDialog({ onClose }: { onClose: () => void }) {
                 <span className="help-en">IPs only — open ports, services, known CVEs, org/ISP/OS. Toggle in Settings.</span>
               </IntegrationRow>
 
+              <IntegrationRow
+                name="DomainTools Iris"
+                env="DOMAINTOOLS_API_USERNAME + _KEY"
+                on={health?.domaintools ?? null}
+                live={live}
+              >
+                <span className="help-ja">
+                  <b>ドメイン</b>→Iris Enrich（リスクスコア＋内訳・WHOIS/RDAP・IP/ASN・NS・MX・SSL・website・first_seen・tags）。
+                  <b>IP</b>→Iris Investigate 逆引き（そのIP上のドメイン数＋サンプル）。<b>URL</b>はホスト名をドメイン扱い。
+                </span>
+                <span className="help-en">Domains → Iris Enrich (risk + WHOIS/RDAP/IP/SSL); IPs → Investigate reverse (domains on the IP). URL host treated as a domain.</span>
+              </IntegrationRow>
+
+              <IntegrationRow name="DNSLytics" env="DNSLYTICS_API_KEY" on={health?.dnslytics ?? null} live={live}>
+                <span className="help-ja">
+                  <b>IP</b>→IPInfo（ASN/組織/ISP/ネットワーク/逆引き/同居ドメイン数）。<b>ドメイン</b>→DomainInfo（登録情報・NS・MX・プロバイダ・人気度）。
+                </span>
+                <span className="help-en">IPs → IPInfo (ASN/org/reverse DNS/hosted-domain count); domains → DomainInfo (registration/NS/MX/provider).</span>
+              </IntegrationRow>
+
               <IntegrationRow name="Claude (smart-parse)" env="ANTHROPIC_API_KEY" on={health?.claude ?? null} live={live}>
                 <span className="help-ja">
                   レポート本文などの雑多なテキストからIOCを抽出（「Smart parse (Claude)」ボタン）。無ければ正規表現で代替。
@@ -117,6 +137,10 @@ export function HelpDialog({ onClose }: { onClose: () => void }) {
                 <span className="help-en">Pull IOCs out of free-form report prose (the “Smart parse” button). Falls back to regex if absent.</span>
               </IntegrationRow>
             </div>
+            <p className="help-ja" style={{ marginTop: 8 }}>
+              <b>種別で引き分け</b>：ドメイン→VT＋DomainTools(Enrich)＋DNSLytics ／ IP→VT＋Shodan＋DNSLytics＋DomainTools(逆引き)
+              ／ URL→ホスト名をドメイン扱い ／ ハッシュ→VTのみ。各連携は Settings で個別ON/OFF可。
+            </p>
             <p className="help-en" style={{ marginTop: 8 }}>
               <b>Enable an optional service (3 steps):</b> ① add the env var above as a repo secret /
               proxy env → ② run the <b>“Deploy Proxy”</b> workflow (Cloudflare) or restart the Node proxy →

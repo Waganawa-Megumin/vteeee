@@ -42,6 +42,16 @@ export function SettingsDialog({ onClose }: { onClose: () => void }) {
                 Shodan{' '}
                 {health?.shodan ? (draft.shodan !== false ? 'on' : 'key set · off') : 'not configured'}
               </span>
+              <span className={`intg-chip ${health?.domaintools && draft.domaintools !== false ? 'on' : 'off'}`}>
+                <span className="intg-dot" />
+                DomainTools{' '}
+                {health?.domaintools ? (draft.domaintools !== false ? 'on' : 'creds set · off') : 'not configured'}
+              </span>
+              <span className={`intg-chip ${health?.dnslytics && draft.dnslytics !== false ? 'on' : 'off'}`}>
+                <span className="intg-dot" />
+                DNSLytics{' '}
+                {health?.dnslytics ? (draft.dnslytics !== false ? 'on' : 'key set · off') : 'not configured'}
+              </span>
               <span className={`intg-chip ${health?.claude ? 'on' : 'off'}`}>
                 <span className="intg-dot" />
                 Claude {health?.claude ? 'on' : 'not configured'}
@@ -145,9 +155,33 @@ export function SettingsDialog({ onClose }: { onClose: () => void }) {
               en="When ON, IP rows are enriched with open ports, services and known CVEs — but only if the proxy has a SHODAN_API_KEY (key stays server-side). Turn OFF to skip Shodan lookups and save credits. Setup steps are in Docs → Integrations."
             />
           </label>
+          <label className="chk">
+            <input
+              type="checkbox"
+              checked={draft.domaintools !== false}
+              onChange={(e) => up('domaintools', e.target.checked)}
+            />
+            🧭 DomainTools Iris (domains + IP reverse)
+            <InfoTip
+              ja="ドメインは Iris Enrich（リスクスコア/WHOIS/RDAP/SSL等）、IPは Iris Investigate 逆引き（そのIP上のドメイン）を付与。プロキシに DOMAINTOOLS_API_USERNAME/KEY がある時のみ。従量課金・低レート制限のためOFFで停止できます。"
+              en="Domains via Iris Enrich (risk score/WHOIS/RDAP/SSL); IPs via Iris Investigate reverse (domains on the IP). Only if the proxy has DomainTools creds. Metered + low rate limits, so you can turn it off."
+            />
+          </label>
+          <label className="chk">
+            <input
+              type="checkbox"
+              checked={draft.dnslytics !== false}
+              onChange={(e) => up('dnslytics', e.target.checked)}
+            />
+            🌐 DNSLytics (IP + domain)
+            <InfoTip
+              ja="IPは IPInfo（ASN/組織/逆引き/同居ドメイン数）、ドメインは DomainInfo（登録情報/NS/MX/プロバイダ）を付与。プロキシに DNSLYTICS_API_KEY がある時のみ。"
+              en="IPs via IPInfo (ASN/org/reverse DNS/hosted-domain count); domains via DomainInfo (registration/NS/MX/provider). Only if the proxy has a DNSLytics key."
+            />
+          </label>
           <p className="hint shodan-hint">
-            Enable it by adding <code>SHODAN_API_KEY</code> to your proxy (then run “Deploy Proxy”). Status
-            shows above &amp; in the header. Full steps: <strong>Docs → Integrations</strong>.
+            Optional enrichers run only when their key is on the proxy. Add the key → run “Deploy Proxy” →
+            reload; the header chip flips ON. Full steps &amp; what each adds: <strong>Docs → Integrations</strong>.
           </p>
 
           <label className="fld">

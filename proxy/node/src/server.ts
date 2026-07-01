@@ -40,12 +40,18 @@ const env: ProxyEnv = {
   vtApiKey: process.env.VT_API_KEY ?? '',
   anthropicApiKey: process.env.ANTHROPIC_API_KEY || undefined,
   shodanApiKey: process.env.SHODAN_API_KEY || undefined,
+  domaintoolsApiUsername: process.env.DOMAINTOOLS_API_USERNAME || undefined,
+  domaintoolsApiKey: process.env.DOMAINTOOLS_API_KEY || undefined,
+  dnslyticsApiKey: process.env.DNSLYTICS_API_KEY || undefined,
+  dnslyticsBaseUrl: process.env.DNSLYTICS_BASE_URL || undefined,
   accessToken: process.env.ACCESS_TOKEN || undefined,
   adminToken: process.env.ADMIN_TOKEN || undefined,
   allowedOrigins,
   defaultRpm: Number(process.env.VT_RPM ?? 4),
   maxRpm: Number(process.env.VT_MAX_RPM ?? 1000),
   shodanRpm: process.env.SHODAN_RPM ? Number(process.env.SHODAN_RPM) : undefined,
+  domaintoolsRpm: process.env.DOMAINTOOLS_RPM ? Number(process.env.DOMAINTOOLS_RPM) : undefined,
+  dnslyticsRpm: process.env.DNSLYTICS_RPM ? Number(process.env.DNSLYTICS_RPM) : undefined,
   claudeModel: process.env.CLAUDE_MODEL || undefined,
   xTool: process.env.VT_X_TOOL ?? 'vteeee',
   maxBatch: Number(process.env.MAX_BATCH ?? 1000),
@@ -108,6 +114,8 @@ app.get('/health', (_req, res) => {
     vtKey: Boolean(env.vtApiKey),
     claude: Boolean(env.anthropicApiKey),
     shodan: Boolean(env.shodanApiKey),
+    domaintools: Boolean(env.domaintoolsApiUsername && env.domaintoolsApiKey),
+    dnslytics: Boolean(env.dnslyticsApiKey),
   });
 });
 
@@ -207,5 +215,5 @@ app.all('/api/history/:id', (req, res) => void handleHistory(req, res, req.param
 app.listen(PORT, () => {
   console.log(`vteeee proxy listening on :${PORT}`);
   console.log(`  allowed origins: ${allowedOrigins.join(', ')}`);
-  console.log(`  VT key: ${env.vtApiKey ? 'set' : 'MISSING'} · Claude: ${env.anthropicApiKey ? 'set' : 'off (regex fallback)'} · Shodan: ${env.shodanApiKey ? 'set' : 'off'}`);
+  console.log(`  VT key: ${env.vtApiKey ? 'set' : 'MISSING'} · Claude: ${env.anthropicApiKey ? 'set' : 'off (regex fallback)'} · Shodan: ${env.shodanApiKey ? 'set' : 'off'} · DomainTools: ${env.domaintoolsApiUsername && env.domaintoolsApiKey ? 'set' : 'off'} · DNSLytics: ${env.dnslyticsApiKey ? 'set' : 'off'}`);
 });

@@ -6,6 +6,17 @@ export interface ProxyEnv {
   shodanApiKey?: string;
   /** Per-minute cap on Shodan host lookups (free plan ≈ 1/s). Default 60. */
   shodanRpm?: number;
+  /** DomainTools API username + key. When both set, domains use Iris Enrich and IPs use Iris Investigate (reverse). */
+  domaintoolsApiUsername?: string;
+  domaintoolsApiKey?: string;
+  /** Per-minute cap on DomainTools lookups (Investigate is low-rate). Default 30. */
+  domaintoolsRpm?: number;
+  /** DNSLytics API key. When set, IPs use IPInfo and domains use DomainInfo. */
+  dnslyticsApiKey?: string;
+  /** DNSLytics API base URL. Default https://api.dnslytics.net/v1 (override if your endpoint differs). */
+  dnslyticsBaseUrl?: string;
+  /** Per-minute cap on DNSLytics lookups. Default 60. */
+  dnslyticsRpm?: number;
   /** Shared token required on /api/* (enrich, parse). */
   accessToken?: string;
   /** Token required to write users/settings via /api/admin/*. */

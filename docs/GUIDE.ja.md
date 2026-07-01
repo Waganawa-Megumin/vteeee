@@ -33,7 +33,11 @@ APIキーはすべて**プロキシ側のみ**が保持します。**VirusTotal 
 |---|---|---|---|---|
 | **VirusTotal / GTI** | 脅威情報（基本） | ✅ 必須 | `VT_API_KEY` | 判定・検出比・レピュテーション・ASN/国・カテゴリ・脅威ラベル・First/Last seen(ファイル・URL)・GTI評価 |
 | **Shodan** | OSINT（IP限定） | 任意 | `SHODAN_API_KEY` | 開放ポート・稼働サービス・既知CVE・組織/ISP/OS・ホスト名・タグ |
+| **DomainTools Iris** | ドメイン/IP情報 | 任意 | `DOMAINTOOLS_API_USERNAME`＋`DOMAINTOOLS_API_KEY` | **ドメイン**(Enrich)：リスクスコア＋内訳/WHOIS/RDAP/IP/ASN/NS/MX/SSL/website/first_seen/tags。**IP**(Investigate逆引き)：そのIP上のドメイン |
+| **DNSLytics** | ドメイン/IP情報 | 任意 | `DNSLYTICS_API_KEY` | **IP**(IPInfo)：ASN/組織/ISP/ネットワーク/逆引き/同居ドメイン数。**ドメイン**(DomainInfo)：登録情報/NS/MX/プロバイダ/人気度 |
 | **Claude (Anthropic)** | スマートパース | 任意 | `ANTHROPIC_API_KEY` | レポート本文からIOC抽出 |
+
+**IOC種別で引き分け**：ドメイン→VT＋DomainTools(Enrich)＋DNSLytics ／ IP→VT＋Shodan＋DNSLytics＋DomainTools(逆引き) ／ URL→ホスト名をドメイン扱い ／ ハッシュ→VTのみ。各連携は Settings で個別ON/OFF可。DomainToolsは従量課金・Investigateは低レート制限のため、`DOMAINTOOLS_RPM`(既定30)/`DNSLYTICS_RPM`(既定60)で調整、`DNSLYTICS_BASE_URL`でエンドポイント変更可。
 
 **任意サービスを有効化する手順（3ステップ）:**
 1. 上表の環境変数を **リポジトリ Secret**（GitHub → Settings → Secrets → Actions）に登録。
@@ -58,6 +62,8 @@ APIキーはすべて**プロキシ側のみ**が保持します。**VirusTotal 
 | `ADMIN_TOKEN` | 推奨 | `/api/admin/*`(ユーザー/設定の書込)保護 | proxy-deploy |
 | `ANTHROPIC_API_KEY` | 任意 | Claudeスマートパース(無ければ正規表現にフォールバック) | proxy-deploy |
 | `SHODAN_API_KEY` | 任意 | **Shodan OSINT**。IP行に開放ポート/サービス/CVE等を自動付与(無ければ付与なし) | proxy-deploy |
+| `DOMAINTOOLS_API_USERNAME`＋`DOMAINTOOLS_API_KEY` | 任意 | **DomainTools Iris**。ドメイン=Enrich／IP=Investigate逆引き。両方セットで有効 | proxy-deploy |
+| `DNSLYTICS_API_KEY` | 任意 | **DNSLytics**。IP=IPInfo／ドメイン=DomainInfo | proxy-deploy |
 | `CLOUDFLARE_API_TOKEN` | Cloudflare使用時のみ | Worker デプロイ認証 | proxy-deploy |
 | `CLOUDFLARE_ACCOUNT_ID` | Cloudflare使用時のみ | Cloudflare アカウントID | proxy-deploy |
 
@@ -190,6 +196,9 @@ pnpm exec wrangler kv namespace create VTEEEE_KV
   printf '%s' "<ACCESS>" | pnpm exec wrangler secret put ACCESS_TOKEN
   printf '%s' "<ADMIN>"  | pnpm exec wrangler secret put ADMIN_TOKEN
   printf '%s' "<Shodanキー>" | pnpm exec wrangler secret put SHODAN_API_KEY  # 任意: IPにOSINT付与
+  printf '%s' "<DTユーザー名>" | pnpm exec wrangler secret put DOMAINTOOLS_API_USERNAME  # 任意
+  printf '%s' "<DTキー>"       | pnpm exec wrangler secret put DOMAINTOOLS_API_KEY       # 任意
+  printf '%s' "<DNSLyticsキー>" | pnpm exec wrangler secret put DNSLYTICS_API_KEY         # 任意
   ```
 - 注意: Workerのレート制限カウンタはisolate間で共有されません。厳密な全体ペースが要るなら Node版を推奨。
 
@@ -228,9 +237,11 @@ pnpm exec wrangler kv namespace create VTEEEE_KV
 | `ADMIN_TOKEN` | プロキシ + webのManage | ○ | `/api/admin/*` 書込トークン |
 | `ANTHROPIC_API_KEY` | プロキシ | △ | Claudeスマートパース |
 | `SHODAN_API_KEY` | プロキシ | △ | Shodan OSINT(IPに開放ポート/サービス/CVE付与) |
+| `DOMAINTOOLS_API_USERNAME` / `DOMAINTOOLS_API_KEY` | プロキシ | △ | DomainTools Iris(ドメイン=Enrich／IP=逆引き) |
+| `DNSLYTICS_API_KEY` / `DNSLYTICS_BASE_URL` | プロキシ | △ | DNSLytics(IP/ドメイン)。BASE_URLは既定 api.dnslytics.net/v1 |
 | `ALLOWED_ORIGINS` | プロキシ(wrangler.toml / env) | ○ | 許可オリジン(カンマ区切り) |
 | `VT_RPM` / `VT_MAX_RPM` / `VT_DAILY` | プロキシ | △ | レート/日次上限 |
-| `SHODAN_RPM` | プロキシ | △ | Shodan検索の毎分上限(既定60≒1/秒) |
+| `SHODAN_RPM` / `DOMAINTOOLS_RPM` / `DNSLYTICS_RPM` | プロキシ | △ | 各連携の毎分上限(既定 60/30/60) |
 | `CLAUDE_MODEL` | プロキシ | △ | 既定 `claude-haiku-4-5` |
 | `CLOUDFLARE_API_TOKEN` / `CLOUDFLARE_ACCOUNT_ID` | GitHub Secrets | Cloudflare時 | Workerデプロイ |
 | `VITE_BASE` | Pagesワークフロー | ○ | `/<repo>/` |

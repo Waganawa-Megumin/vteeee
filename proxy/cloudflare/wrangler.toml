@@ -23,12 +23,19 @@ HISTORY_DAYS = "30"
 binding = "VTEEEE_KV"
 id = "64fde3553d4b4272a3afa346945a0ce0"
 
-# Optional: cap Shodan host lookups per minute (free plan ≈ 1/s → 60).
+# Optional: per-minute caps for the optional enrichers.
 # SHODAN_RPM = "60"
+# DOMAINTOOLS_RPM = "30"
+# DNSLYTICS_RPM = "60"
+# Override only if your DNSLytics endpoint differs from the default:
+# DNSLYTICS_BASE_URL = "https://api.dnslytics.net/v1"
 
 # Secrets are NOT stored here. Set them with:
 #   wrangler secret put VT_API_KEY
-#   wrangler secret put ANTHROPIC_API_KEY   # optional (Claude smart-parse)
-#   wrangler secret put SHODAN_API_KEY      # optional (Shodan OSINT on IP rows)
-#   wrangler secret put ACCESS_TOKEN        # required on /api/*
-#   wrangler secret put ADMIN_TOKEN         # required on /api/admin/*
+#   wrangler secret put ANTHROPIC_API_KEY         # optional (Claude smart-parse)
+#   wrangler secret put SHODAN_API_KEY            # optional (Shodan OSINT on IP rows)
+#   wrangler secret put DOMAINTOOLS_API_USERNAME  # optional (Iris: domains + IP reverse)
+#   wrangler secret put DOMAINTOOLS_API_KEY       # optional (paired with the username)
+#   wrangler secret put DNSLYTICS_API_KEY         # optional (IP + domain intel)
+#   wrangler secret put ACCESS_TOKEN              # required on /api/*
+#   wrangler secret put ADMIN_TOKEN               # required on /api/admin/*

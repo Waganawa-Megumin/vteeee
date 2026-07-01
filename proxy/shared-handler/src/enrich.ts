@@ -1,6 +1,8 @@
 import {
   buildLinks,
   normalizeVt,
+  type DnslyticsContext,
+  type DomainToolsContext,
   type EnrichEvent,
   type EnrichRequest,
   type NormalizedResult,
@@ -11,11 +13,29 @@ import { FatalError, RateLimitError, type ProxyEnv } from './types';
 import { RateLimiter } from './rateLimiter';
 import { vtLookup } from './vtFetch';
 import { shodanHostLookup } from './shodanFetch';
+import { domaintoolsEnrichDomain, domaintoolsReverseIp } from './domaintoolsFetch';
+import { dnslyticsDomainInfo, dnslyticsIpInfo } from './dnslyticsFetch';
 import { AsyncQueue, backoffMs, clamp, sleep } from './util';
 
 const MAX_RL_RETRIES = 3;
 const MAX_TRANSIENT_RETRIES = 2;
 const DEFAULT_SHODAN_RPM = 60;
+const DEFAULT_DOMAINTOOLS_RPM = 30;
+const DEFAULT_DNSLYTICS_RPM = 60;
+
+/** Hostname from a URL indicator (for treating a URL's host as a domain). null if not parseable. */
+function hostFromUrl(u: string): string | null {
+  try {
+    return new URL(u).hostname || null;
+  } catch {
+    return null;
+  }
+}
+
+/** True if `host` is an IPv4/IPv6 literal (so domain-only enrichers should skip it). */
+function isIpLiteral(host: string): boolean {
+  return /^\d{1,3}(\.\d{1,3}){3}$/.test(host) || host.includes(':');
+}
 
 interface LookupOutcome {
   status: ResultStatus;
@@ -38,6 +58,17 @@ export async function* runEnrich(
   const shodanEnabled = Boolean(env.shodanApiKey) && req.options?.shodan !== false;
   const shodanLimiter = shodanEnabled
     ? new RateLimiter(clamp(env.shodanRpm ?? DEFAULT_SHODAN_RPM, 1, 600))
+    : null;
+  // DomainTools (domains → Iris Enrich, IPs → Iris Investigate reverse) under its own limiter.
+  const dtEnabled =
+    Boolean(env.domaintoolsApiUsername && env.domaintoolsApiKey) && req.options?.domaintools !== false;
+  const dtLimiter = dtEnabled
+    ? new RateLimiter(clamp(env.domaintoolsRpm ?? DEFAULT_DOMAINTOOLS_RPM, 1, 600))
+    : null;
+  // DNSLytics (IPs → IPInfo, domains → DomainInfo) under its own limiter.
+  const dnslEnabled = Boolean(env.dnslyticsApiKey) && req.options?.dnslytics !== false;
+  const dnslLimiter = dnslEnabled
+    ? new RateLimiter(clamp(env.dnslyticsRpm ?? DEFAULT_DNSLYTICS_RPM, 1, 600))
     : null;
   const queue = new AsyncQueue<EnrichEvent>();
   const tasks = [...req.indicators];
@@ -94,6 +125,57 @@ export async function* runEnrich(
     }
   }
 
+  /** DomainTools for a domain (Enrich) or IP (Investigate reverse). Never throws. */
+  async function enrichDomaintools(
+    kind: 'domain' | 'ip',
+    value: string,
+  ): Promise<DomainToolsContext | undefined> {
+    if (!dtLimiter) return undefined;
+    try {
+      await dtLimiter.acquire(signal);
+      return kind === 'domain'
+        ? await domaintoolsEnrichDomain(value, env, signal)
+        : await domaintoolsReverseIp(value, env, signal);
+    } catch (e) {
+      if ((e as Error).name === 'AbortError') return undefined;
+      return { found: false, mode: kind === 'domain' ? 'enrich' : 'reverse-ip', error: (e as Error).message };
+    }
+  }
+
+  /** DNSLytics for a domain (DomainInfo) or IP (IPInfo). Never throws. */
+  async function enrichDnslytics(
+    kind: 'domain' | 'ip',
+    value: string,
+  ): Promise<DnslyticsContext | undefined> {
+    if (!dnslLimiter) return undefined;
+    try {
+      await dnslLimiter.acquire(signal);
+      return kind === 'domain'
+        ? await dnslyticsDomainInfo(value, env, signal)
+        : await dnslyticsIpInfo(value, env, signal);
+    } catch (e) {
+      if ((e as Error).name === 'AbortError') return undefined;
+      return { found: false, kind, error: (e as Error).message };
+    }
+  }
+
+  /** Attach all provider context to a normalized result, routing by IOC type. */
+  async function attachContext(ind: EnrichRequest['indicators'][number], result: NormalizedResult): Promise<void> {
+    const isIp = ind.type === 'ipv4' || ind.type === 'ipv6';
+    // A URL's host is treated as a domain (unless it's an IP literal).
+    const urlHost = ind.type === 'url' ? hostFromUrl(ind.value) : null;
+    const domain = ind.type === 'domain' ? ind.value : urlHost && !isIpLiteral(urlHost) ? urlHost : null;
+
+    if (isIp) {
+      if (shodanLimiter) result.shodan = await enrichShodan(ind.value);
+      if (dnslLimiter) result.dnslytics = await enrichDnslytics('ip', ind.value);
+      if (dtLimiter) result.domaintools = await enrichDomaintools('ip', ind.value);
+    } else if (domain) {
+      if (dtLimiter) result.domaintools = await enrichDomaintools('domain', domain);
+      if (dnslLimiter) result.dnslytics = await enrichDnslytics('domain', domain);
+    }
+  }
+
   async function worker(): Promise<void> {
     while (tasks.length && !fatal) {
       if (signal?.aborted) return;
@@ -113,9 +195,7 @@ export async function* runEnrich(
           includeRaw,
           errorMessage: outcome.errorMessage,
         });
-        if (shodanLimiter && (ind.type === 'ipv4' || ind.type === 'ipv6')) {
-          result.shodan = await enrichShodan(ind.value);
-        }
+        await attachContext(ind, result);
         queue.push({ event: 'result', result });
       } catch (e) {
         if (e instanceof FatalError) {

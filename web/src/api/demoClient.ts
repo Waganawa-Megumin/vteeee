@@ -38,6 +38,8 @@ export class DemoClient implements EnrichClient {
           includeRaw: true,
         });
         if (fx.shodan) result.shodan = fx.shodan;
+        if (fx.domaintools) result.domaintools = fx.domaintools;
+        if (fx.dnslytics) result.dnslytics = fx.dnslytics;
       } else {
         result = normalizeVt({
           input: ind.input,

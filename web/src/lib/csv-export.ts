@@ -25,6 +25,8 @@ export function resultsToCsv(results: NormalizedResult[]): string {
     'last_seen',
     'times_submitted',
     'last_modified',
+    'domaintools_risk',
+    'dnslytics',
     'vt_link',
   ];
   const rows = results.map((r) => [
@@ -45,6 +47,16 @@ export function resultsToCsv(results: NormalizedResult[]): string {
     r.lastSeen ?? '',
     r.timesSubmitted ?? '',
     r.lastModified ?? '',
+    r.domaintools?.found
+      ? r.domaintools.mode === 'reverse-ip'
+        ? `${r.domaintools.hostedDomainCount ?? 0} domains on IP`
+        : (r.domaintools.riskScore ?? '')
+      : '',
+    r.dnslytics?.found
+      ? r.dnslytics.kind === 'ip'
+        ? [r.dnslytics.asn ? `AS${r.dnslytics.asn}` : '', r.dnslytics.org].filter(Boolean).join(' ')
+        : (r.dnslytics.registrar ?? '')
+      : '',
     r.links.gui,
   ]);
   return [header, ...rows].map((row) => row.map(cell).join(',')).join('\n');

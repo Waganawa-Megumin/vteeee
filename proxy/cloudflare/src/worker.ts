@@ -24,12 +24,18 @@ interface Env {
   VT_API_KEY: string;
   ANTHROPIC_API_KEY?: string;
   SHODAN_API_KEY?: string;
+  DOMAINTOOLS_API_USERNAME?: string;
+  DOMAINTOOLS_API_KEY?: string;
+  DNSLYTICS_API_KEY?: string;
+  DNSLYTICS_BASE_URL?: string;
   ACCESS_TOKEN?: string;
   ADMIN_TOKEN?: string;
   ALLOWED_ORIGINS?: string;
   VT_RPM?: string;
   VT_MAX_RPM?: string;
   SHODAN_RPM?: string;
+  DOMAINTOOLS_RPM?: string;
+  DNSLYTICS_RPM?: string;
   CLAUDE_MODEL?: string;
   MAX_BATCH?: string;
   VT_DAILY?: string;
@@ -51,12 +57,18 @@ function build(env: Env): { proxy: ProxyEnv; allowed: string[]; store: Storage }
     vtApiKey: env.VT_API_KEY,
     anthropicApiKey: env.ANTHROPIC_API_KEY,
     shodanApiKey: env.SHODAN_API_KEY,
+    domaintoolsApiUsername: env.DOMAINTOOLS_API_USERNAME,
+    domaintoolsApiKey: env.DOMAINTOOLS_API_KEY,
+    dnslyticsApiKey: env.DNSLYTICS_API_KEY,
+    dnslyticsBaseUrl: env.DNSLYTICS_BASE_URL,
     accessToken: env.ACCESS_TOKEN,
     adminToken: env.ADMIN_TOKEN,
     allowedOrigins: allowed,
     defaultRpm: Number(env.VT_RPM ?? 4),
     maxRpm: Number(env.VT_MAX_RPM ?? 1000),
     shodanRpm: env.SHODAN_RPM ? Number(env.SHODAN_RPM) : undefined,
+    domaintoolsRpm: env.DOMAINTOOLS_RPM ? Number(env.DOMAINTOOLS_RPM) : undefined,
+    dnslyticsRpm: env.DNSLYTICS_RPM ? Number(env.DNSLYTICS_RPM) : undefined,
     claudeModel: env.CLAUDE_MODEL,
     xTool: 'vteeee',
     maxBatch: Number(env.MAX_BATCH ?? 1000),
@@ -88,6 +100,8 @@ export default {
           vtKey: Boolean(proxy.vtApiKey),
           claude: Boolean(proxy.anthropicApiKey),
           shodan: Boolean(proxy.shodanApiKey),
+          domaintools: Boolean(proxy.domaintoolsApiUsername && proxy.domaintoolsApiKey),
+          dnslytics: Boolean(proxy.dnslyticsApiKey),
         });
 
       if (url.pathname === '/api/enrich' && request.method === 'POST') {

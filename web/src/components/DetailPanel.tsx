@@ -1,4 +1,4 @@
-import type { ShodanContext, ShodanService } from '@vteeee/shared';
+import type { DnslyticsContext, DomainToolsContext, ShodanContext, ShodanService } from '@vteeee/shared';
 import { useStore } from '../state/store';
 import { GtiBadge, VerdictBadge } from './Badges';
 import { detectionRatio } from '../lib/verdict';
@@ -99,6 +99,154 @@ function ShodanSection({ s, ip }: { s: ShodanContext; ip: string }) {
         >
           Open in Shodan ↗
         </a>
+      )}
+    </div>
+  );
+}
+
+function Chips({ items }: { items: string[] }) {
+  return (
+    <div className="fv chips">
+      {items.map((t) => (
+        <span key={t} className="chip">
+          {t}
+        </span>
+      ))}
+    </div>
+  );
+}
+
+/** DomainTools Iris block — Enrich for domains, Investigate reverse for IPs. */
+function DomainToolsSection({ d }: { d: DomainToolsContext }) {
+  const riskClass = (s?: number) => (s != null && s >= 70 ? 'chip shodan-vuln' : 'chip shodan');
+  return (
+    <div className="shodan-block">
+      <div className="shodan-head">
+        <span className="shodan-logo" aria-hidden>
+          🧭
+        </span>
+        DomainTools · Iris{d.mode === 'reverse-ip' ? ' (reverse IP)' : ''}
+      </div>
+
+      {!d.found ? (
+        <div className="detail-note">
+          {d.error ??
+            (d.mode === 'reverse-ip' ? 'No domains hosted on this IP in Iris.' : 'No Iris record for this domain.')}
+        </div>
+      ) : d.mode === 'enrich' ? (
+        <div className="detail-grid">
+          {d.riskScore != null && (
+            <div className="field">
+              <div className="fk">Risk score</div>
+              <div className="fv chips">
+                <span className={riskClass(d.riskScore)}>{d.riskScore}</span>
+                {d.riskComponents?.map((c) => (
+                  <span key={c.name} className="chip">
+                    {c.name} {c.riskScore}
+                  </span>
+                ))}
+              </div>
+            </div>
+          )}
+          <Field k="Created" v={d.created} />
+          <Field k="First seen" v={d.firstSeen} />
+          <Field k="Registrar" v={d.registrar} />
+          <Field k="IP(s)" v={d.ips?.join(', ')} mono />
+          <Field k="ASN" v={d.asns?.length ? d.asns.map((a) => `AS${a}`).join(', ') : undefined} />
+          <Field k="Name servers" v={d.nameServers?.join(', ')} mono />
+          <Field k="MX" v={d.mailServers?.join(', ')} mono />
+          <Field k="SSL issuer" v={d.sslIssuer} />
+          <Field k="SSL expires" v={d.sslNotAfter} />
+          <Field
+            k="Website"
+            v={
+              [d.websiteResponse ? `HTTP ${d.websiteResponse}` : '', d.serverType, d.websiteTitle]
+                .filter(Boolean)
+                .join(' · ') || undefined
+            }
+          />
+          {d.tags && d.tags.length > 0 && (
+            <div className="field">
+              <div className="fk">Tags</div>
+              <Chips items={d.tags} />
+            </div>
+          )}
+        </div>
+      ) : (
+        <div className="detail-grid">
+          <Field
+            k="Domains on IP"
+            v={d.hostedDomainCount != null ? d.hostedDomainCount.toLocaleString() : undefined}
+          />
+          {d.sampleDomains && d.sampleDomains.length > 0 && (
+            <div className="field">
+              <div className="fk">Sample domains</div>
+              <div className="fv chips">
+                {d.sampleDomains.map((s) => (
+                  <span key={s.domain} className={riskClass(s.riskScore)}>
+                    {s.domain}
+                    {s.riskScore != null ? ` (${s.riskScore})` : ''}
+                  </span>
+                ))}
+              </div>
+            </div>
+          )}
+        </div>
+      )}
+
+      {d.raw != null && (
+        <details className="raw">
+          <summary>Raw DomainTools data</summary>
+          <pre>{JSON.stringify(d.raw, null, 2)}</pre>
+        </details>
+      )}
+    </div>
+  );
+}
+
+/** DNSLytics block — IPInfo for IPs, DomainInfo for domains. */
+function DnslyticsSection({ d }: { d: DnslyticsContext }) {
+  return (
+    <div className="shodan-block">
+      <div className="shodan-head">
+        <span className="shodan-logo" aria-hidden>
+          🌐
+        </span>
+        DNSLytics · {d.kind === 'ip' ? 'IP' : 'Domain'}
+      </div>
+
+      {!d.found ? (
+        <div className="detail-note">{d.error ?? 'No DNSLytics record.'}</div>
+      ) : d.kind === 'ip' ? (
+        <div className="detail-grid">
+          <Field k="ASN" v={d.asn != null ? `AS${d.asn}` : undefined} />
+          <Field k="Org" v={d.org} />
+          <Field k="ISP" v={d.isp && d.isp !== d.org ? d.isp : undefined} />
+          <Field k="Network" v={d.network} mono />
+          <Field k="Location" v={[d.city, d.country].filter(Boolean).join(', ') || undefined} />
+          <Field k="Reverse DNS" v={d.hostname} mono />
+          <Field k="Domains on IP" v={d.domainsOnIp != null ? d.domainsOnIp.toLocaleString() : undefined} />
+          <Field k="Threat" v={d.threat} />
+        </div>
+      ) : (
+        <div className="detail-grid">
+          <Field k="Registrar" v={d.registrar} />
+          <Field k="Created" v={d.created} />
+          <Field k="Updated" v={d.updated} />
+          <Field k="Expires" v={d.expires} />
+          <Field k="Name servers" v={d.nameServers?.join(', ')} mono />
+          <Field k="MX" v={d.mailServers?.join(', ')} mono />
+          <Field k="Provider" v={d.provider} />
+          <Field k="Popularity" v={d.popularity != null ? d.popularity.toLocaleString() : undefined} />
+          <Field k="Threat" v={d.threat} />
+        </div>
+      )}
+
+      {d.raw != null && (
+        <details className="raw">
+          <summary>Raw DNSLytics data</summary>
+          <pre>{JSON.stringify(d.raw, null, 2)}</pre>
+        </details>
       )}
     </div>
   );
@@ -228,6 +376,8 @@ export function DetailPanel() {
         </div>
 
         {r.shodan && <ShodanSection s={r.shodan} ip={r.value} />}
+        {r.domaintools && <DomainToolsSection d={r.domaintools} />}
+        {r.dnslytics && <DnslyticsSection d={r.dnslytics} />}
 
         <a className="btn btn-primary detail-vt" href={r.links.gui} target="_blank" rel="noreferrer">
           Open in VirusTotal ↗

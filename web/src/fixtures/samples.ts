@@ -1,4 +1,10 @@
-import type { IocType, ResultStatus, ShodanContext } from '@vteeee/shared';
+import type {
+  DnslyticsContext,
+  DomainToolsContext,
+  IocType,
+  ResultStatus,
+  ShodanContext,
+} from '@vteeee/shared';
 
 export interface Fixture {
   value: string;
@@ -8,6 +14,10 @@ export interface Fixture {
   attributes?: Record<string, unknown>;
   /** Sample Shodan OSINT context (IPs), so the demo previews the live enrichment. */
   shodan?: ShodanContext;
+  /** Sample DomainTools Iris context (domains + IP reverse). */
+  domaintools?: DomainToolsContext;
+  /** Sample DNSLytics context (IP + domain). */
+  dnslytics?: DnslyticsContext;
 }
 
 const day = 86400;
@@ -50,6 +60,27 @@ export const FIXTURES: Fixture[] = [
       ],
       lastUpdate: new Date((now - 1 * day) * 1000).toISOString(),
     },
+    dnslytics: {
+      found: true,
+      kind: 'ip',
+      asn: 13335,
+      org: 'Cloudflare, Inc.',
+      isp: 'Cloudflare, Inc.',
+      network: '1.1.1.0/24',
+      country: 'AU',
+      city: 'Sydney',
+      hostname: 'one.one.one.one',
+      domainsOnIp: 42817,
+    },
+    domaintools: {
+      found: true,
+      mode: 'reverse-ip',
+      hostedDomainCount: 42817,
+      sampleDomains: [
+        { domain: 'one.one', riskScore: 0 },
+        { domain: 'cloudflare-dns.com', riskScore: 0 },
+      ],
+    },
   },
   {
     value: '185.220.101.1',
@@ -91,6 +122,25 @@ export const FIXTURES: Fixture[] = [
       ],
       lastUpdate: new Date((now - 2 * day) * 1000).toISOString(),
     },
+    dnslytics: {
+      found: true,
+      kind: 'ip',
+      asn: 60729,
+      org: 'Zwiebelfreunde e.V.',
+      isp: 'Zwiebelfreunde e.V.',
+      network: '185.220.100.0/22',
+      country: 'DE',
+      city: 'Frankfurt',
+      hostname: 'tor-exit-1.example',
+      domainsOnIp: 3,
+      threat: 'tor-exit',
+    },
+    domaintools: {
+      found: true,
+      mode: 'reverse-ip',
+      hostedDomainCount: 3,
+      sampleDomains: [{ domain: 'relay-notice.example', riskScore: 61 }],
+    },
   },
   {
     value: '2001:4860:4860::8888',
@@ -127,6 +177,37 @@ export const FIXTURES: Fixture[] = [
       last_analysis_date: now - 3 * day,
       last_modification_date: now - 1 * day,
     },
+    domaintools: {
+      found: true,
+      mode: 'enrich',
+      riskScore: 0,
+      riskComponents: [{ name: 'zerolist', riskScore: 0 }],
+      created: '1997-09-15',
+      firstSeen: '2001-10-26',
+      registrar: 'MarkMonitor Inc.',
+      ips: ['142.250.72.238'],
+      asns: [15169],
+      nameServers: ['ns1.google.com', 'ns2.google.com'],
+      mailServers: ['smtp.google.com'],
+      sslIssuer: 'WR2 (Google Trust Services)',
+      sslNotAfter: '2026-09-01',
+      websiteResponse: 200,
+      serverType: 'gws',
+      websiteTitle: 'Google',
+      tags: [],
+    },
+    dnslytics: {
+      found: true,
+      kind: 'domain',
+      registrar: 'MarkMonitor Inc.',
+      created: '1997-09-15',
+      updated: '2024-08-01',
+      expires: '2028-09-14',
+      nameServers: ['ns1.google.com', 'ns2.google.com'],
+      mailServers: ['smtp.google.com'],
+      provider: 'Google LLC',
+      popularity: 1,
+    },
   },
   {
     value: 'phishy-malware-example.com',
@@ -149,6 +230,37 @@ export const FIXTURES: Fixture[] = [
         severity: { value: 'SEVERITY_MEDIUM' },
         threat_score: { value: 72 },
       },
+    },
+    domaintools: {
+      found: true,
+      mode: 'enrich',
+      riskScore: 91,
+      riskComponents: [
+        { name: 'phishing', riskScore: 91 },
+        { name: 'proximity', riskScore: 74 },
+      ],
+      created: new Date((now - 20 * day) * 1000).toISOString().slice(0, 10),
+      firstSeen: new Date((now - 20 * day) * 1000).toISOString().slice(0, 10),
+      registrar: 'NameCheap, Inc.',
+      ips: ['193.0.2.55'],
+      asns: [51167],
+      nameServers: ['dns1.registrar-servers.com', 'dns2.registrar-servers.com'],
+      sslIssuer: "Let's Encrypt R3",
+      sslNotAfter: new Date((now + 60 * day) * 1000).toISOString().slice(0, 10),
+      websiteResponse: 200,
+      serverType: 'nginx',
+      websiteTitle: 'Account verification required',
+      tags: ['phishing'],
+    },
+    dnslytics: {
+      found: true,
+      kind: 'domain',
+      registrar: 'NameCheap, Inc.',
+      created: new Date((now - 20 * day) * 1000).toISOString().slice(0, 10),
+      expires: new Date((now + 345 * day) * 1000).toISOString().slice(0, 10),
+      nameServers: ['dns1.registrar-servers.com', 'dns2.registrar-servers.com'],
+      provider: 'Contabo GmbH',
+      threat: 'phishing',
     },
   },
   {

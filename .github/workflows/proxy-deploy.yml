@@ -5,7 +5,8 @@ name: Deploy Proxy (Cloudflare)
 #   1) Create a KV namespace:  wrangler kv namespace create VTEEEE_KV
 #      and paste its id into proxy/cloudflare/wrangler.toml
 #   2) Add repo secrets: VT_API_KEY, ANTHROPIC_API_KEY (optional),
-#      SHODAN_API_KEY (optional), ACCESS_TOKEN, ADMIN_TOKEN,
+#      SHODAN_API_KEY (optional), DOMAINTOOLS_API_USERNAME + DOMAINTOOLS_API_KEY
+#      (optional), DNSLYTICS_API_KEY (optional), ACCESS_TOKEN, ADMIN_TOKEN,
 #      CLOUDFLARE_API_TOKEN, CLOUDFLARE_ACCOUNT_ID
 #   3) Set ALLOWED_ORIGINS in wrangler.toml to your *.github.io origin + localhost
 on:
@@ -42,4 +43,11 @@ jobs:
           fi
           if [ -n "${{ secrets.SHODAN_API_KEY }}" ]; then
             printf '%s' "${{ secrets.SHODAN_API_KEY }}" | pnpm exec wrangler secret put SHODAN_API_KEY
+          fi
+          if [ -n "${{ secrets.DOMAINTOOLS_API_USERNAME }}" ] && [ -n "${{ secrets.DOMAINTOOLS_API_KEY }}" ]; then
+            printf '%s' "${{ secrets.DOMAINTOOLS_API_USERNAME }}" | pnpm exec wrangler secret put DOMAINTOOLS_API_USERNAME
+            printf '%s' "${{ secrets.DOMAINTOOLS_API_KEY }}" | pnpm exec wrangler secret put DOMAINTOOLS_API_KEY
+          fi
+          if [ -n "${{ secrets.DNSLYTICS_API_KEY }}" ]; then
+            printf '%s' "${{ secrets.DNSLYTICS_API_KEY }}" | pnpm exec wrangler secret put DNSLYTICS_API_KEY
           fi

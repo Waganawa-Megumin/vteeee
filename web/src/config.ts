@@ -13,6 +13,8 @@ export const DEFAULT_SETTINGS: AppSettings = {
   gti: false,
   submitUnknown: false,
   shodan: true,
+  domaintools: true,
+  dnslytics: true,
   historyRetentionDays: 30,
 };
 

@@ -104,6 +104,88 @@ export interface ShodanContext {
   error?: string;
 }
 
+/** One component of a DomainTools risk score (e.g. proximity, phishing, malware, spam). */
+export interface DomainToolsRiskComponent {
+  name: string;
+  riskScore: number;
+}
+
+/**
+ * DomainTools Iris context.
+ * - `mode: 'enrich'` — forward lookup for a DOMAIN (Iris Enrich).
+ * - `mode: 'reverse-ip'` — Iris Investigate reverse lookup for an IP (domains hosted on it).
+ * `found: false` = not in the dataset / lookup unavailable (see `error`).
+ */
+export interface DomainToolsContext {
+  found: boolean;
+  mode: 'enrich' | 'reverse-ip';
+  /** 0..100 overall risk (domain / representative). */
+  riskScore?: number;
+  riskComponents?: DomainToolsRiskComponent[];
+  // --- domain (enrich) ---
+  created?: string;
+  firstSeen?: string;
+  registrar?: string;
+  ips?: string[];
+  asns?: number[];
+  nameServers?: string[];
+  mailServers?: string[];
+  sslIssuer?: string;
+  sslNotAfter?: string;
+  websiteResponse?: number;
+  serverType?: string;
+  websiteTitle?: string;
+  tags?: string[];
+  // --- reverse IP (investigate) ---
+  /** Number of domains DomainTools sees hosted on this IP. */
+  hostedDomainCount?: number;
+  /** A sample of domains hosted on the IP, most-risky first. */
+  sampleDomains?: { domain: string; riskScore?: number }[];
+  /** Set when the lookup itself failed (bad key / rate-limited / network). */
+  error?: string;
+  /** Raw provider payload for the detail panel (never lost even if a field is unmapped). */
+  raw?: unknown;
+}
+
+/**
+ * DNSLytics context.
+ * - `kind: 'ip'` — from the IPInfo endpoint.
+ * - `kind: 'domain'` — from the DomainInfo endpoint.
+ * `found: false` = not in the dataset / lookup unavailable (see `error`).
+ */
+export interface DnslyticsContext {
+  found: boolean;
+  kind: 'ip' | 'domain';
+  // --- ip ---
+  asn?: number;
+  org?: string;
+  isp?: string;
+  network?: string;
+  country?: string;
+  city?: string;
+  /** Reverse DNS / PTR host. */
+  hostname?: string;
+  /** Domains DNSLytics sees hosted on this IP. */
+  domainsOnIp?: number;
+  // --- domain ---
+  registrar?: string;
+  created?: string;
+  updated?: string;
+  expires?: string;
+  nameServers?: string[];
+  mailServers?: string[];
+  /** Hosting / DNS provider name. */
+  provider?: string;
+  /** Popularity / rank when available. */
+  popularity?: number;
+  // --- shared ---
+  tags?: string[];
+  /** Threat / blocklist signal when the provider returns one. */
+  threat?: string;
+  error?: string;
+  raw?: unknown;
+}
+
 /** The single shape the results table & detail panel consume, for all IOC types. */
 export interface NormalizedResult {
   input: string;
@@ -131,6 +213,12 @@ export interface NormalizedResult {
 
   /** Shodan OSINT context (IP indicators only; present in live mode when a Shodan key is configured). */
   shodan?: ShodanContext;
+
+  /** DomainTools Iris context (domains via Enrich; IPs via Investigate reverse lookup). */
+  domaintools?: DomainToolsContext;
+
+  /** DNSLytics context (IPs via IPInfo, domains via DomainInfo). */
+  dnslytics?: DnslyticsContext;
 
   ip?: {
     country?: string;
@@ -176,6 +264,10 @@ export interface EnrichOptions {
   submitUnknown?: boolean;
   /** Request Shodan OSINT on IPs (default true). Ignored if the proxy has no Shodan key. */
   shodan?: boolean;
+  /** Request DomainTools Iris (domains + reverse-IP). Ignored if the proxy has no DomainTools key. */
+  domaintools?: boolean;
+  /** Request DNSLytics (IP + domain). Ignored if the proxy has no DNSLytics key. */
+  dnslytics?: boolean;
 }
 
 /** What the proxy `GET /health` reports — which integrations are configured server-side. */
@@ -187,6 +279,10 @@ export interface ProxyHealth {
   claude: boolean;
   /** Shodan key present (optional — IP OSINT). */
   shodan: boolean;
+  /** DomainTools Iris credentials present (optional — domain/IP intel). */
+  domaintools: boolean;
+  /** DNSLytics key present (optional — IP/domain intel). */
+  dnslytics: boolean;
 }
 
 export interface EnrichRequest {
@@ -240,6 +336,10 @@ export interface AppSettings {
   submitUnknown: boolean;
   /** Request Shodan OSINT enrichment for IPs (default true; only used if the proxy has a Shodan key). */
   shodan?: boolean;
+  /** Request DomainTools Iris enrichment (default true; only used if the proxy has DomainTools creds). */
+  domaintools?: boolean;
+  /** Request DNSLytics enrichment (default true; only used if the proxy has a DNSLytics key). */
+  dnslytics?: boolean;
   /** Days to keep local search history (per browser). 0 = disabled. Default 30. */
   historyRetentionDays?: number;
   /** Documentation-only note shown in the admin UI. */

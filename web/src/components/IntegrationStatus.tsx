@@ -57,6 +57,28 @@ export function IntegrationStatus({ onManage }: { onManage: () => void }) {
             }
           />
           <Chip
+            label="DomainTools"
+            on={Boolean(health?.domaintools) && settings.domaintools !== false}
+            title={
+              health?.domaintools
+                ? settings.domaintools !== false
+                  ? 'DomainTools Iris active — domains (Enrich) & IPs (reverse)'
+                  : 'DomainTools creds present, but turned OFF in Settings'
+                : 'Optional — no DomainTools creds on the proxy'
+            }
+          />
+          <Chip
+            label="DNSLytics"
+            on={Boolean(health?.dnslytics) && settings.dnslytics !== false}
+            title={
+              health?.dnslytics
+                ? settings.dnslytics !== false
+                  ? 'DNSLytics active — IP & domain intel'
+                  : 'DNSLytics key present, but turned OFF in Settings'
+                : 'Optional — no DNSLYTICS_API_KEY on the proxy'
+            }
+          />
+          <Chip
             label="Claude"
             on={Boolean(health?.claude)}
             title={health?.claude ? 'Claude smart-parse available' : 'Optional — no ANTHROPIC_API_KEY on the proxy'}
