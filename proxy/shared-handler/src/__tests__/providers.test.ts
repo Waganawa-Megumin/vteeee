@@ -154,34 +154,55 @@ const I471_SEARCH = {
   data_leak_post_total_count: 1,
 };
 
-// CYFIRMA Risk Dossier (§9.6), iocAttribute populated to exercise related-infra mapping.
+// CYFIRMA Risk Dossier — real multi-entry shape: indicator entry + CAMPAIGN entry (TA in details) +
+// IOC entry whose iocAttribute.sha is an array of OBJECTS ({key,value,…}), not strings.
 const CYF_DOSSIER = {
   title: 'This view summarizes the risk dossier for the selected indicator for your organisation.',
-  riskViewScores: { riskScore: 3, externalThreatScore: 10, riskScoreTrend: 'UP', externalThreatScoreTrend: 'EQUAL' },
+  riskViewScores: { riskScore: 8, externalThreatScore: 8, riskScoreTrend: 'EQUAL', externalThreatScoreTrend: 'EQUAL' },
   riskDossierDetails: [
     {
-      story: 'This IP address <span class="active-txt cp IP">209.99.40.222</span> is malicious in nature.',
+      story: 'This IP address <span class="active-txt cp IP">158.255.7.61</span> is malicious in nature. Additional Information for the IP address.',
       description: null,
-      impact: 'Potential data exfiltration.',
+      impact: null,
       riskScore: 8,
       type: 'IP ADDRESS',
-      relation: null,
       action: 'Block the IP address.',
-      link: null,
-      details: { 'ASN Owner': 'NEUSTAR-AS6', ASN: '19905', Organization: 'NEUSTAR-AS6', 'Country Name': 'United States' },
-      relExploit: {},
+      details: { 'ASN Owner': 'Hostkey B.v.', ASN: '50867', Organization: 'Hostkey B.v.', 'Country Name': 'Russia' },
+      iocAttribute: { md5: [], sha: [], ips: [], domain: [], hostname: [], url: [], file: [], ssl: [], mutex: [], emails: [], cves: [], exploits: [], coRelation: {} },
+    },
+    {
+      story: '<span class="active-txt cp Campaign">bn34unit</span> campaign associated with IP Address <span class="active-txt cp IP">158.255.7.61</span>.',
+      description: 'The campaign is believed to have been launched on 26 March 2021. Motivation: Stealing of sensitive information',
+      impact: null,
+      riskScore: 10,
+      type: 'CAMPAIGN',
+      action: 'Please refer to our campaign details page to find the recommendations.',
+      details: { 'Threat Actor': '<span class="active-txt cp TA">Emissary Panda</span>', industry: 'Trading Companies & Distributors,IT Services' },
+      iocAttribute: { md5: [], sha: [], ips: [], domain: [], hostname: [], url: [], file: [], ssl: [], mutex: [], emails: [], cves: [], exploits: [], coRelation: {} },
+    },
+    {
+      story: 'These are the latest IOCs related to <span class="active-txt cp IP">158.255.7.61</span>.',
+      description: null,
+      impact: null,
+      riskScore: null,
+      type: 'IOC',
+      action: 'Block these IOCs.',
+      details: {},
       iocAttribute: {
-        md5: ['44d88612fea8a8f36de82e1278abb02f'],
-        sha: [],
-        ips: ['1.2.3.4', '5.6.7.8'],
-        domain: ['evil-c2.example'],
+        md5: [],
+        sha: [
+          { id: null, key: 'SHA', value: '4ae4df2bdb0428cace1085e4cc200ef1133affded57ee41fdc75fe5c9a9421ef', tags: [] },
+          { id: null, key: 'SHA', value: '67d8f6ed6fe28fc2f62550dcdac4807b39531ac2750706e4d36c8113c3f267ed', tags: [] },
+        ],
+        ips: [],
+        domain: [],
         hostname: [],
         url: [],
         file: [],
         ssl: [],
         mutex: [],
-        emails: ['victim@corp.example'],
-        cves: ['CVE-2023-23397'],
+        emails: [],
+        cves: [],
         exploits: [],
         coRelation: {},
       },
@@ -189,7 +210,7 @@ const CYF_DOSSIER = {
   ],
 };
 
-// CYFIRMA STIX 2.1 IOC search (§9.1) + associated actor/campaign/malware objects (§9.2 pattern).
+// CYFIRMA STIX 2.1 IOC search — real shape: indicator + relationship + malware object.
 const CYF_STIX = [
   {
     type: 'indicator',
@@ -200,27 +221,32 @@ const CYF_STIX = [
     pattern: "[ file:hashes.'SHA-256' = '4bac27393bdd9777ce02453256c5577cd02275510b2227f473d03f533924f877' ]",
     valid_from: '2016-01-01T00:00:00Z',
   },
-  { type: 'threat-actor', spec_version: '2.1', id: 'threat-actor--1', name: 'Fancy Bear' },
-  { type: 'campaign', spec_version: '2.1', id: 'campaign--1', name: 'vision2025' },
-  { type: 'malware', spec_version: '2.1', id: 'malware--1', name: 'emotet' },
-  { type: 'relationship', spec_version: '2.1', id: 'relationship--1', source_ref: 'campaign--1', target_ref: 'threat-actor--1', relationship_type: 'targets' },
+  { type: 'relationship', spec_version: '2.1', id: 'relationship--1', relationship_type: 'indicates', source_ref: 'indicator--8e2e2d2b', target_ref: 'malware--31b9' },
+  { type: 'malware', spec_version: '2.1', id: 'malware--31b9', name: 'Poison Ivy', malware_types: ['trojan'] },
 ];
 
-// CYFIRMA Threat Actor search bundle (§9.2 second sample).
+// CYFIRMA Threat Actor search bundle — real shape (aliases/primary_motivation, malware, campaign, vulnerability).
 const CYF_ACTOR = [
   {
-    aliases: ['APT 28', 'APT28', 'Fancy Bear', 'Sofacy', 'Strontium'],
-    primary_motivation: 'Espionage',
+    aliases: ['Tsar Team'],
+    primary_motivation: 'Financial, Reputation damage,BRONZE BUTLER',
     type: 'threat-actor',
     spec_version: '2.1',
-    id: 'threat-actor--8e2e',
+    id: 'threat-actor--5bfb529f',
     name: 'Fancy Bear',
-    description: 'Russian state-sponsored hacking group affiliated with military intelligence.',
+    description: '',
   },
-  { type: 'campaign', spec_version: '2.1', id: 'campaign--1', name: 'vision2025' },
-  { type: 'malware', spec_version: '2.1', id: 'malware--1', name: 'emotet' },
-  { type: 'vulnerability', spec_version: '2.1', id: 'vulnerability--1', name: 'CVE-2019-0190', external_references: [{ source_name: 'cve', external_id: 'CVE-2019-0190' }] },
-  { type: 'indicator', spec_version: '2.1', id: 'indicator--1', name: 'c2', pattern: "[ ipv4-addr:value = '192.243.56.76' ]" },
+  { source_ref: 'malware--5c8a10e2', target_ref: 'threat-actor--5bfb529f', relationship_type: 'targets', type: 'relationship', spec_version: '2.1', id: 'relationship--1' },
+  { is_family: false, malware_types: ['malware'], type: 'malware', spec_version: '2.1', id: 'malware--5c8a10e2', name: 'BRONZE BUTLER', description: 'Agent.btz' },
+  { type: 'campaign', spec_version: '2.1', id: 'campaign--5f43a3f2', name: 'vision2025', description: '' },
+  {
+    type: 'vulnerability',
+    spec_version: '2.1',
+    id: 'vulnerability--5e7ba49d',
+    name: 'CVE-2003-0845',
+    description: 'Unknown vulnerability in the HSQLDB component in JBoss 3.2.1 and 3.0.8 ...',
+    external_references: [{ source_name: 'cve', external_id: 'CVE-2003-0845' }],
+  },
 ];
 
 afterEach(() => vi.unstubAllGlobals());
@@ -327,57 +353,65 @@ describe('Intel 471 mappers', () => {
 });
 
 describe('CYFIRMA mappers', () => {
-  it('mapRiskDossier maps scores, action, ASN/org/country and strips story HTML', () => {
+  it('mapRiskDossier maps scores, action, ASN/org/country from the primary entry and strips story HTML', () => {
     const c = mapRiskDossier(CYF_DOSSIER);
     expect(c).toMatchObject({
       found: true,
-      riskScore: 3,
-      externalThreatScore: 10,
-      riskScoreTrend: 'UP',
+      riskScore: 8,
+      externalThreatScore: 8,
+      riskScoreTrend: 'EQUAL',
       indicatorType: 'IP ADDRESS',
       indicatorRiskScore: 8,
-      action: 'Block the IP address.',
-      asn: '19905',
-      asnOwner: 'NEUSTAR-AS6',
-      organization: 'NEUSTAR-AS6',
-      country: 'United States',
+      action: 'Block the IP address.', // from the IP entry, not the CAMPAIGN/IOC entries
+      asn: '50867',
+      asnOwner: 'Hostkey B.v.',
+      organization: 'Hostkey B.v.',
+      country: 'Russia',
     });
-    expect(c.story).toBe('This IP address 209.99.40.222 is malicious in nature.'); // no <span> tags
+    expect(c.story).toBe('This IP address 158.255.7.61 is malicious in nature. Additional Information for the IP address.');
   });
 
-  it('mapRiskDossier collects correlated infra (attack-infra side) + a total count', () => {
+  it('mapRiskDossier harvests attribution (TA/campaign) from HTML spans across all entries', () => {
     const c = mapRiskDossier(CYF_DOSSIER);
-    expect(c.related?.ips).toEqual(['1.2.3.4', '5.6.7.8']);
-    expect(c.related?.domains).toEqual(['evil-c2.example']);
-    expect(c.related?.hashes).toEqual(['44d88612fea8a8f36de82e1278abb02f']); // md5 folded into hashes
-    expect(c.related?.emails).toEqual(['victim@corp.example']);
-    expect(c.related?.cves).toEqual(['CVE-2023-23397']);
-    expect(c.relatedCount).toBe(6); // 1 md5 + 2 ips + 1 domain + 1 email + 1 cve
+    expect(c.campaigns).toEqual(['bn34unit']); // <span class="... cp Campaign">
+    expect(c.threatActors).toEqual(['Emissary Panda']); // details["Threat Actor"] span
   });
 
-  it('mapRiskDossier returns found:false when there are no dossier details', () => {
+  it('mapRiskDossier reads object-form iocAttribute buckets (sha[].value) as related hashes', () => {
+    const c = mapRiskDossier(CYF_DOSSIER);
+    expect(c.related?.hashes).toEqual([
+      '4ae4df2bdb0428cace1085e4cc200ef1133affded57ee41fdc75fe5c9a9421ef',
+      '67d8f6ed6fe28fc2f62550dcdac4807b39531ac2750706e4d36c8113c3f267ed',
+    ]);
+    expect(c.relatedCount).toBe(2);
+  });
+
+  it('mapRiskDossier accepts the V2 array-only shape and returns found:false when empty', () => {
+    expect(mapRiskDossier([{ type: 'DOMAIN', story: 'x', action: 'Block this IOC.', iocAttribute: {} }])).toMatchObject({
+      found: true,
+      indicatorType: 'DOMAIN',
+      action: 'Block this IOC.',
+    });
     expect(mapRiskDossier({ riskViewScores: {}, riskDossierDetails: [] })).toMatchObject({ found: false });
   });
 
-  it('mapStixSearch maps the STIX indicator + attribution (actors/campaigns/malware)', () => {
+  it('mapStixSearch maps the STIX indicator name/description + related malware object', () => {
     const c = mapStixSearch(CYF_STIX);
     expect(c).toMatchObject({ found: true, indicatorName: 'Poison Ivy Malware' });
     expect(c.description).toContain('Poison Ivy');
-    expect(c.threatActors).toEqual(['Fancy Bear']);
-    expect(c.campaigns).toEqual(['vision2025']);
-    expect(c.malware).toEqual(['emotet']);
+    expect(c.malware).toEqual(['Poison Ivy']);
+    expect(c.threatActors).toBeUndefined(); // this search bundle has no threat-actor object
   });
 
-  it('mapThreatActor maps aliases/motivation/campaigns/malware/CVEs + related IOC from pattern', () => {
+  it('mapThreatActor maps aliases/motivation/campaigns/malware/targeted CVEs', () => {
     const s = mapThreatActor(CYF_ACTOR);
     expect(s.actor).toBe('Fancy Bear');
-    expect(s.aliases).toContain('APT28');
-    expect(s.motivation).toBe('Espionage');
-    expect(s.description).toContain('Russian');
+    expect(s.aliases).toEqual(['Tsar Team']);
+    expect(s.motivation).toContain('Financial');
     expect(s.campaigns).toEqual(['vision2025']);
-    expect(s.malware).toEqual(['emotet']);
-    expect(s.vulnerabilities).toEqual(['CVE-2019-0190']);
-    expect(s.relatedIocs).toEqual(['192.243.56.76']); // extracted from the STIX pattern
+    expect(s.malware).toEqual(['BRONZE BUTLER']);
+    expect(s.vulnerabilities).toEqual(['CVE-2003-0845']);
+    expect(s.description).toBeUndefined(); // empty description is not surfaced
   });
 });
 
@@ -392,7 +426,7 @@ function stubFetch() {
       if (url.includes('dnslytics') && url.includes('/hostinghistory/')) return resp(200, DNSL_HH);
       if (url.includes('intel471.com') && url.includes('/indicators')) return resp(200, I471_INDICATORS);
       if (url.includes('intel471.com') && url.includes('/iocs')) return resp(200, I471_IOC);
-      if (url.includes('decyfir') && url.includes('/riskdossier')) return resp(200, CYF_DOSSIER);
+      if (url.includes('decyfir') && url.includes('/risk-dossier')) return resp(200, CYF_DOSSIER);
       if (url.includes('decyfir') && url.includes('/threatioc/stix/v2.1/search')) return resp(200, CYF_STIX);
       if (url.includes('decyfir') && url.includes('/threatactor')) return resp(200, CYF_ACTOR);
       if (url.includes('/ip_addresses/') || url.includes('/domains/') || url.includes('/urls'))
@@ -428,8 +462,9 @@ describe('runEnrich routing by IOC type', () => {
     expect(ip?.intel471?.found).toBe(true);
     // CYFIRMA applies to every IOC type, merging Risk Dossier + STIX 2.1 search.
     expect(dom?.cyfirma?.found).toBe(true);
-    expect(dom?.cyfirma?.action).toBe('Block the IP address.'); // from /riskdossier
-    expect(dom?.cyfirma?.threatActors).toEqual(['Fancy Bear']); // from STIX search
+    expect(dom?.cyfirma?.action).toBe('Block the IP address.'); // from /risk-dossier
+    expect(dom?.cyfirma?.threatActors).toContain('Emissary Panda'); // harvested from dossier spans
+    expect(dom?.cyfirma?.malware).toContain('Poison Ivy'); // from STIX search
     expect(ip?.cyfirma?.found).toBe(true);
   });
 

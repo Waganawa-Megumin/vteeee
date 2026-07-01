@@ -16,10 +16,6 @@ const INDICATOR_TYPE: Partial<Record<EnrichableType, string>> = {
   sha256: 'SHA',
 };
 
-function len(v: unknown): number {
-  return Array.isArray(v) ? v.length : 0;
-}
-
 function uniq(list: string[]): string[] {
   return Array.from(new Set(list));
 }
@@ -53,69 +49,131 @@ function iocFromPattern(pattern: unknown): string | undefined {
   return m ? m[1] : undefined;
 }
 
-/** Map a Risk Dossier (`/riskdossier`) response to our context (pure; raw is attached by the fetcher). */
+/** riskDossierDetails[].type values that describe an *associated* entity rather than the indicator itself. */
+const ATTRIBUTION_TYPES = new Set(['CAMPAIGN', 'THREAT ACTOR', 'MALWARE', 'IOC']);
+
+/**
+ * Harvest entity names from DeCYFIR's HTML spans, e.g.
+ * `<span class="active-txt cp TA">Emissary Panda</span>` → threat actor "Emissary Panda".
+ * Only TA / Campaign / Malware are collected (the indicator's own `cp IP`/`cp Domain` span is skipped).
+ */
+function harvestSpans(text: unknown, buckets: { ta: string[]; camp: string[]; mal: string[] }): void {
+  if (typeof text !== 'string' || text.indexOf('<span') < 0) return;
+  const re = /<span[^>]*\bcp\s+(TA|Campaign|Malware)\b[^>]*>([^<]+)<\/span>/gi;
+  let m: RegExpExecArray | null;
+  while ((m = re.exec(text))) {
+    const token = m[1].toUpperCase();
+    const name = stripHtml(m[2]);
+    if (!name) continue;
+    if (token === 'TA') buckets.ta.push(name);
+    else if (token === 'CAMPAIGN') buckets.camp.push(name);
+    else buckets.mal.push(name);
+  }
+}
+
+/** iocAttribute buckets hold strings OR objects `{key,value,…}`; pull the value out of either form. */
+function iocValues(v: unknown): string[] {
+  if (!Array.isArray(v)) return [];
+  const out: string[] = [];
+  for (const x of v) {
+    if (typeof x === 'string' && x.trim()) out.push(x.trim());
+    else if (x && typeof x === 'object' && typeof (x as any).value === 'string' && (x as any).value.trim())
+      out.push((x as any).value.trim());
+  }
+  return out;
+}
+
+/**
+ * Map a Risk Dossier (`/risk-dossier`) response to our context (pure; raw is attached by the fetcher).
+ * `riskDossierDetails` is a multi-entry array: one entry for the indicator itself (scores/story/action/
+ * ASN·org·country) plus separate entries for associated campaigns / threat actors / malware / related IOCs.
+ * We take the indicator entry as primary, then harvest attribution + correlated infra across *all* entries.
+ * Also accepts the V2 shape (`/risk-dossier/v2/ioc`) which returns the details array directly.
+ */
 export function mapRiskDossier(json: any): CyfirmaContext {
   if (!json || typeof json !== 'object') return { found: false };
   const scores = json.riskViewScores ?? {};
-  const details: any[] = Array.isArray(json.riskDossierDetails) ? json.riskDossierDetails : [];
-  const d0 = details[0];
-  const ctx: CyfirmaContext = { found: Boolean(d0) };
+  const details: any[] = Array.isArray(json.riskDossierDetails)
+    ? json.riskDossierDetails
+    : Array.isArray(json) // V2 returns the details array directly
+      ? json
+      : [];
+  if (!details.length) return { found: false };
+
+  // Primary = the first entry that isn't an associated-entity entry (falls back to the first entry).
+  const primary = details.find((d) => d && !ATTRIBUTION_TYPES.has(String(d.type ?? '').toUpperCase())) ?? details[0];
+  const ctx: CyfirmaContext = { found: true };
+
   if (typeof scores.riskScore === 'number') ctx.riskScore = scores.riskScore;
   if (typeof scores.externalThreatScore === 'number') ctx.externalThreatScore = scores.externalThreatScore;
   if (typeof scores.riskScoreTrend === 'string') ctx.riskScoreTrend = scores.riskScoreTrend;
   if (typeof scores.externalThreatScoreTrend === 'string')
     ctx.externalThreatScoreTrend = scores.externalThreatScoreTrend;
-  if (!d0) return ctx;
 
-  if (typeof d0.type === 'string' && d0.type) ctx.indicatorType = d0.type;
-  if (typeof d0.riskScore === 'number') ctx.indicatorRiskScore = d0.riskScore;
-  const story = stripHtml(d0.story);
-  if (story) ctx.story = story;
-  if (typeof d0.impact === 'string' && d0.impact) ctx.impact = d0.impact;
-  if (typeof d0.action === 'string' && d0.action) ctx.action = d0.action;
+  if (primary) {
+    if (typeof primary.type === 'string' && primary.type) ctx.indicatorType = primary.type;
+    if (typeof primary.riskScore === 'number') ctx.indicatorRiskScore = primary.riskScore;
+    const story = stripHtml(primary.story);
+    if (story) ctx.story = story;
+    if (typeof primary.impact === 'string' && primary.impact) ctx.impact = primary.impact;
+    if (typeof primary.action === 'string' && primary.action) ctx.action = primary.action;
+    const det = primary.details ?? {};
+    const pick = (k: string): string | undefined =>
+      typeof det[k] === 'string' && det[k] ? stripHtml(det[k]) : undefined;
+    ctx.asn = pick('ASN');
+    ctx.asnOwner = pick('ASN Owner');
+    ctx.organization = pick('Organization');
+    ctx.country = pick('Country Name') ?? pick('Country');
+  }
 
-  const det = d0.details ?? {};
-  const pick = (k: string): string | undefined =>
-    typeof det[k] === 'string' && det[k] ? det[k] : undefined;
-  ctx.asn = pick('ASN');
-  ctx.asnOwner = pick('ASN Owner');
-  ctx.organization = pick('Organization');
-  ctx.country = pick('Country Name') ?? pick('Country');
-
-  const ia = d0.iocAttribute ?? {};
-  const related: CyfirmaRelated = {};
-  const put = (key: keyof CyfirmaRelated, v: unknown) => {
-    const s = strs(v);
-    if (s) related[key] = s;
+  // Harvest attribution (TA/campaign/malware) + correlated infra from every detail entry.
+  const buckets = { ta: [] as string[], camp: [] as string[], mal: [] as string[] };
+  const relAll: Record<keyof CyfirmaRelated, string[]> = {
+    ips: [],
+    domains: [],
+    hostnames: [],
+    urls: [],
+    hashes: [],
+    emails: [],
+    cves: [],
+    exploits: [],
   };
-  put('ips', ia.ips);
-  put('domains', ia.domain);
-  put('hostnames', ia.hostname);
-  put('urls', ia.url);
-  put('emails', ia.emails);
-  put('cves', ia.cves);
-  put('exploits', ia.exploits);
-  const hashes = strs([
-    ...(Array.isArray(ia.md5) ? ia.md5 : []),
-    ...(Array.isArray(ia.sha) ? ia.sha : []),
-    ...(Array.isArray(ia.file) ? ia.file : []),
-  ]);
-  if (hashes) related.hashes = hashes;
-  if (Object.keys(related).length) ctx.related = related;
+  for (const d of details) {
+    if (!d || typeof d !== 'object') continue;
+    harvestSpans(d.story, buckets);
+    const det = d.details ?? {};
+    for (const val of Object.values(det)) harvestSpans(val, buckets);
+    const ta = det['Threat Actor'];
+    if (typeof ta === 'string') {
+      const n = stripHtml(ta);
+      if (n) buckets.ta.push(n);
+    }
+    const ia = d.iocAttribute ?? {};
+    relAll.ips.push(...iocValues(ia.ips));
+    relAll.domains.push(...iocValues(ia.domain));
+    relAll.hostnames.push(...iocValues(ia.hostname));
+    relAll.urls.push(...iocValues(ia.url));
+    relAll.emails.push(...iocValues(ia.emails));
+    relAll.cves.push(...iocValues(ia.cves));
+    relAll.exploits.push(...iocValues(ia.exploits));
+    relAll.hashes.push(...iocValues(ia.md5), ...iocValues(ia.sha), ...iocValues(ia.file));
+  }
 
-  const total =
-    len(ia.ips) +
-    len(ia.domain) +
-    len(ia.hostname) +
-    len(ia.url) +
-    len(ia.emails) +
-    len(ia.cves) +
-    len(ia.exploits) +
-    len(ia.md5) +
-    len(ia.sha) +
-    len(ia.file) +
-    len(ia.mutex) +
-    len(ia.ssl);
+  const ta = uniq(buckets.ta);
+  if (ta.length) ctx.threatActors = ta.slice(0, 10);
+  const camp = uniq(buckets.camp);
+  if (camp.length) ctx.campaigns = camp.slice(0, 10);
+  const mal = uniq(buckets.mal);
+  if (mal.length) ctx.malware = mal.slice(0, 10);
+
+  const related: CyfirmaRelated = {};
+  let total = 0;
+  for (const key of Object.keys(relAll) as (keyof CyfirmaRelated)[]) {
+    const vals = uniq(relAll[key]);
+    total += vals.length;
+    if (vals.length) related[key] = vals.slice(0, 8);
+  }
+  if (Object.keys(related).length) ctx.related = related;
   if (total > 0) ctx.relatedCount = total;
   return ctx;
 }
@@ -256,7 +314,7 @@ export async function cyfirmaRiskDossier(
   if (signal?.aborted) return undefined;
   const it = INDICATOR_TYPE[type];
   if (!it) return { found: false };
-  const path = `/riskdossier?indicatorType=${it}&value=${encodeURIComponent(value)}`;
+  const path = `/risk-dossier?indicatorType=${it}&value=${encodeURIComponent(value)}`;
   const r = await decyfirFetch(path, env, signal);
   if (r.__error) return { found: false, error: r.__error };
   const ctx = mapRiskDossier(r.json);
@@ -305,6 +363,10 @@ export async function cyfirmaLookup(
     const err = dossier?.error ?? stix?.error;
     return err ? { found: false, error: err } : { found: false };
   }
+  const mergeList = (a?: string[], b?: string[]): string[] | undefined => {
+    const u = uniq([...(a ?? []), ...(b ?? [])]);
+    return u.length ? u.slice(0, 12) : undefined;
+  };
   const merged: CyfirmaContext = { found: true };
   if (dossier?.found) {
     merged.riskScore = dossier.riskScore;
@@ -324,12 +386,13 @@ export async function cyfirmaLookup(
     merged.relatedCount = dossier.relatedCount;
   }
   if (stix?.found) {
-    merged.threatActors = stix.threatActors;
-    merged.campaigns = stix.campaigns;
-    merged.malware = stix.malware;
     merged.indicatorName = stix.indicatorName;
     merged.description = stix.description;
   }
+  // Attribution comes from both the dossier (span-encoded) and the STIX search — union them.
+  merged.threatActors = mergeList(dossier?.threatActors, stix?.threatActors);
+  merged.campaigns = mergeList(dossier?.campaigns, stix?.campaigns);
+  merged.malware = mergeList(dossier?.malware, stix?.malware);
   merged.raw = { dossier: dossier?.raw, stix: stix?.raw };
   return merged;
 }
