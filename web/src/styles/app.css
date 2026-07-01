@@ -1385,6 +1385,17 @@ a.i471-search-item:hover {
   .brand .tagline {
     display: none;
   }
+  /* Let the integration status chips wrap onto their own full-width rows instead
+     of overflowing off the right edge of the viewport. */
+  .intg-cluster {
+    order: 3;
+    flex-basis: 100%;
+    width: 100%;
+    flex-wrap: wrap;
+    justify-content: flex-start;
+    row-gap: 5px;
+    padding: 2px 0;
+  }
   .layout {
     padding: 12px;
     gap: 12px;
@@ -1431,6 +1442,20 @@ a.i471-search-item:hover {
   .btn-sm {
     padding: 5px 8px;
     font-size: 11.5px;
+  }
+  /* Slightly tighter status chips so more fit per row on narrow phones. */
+  .intg-chip {
+    font-size: 10.5px;
+    padding: 2px 7px;
+    gap: 4px;
+  }
+  .intg-chip .intg-dot {
+    width: 6px;
+    height: 6px;
+  }
+  .mode-pill {
+    font-size: 10.5px;
+    padding: 2px 7px;
   }
   .history-row {
     flex-direction: column;
