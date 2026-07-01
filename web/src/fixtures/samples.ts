@@ -1,4 +1,5 @@
 import type {
+  CyfirmaContext,
   DnslyticsContext,
   DomainToolsContext,
   Intel471Context,
@@ -21,6 +22,8 @@ export interface Fixture {
   dnslytics?: DnslyticsContext;
   /** Sample Intel 471 IOC context. */
   intel471?: Intel471Context;
+  /** Sample CYFIRMA DeCYFIR context. */
+  cyfirma?: CyfirmaContext;
 }
 
 const day = 86400;
@@ -169,6 +172,32 @@ export const FIXTURES: Fixture[] = [
         'Bulletproof hosting actor advertises proxy inventory',
       ],
       portalUrl: 'https://titan.intel471.com/report/inforep/example',
+    },
+    cyfirma: {
+      found: true,
+      riskScore: 8,
+      externalThreatScore: 9,
+      riskScoreTrend: 'UP',
+      externalThreatScoreTrend: 'EQUAL',
+      indicatorType: 'IP ADDRESS',
+      indicatorRiskScore: 8,
+      story: 'This IP address 185.220.101.1 is malicious in nature and has been observed hosting command-and-control infrastructure linked to state-sponsored activity.',
+      impact: 'Potential compromise of internal hosts communicating with this address.',
+      action: 'Block the IP address.',
+      asn: '60729',
+      asnOwner: 'Zwiebelfreunde e.V.',
+      organization: 'Zwiebelfreunde e.V.',
+      country: 'Germany',
+      threatActors: ['Fancy Bear'],
+      campaigns: ['vision2025'],
+      malware: ['x-agent'],
+      related: {
+        ips: ['192.243.56.76', '220.94.133.121'],
+        domains: ['evil-c2.example'],
+        hashes: ['4bac27393bdd9777ce02453256c5577cd02275510b2227f473d03f533924f877'],
+        cves: ['CVE-2023-23397'],
+      },
+      relatedCount: 6,
     },
   },
   {

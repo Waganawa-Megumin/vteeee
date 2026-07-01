@@ -24,6 +24,12 @@ export interface ProxyEnv {
   intel471BaseUrl?: string;
   /** Per-minute cap on Intel 471 lookups. Default 60. */
   intel471Rpm?: number;
+  /** CYFIRMA DeCYFIR API key (passed as the `key=` query param). When set, all IOC types get DeCYFIR context. */
+  cyfirmaApiKey?: string;
+  /** CYFIRMA DeCYFIR API base URL. Default https://decyfir.cyfirma.com/core/api-ua. */
+  cyfirmaBaseUrl?: string;
+  /** Per-minute cap on CYFIRMA lookups. Default 30. */
+  cyfirmaRpm?: number;
   /** Shared token required on /api/* (enrich, parse). */
   accessToken?: string;
   /** Token required to write users/settings via /api/admin/*. */

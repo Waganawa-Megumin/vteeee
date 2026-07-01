@@ -1,5 +1,8 @@
 import { useState } from 'react';
 import type {
+  CyfirmaContext,
+  CyfirmaRelated,
+  CyfirmaSearch,
   DnslyticsContext,
   DomainToolsContext,
   EnrichableType,
@@ -397,6 +400,161 @@ function Intel471Section({ d, value, type }: { d: Intel471Context; value: string
   );
 }
 
+function trendArrow(t?: string): string {
+  const u = (t ?? '').toUpperCase();
+  if (u === 'UP' || u === 'INCREASE' || u === 'HIGH') return ' ↑';
+  if (u === 'DOWN' || u === 'DECREASE' || u === 'LOW') return ' ↓';
+  return '';
+}
+
+/** CYFIRMA related-infra buckets that have at least one value, as [label, values] pairs. */
+function cyfirmaRelated(rel: CyfirmaRelated): [string, string[]][] {
+  const groups: [string, string[] | undefined][] = [
+    ['IPs', rel.ips],
+    ['domains', rel.domains],
+    ['hostnames', rel.hostnames],
+    ['URLs', rel.urls],
+    ['hashes', rel.hashes],
+    ['emails', rel.emails],
+    ['CVEs', rel.cves],
+    ['exploits', rel.exploits],
+  ];
+  return groups.filter((g): g is [string, string[]] => Array.isArray(g[1]) && g[1].length > 0);
+}
+
+/**
+ * CYFIRMA DeCYFIR block — Risk Dossier scores + recommended action + correlated infrastructure
+ * (attack-infra side), STIX attribution (actors/campaigns/malware), and an on-demand actor
+ * deep-dive (broad search) reachable by clicking a threat-actor chip.
+ */
+function CyfirmaSection({ d }: { d: CyfirmaContext }) {
+  const search = useStore((s) => s.cyfirmaSearch);
+  const [actor, setActor] = useState<{ name: string; loading: boolean; data?: CyfirmaSearch } | null>(null);
+
+  async function runActor(name: string) {
+    setActor({ name, loading: true });
+    setActor({ name, loading: false, data: await search(name) });
+  }
+
+  const rel = d.related ? cyfirmaRelated(d.related) : [];
+  const scoreLine =
+    [
+      d.riskScore != null ? `risk ${d.riskScore}/10${trendArrow(d.riskScoreTrend)}` : '',
+      d.externalThreatScore != null
+        ? `ext threat ${d.externalThreatScore}/10${trendArrow(d.externalThreatScoreTrend)}`
+        : '',
+    ]
+      .filter(Boolean)
+      .join('  ·  ') || undefined;
+
+  return (
+    <div className="shodan-block">
+      <div className="shodan-head">
+        <span className="shodan-logo" aria-hidden>
+          🛡
+        </span>
+        CYFIRMA · DeCYFIR
+        {d.found && d.indicatorRiskScore != null && (
+          <span className="shodan-when">risk {d.indicatorRiskScore}/10</span>
+        )}
+      </div>
+
+      {!d.found ? (
+        <div className="detail-note">{d.error ?? 'No CYFIRMA record for this indicator.'}</div>
+      ) : (
+        <div className="detail-grid">
+          <Field k="Risk scores" v={scoreLine} />
+          <Field k="Indicator" v={[d.indicatorType, d.indicatorName].filter(Boolean).join(' · ') || undefined} />
+          {d.action && (
+            <div className="field">
+              <div className="fk">Recommended action</div>
+              <div className="fv chips">
+                <span className="chip shodan-vuln">{d.action}</span>
+              </div>
+            </div>
+          )}
+          <Field k="Story" v={d.story} />
+          <Field k="Impact" v={d.impact} />
+          <Field k="Description" v={d.description} />
+          <Field k="ASN" v={[d.asn ? `AS${d.asn}` : '', d.asnOwner].filter(Boolean).join(' ') || undefined} />
+          <Field k="Organization" v={d.organization && d.organization !== d.asnOwner ? d.organization : undefined} />
+          <Field k="Country" v={d.country} />
+
+          {d.threatActors && d.threatActors.length > 0 && (
+            <div className="field">
+              <div className="fk">Threat actors</div>
+              <div className="fv chips">
+                {d.threatActors.map((a) => (
+                  <button
+                    key={a}
+                    className="chip chip-btn"
+                    onClick={() => runActor(a)}
+                    title={`CYFIRMA broad search — ${a}: campaigns, malware, targeted CVEs`}
+                  >
+                    🔎 {a}
+                  </button>
+                ))}
+              </div>
+            </div>
+          )}
+          <Field k="Campaigns" v={d.campaigns && d.campaigns.length ? d.campaigns.join(', ') : undefined} />
+          <Field k="Malware" v={d.malware && d.malware.length ? d.malware.join(', ') : undefined} />
+
+          {rel.length > 0 && (
+            <div className="field">
+              <div className="fk">Related infra{d.relatedCount ? ` · ${d.relatedCount} linked` : ''}</div>
+              <div className="fv">
+                {rel.map(([label, vals]) => (
+                  <div key={label} className="cyfirma-rel-row">
+                    <span className="cyfirma-rel-label">{label}</span>
+                    <span className="fv chips">
+                      {vals.map((v) => (
+                        <span key={v} className="chip mono">
+                          {v}
+                        </span>
+                      ))}
+                    </span>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+        </div>
+      )}
+
+      {actor && (
+        <div className="cyfirma-actor">
+          {actor.loading ? (
+            <div className="detail-note">Searching {actor.name}…</div>
+          ) : actor.data?.error ? (
+            <div className="detail-note">{actor.data.error}</div>
+          ) : actor.data ? (
+            <>
+              <div className="cyfirma-actor-title">Actor · {actor.data.actor}</div>
+              <div className="detail-grid">
+                <Field k="Aliases" v={actor.data.aliases?.join(', ')} />
+                <Field k="Motivation" v={actor.data.motivation} />
+                <Field k="Description" v={actor.data.description} />
+                <Field k="Campaigns" v={actor.data.campaigns?.join(', ')} />
+                <Field k="Malware" v={actor.data.malware?.join(', ')} />
+                <Field k="Targeted CVEs" v={actor.data.vulnerabilities?.join(', ')} />
+                <Field k="Related IOCs" v={actor.data.relatedIocs?.join(', ')} />
+              </div>
+            </>
+          ) : null}
+        </div>
+      )}
+
+      {d.raw != null && (
+        <details className="raw">
+          <summary>Raw CYFIRMA data</summary>
+          <pre>{JSON.stringify(d.raw, null, 2)}</pre>
+        </details>
+      )}
+    </div>
+  );
+}
+
 export function DetailPanel() {
   const selected = useStore((s) => s.selected);
   const results = useStore((s) => s.results);
@@ -526,6 +684,7 @@ export function DetailPanel() {
         {r.intel471 && r.type !== 'unknown' && (
           <Intel471Section d={r.intel471} value={r.value} type={r.type as EnrichableType} />
         )}
+        {r.cyfirma && <CyfirmaSection d={r.cyfirma} />}
 
         <a className="btn btn-primary detail-vt" href={r.links.gui} target="_blank" rel="noreferrer">
           Open in VirusTotal ↗

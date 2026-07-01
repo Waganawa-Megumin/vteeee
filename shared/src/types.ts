@@ -255,6 +255,97 @@ export interface Intel471Search {
   error?: string;
 }
 
+/**
+ * Correlated infrastructure / victim attributes CYFIRMA links to an indicator
+ * (from the Risk Dossier `iocAttribute`). Samples, not exhaustive lists — these are
+ * the "attack-infrastructure side" pivots (related hosts) and target-side signals (emails/CVEs).
+ */
+export interface CyfirmaRelated {
+  ips?: string[];
+  domains?: string[];
+  hostnames?: string[];
+  urls?: string[];
+  hashes?: string[];
+  emails?: string[];
+  cves?: string[];
+  exploits?: string[];
+}
+
+/**
+ * CYFIRMA DeCYFIR context — merged from the Risk Dossier (`/riskdossier`) and the STIX 2.1
+ * IOC search (`/threatioc/stix/v2.1/search`). Applies to all IOC types. `found: false` = no
+ * DeCYFIR record (or lookup failed). Mapping is tolerant + keeps `raw` (no live egress to verify).
+ */
+export interface CyfirmaContext {
+  found: boolean;
+
+  // --- Risk Dossier: organisation-level scores (0–10 scale) ---
+  /** riskViewScores.riskScore — your organisation's risk from this indicator (0–10). */
+  riskScore?: number;
+  /** riskViewScores.externalThreatScore — external threat level (0–10). */
+  externalThreatScore?: number;
+  /** UP / DOWN / EQUAL. */
+  riskScoreTrend?: string;
+  externalThreatScoreTrend?: string;
+
+  // --- Risk Dossier: per-indicator detail ---
+  /** riskDossierDetails[].type, e.g. "IP ADDRESS", "DOMAIN". */
+  indicatorType?: string;
+  /** riskDossierDetails[].riskScore for this specific indicator (0–10). */
+  indicatorRiskScore?: number;
+  /** Narrative (HTML stripped). */
+  story?: string;
+  /** Impact statement. */
+  impact?: string;
+  /** Recommended action, e.g. "Block the IP address." */
+  action?: string;
+  /** details.* (infrastructure ownership). */
+  asn?: string;
+  asnOwner?: string;
+  organization?: string;
+  country?: string;
+  /** Correlated infrastructure / victim attributes (attack-infra + target side). */
+  related?: CyfirmaRelated;
+  /** Total related attributes across every bucket (for a quick "N linked" chip). */
+  relatedCount?: number;
+
+  // --- STIX 2.1 IOC search: attribution ---
+  /** Associated threat actors / intrusion sets (by name). */
+  threatActors?: string[];
+  /** Associated campaigns (by name). */
+  campaigns?: string[];
+  /** Associated malware families (by name). */
+  malware?: string[];
+  /** STIX indicator name, e.g. "Poison Ivy Malware". */
+  indicatorName?: string;
+  /** STIX indicator description. */
+  description?: string;
+
+  error?: string;
+  raw?: unknown;
+}
+
+/**
+ * CYFIRMA Threat-Actor deep-dive — from `GET /threatactor/stix/v2.1?name=`. Fetched on demand
+ * (a button in the detail panel) to pivot from an indicator's attributed actor into that actor's
+ * campaigns, malware and targeted CVEs (attack-infra + target-side view).
+ */
+export interface CyfirmaSearch {
+  /** Resolved actor name/title. */
+  actor?: string;
+  aliases?: string[];
+  description?: string;
+  /** primary_motivation, e.g. "Espionage". */
+  motivation?: string;
+  campaigns?: string[];
+  malware?: string[];
+  /** CVEs the actor is seen targeting. */
+  vulnerabilities?: string[];
+  /** Sample of related IOCs surfaced in the actor bundle. */
+  relatedIocs?: string[];
+  error?: string;
+}
+
 /** The single shape the results table & detail panel consume, for all IOC types. */
 export interface NormalizedResult {
   input: string;
@@ -291,6 +382,9 @@ export interface NormalizedResult {
 
   /** Intel 471 (Titan) IOC context — all IOC types. */
   intel471?: Intel471Context;
+
+  /** CYFIRMA DeCYFIR context (Risk Dossier + STIX 2.1 search) — all IOC types. */
+  cyfirma?: CyfirmaContext;
 
   ip?: {
     country?: string;
@@ -342,6 +436,8 @@ export interface EnrichOptions {
   dnslytics?: boolean;
   /** Request Intel 471 IOC lookups. Ignored if the proxy has no Intel 471 credentials. */
   intel471?: boolean;
+  /** Request CYFIRMA DeCYFIR lookups. Ignored if the proxy has no CYFIRMA key. */
+  cyfirma?: boolean;
 }
 
 /** What the proxy `GET /health` reports — which integrations are configured server-side. */
@@ -359,6 +455,8 @@ export interface ProxyHealth {
   dnslytics: boolean;
   /** Intel 471 (Titan) credentials present (optional — IOC intel). */
   intel471: boolean;
+  /** CYFIRMA DeCYFIR key present (optional — risk dossier + STIX attribution). */
+  cyfirma: boolean;
 }
 
 export interface EnrichRequest {
@@ -418,6 +516,8 @@ export interface AppSettings {
   dnslytics?: boolean;
   /** Request Intel 471 IOC enrichment (default true; only used if the proxy has Intel 471 creds). */
   intel471?: boolean;
+  /** Request CYFIRMA DeCYFIR enrichment (default true; only used if the proxy has a CYFIRMA key). */
+  cyfirma?: boolean;
   /** Days to keep local search history (per browser). 0 = disabled. Default 30. */
   historyRetentionDays?: number;
   /** Documentation-only note shown in the admin UI. */

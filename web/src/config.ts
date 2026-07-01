@@ -16,6 +16,7 @@ export const DEFAULT_SETTINGS: AppSettings = {
   domaintools: true,
   dnslytics: true,
   intel471: true,
+  cyfirma: true,
   historyRetentionDays: 30,
 };
 

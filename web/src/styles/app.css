@@ -837,6 +837,43 @@ a.chip.shodan-vuln:hover {
   color: var(--accent);
 }
 
+/* CYFIRMA — clickable actor pivot chips + related-infra rows + actor deep-dive */
+button.chip-btn {
+  cursor: pointer;
+  font-family: inherit;
+  background: rgba(116, 211, 177, 0.14);
+  color: var(--accent);
+  border-color: rgba(116, 211, 177, 0.32);
+}
+button.chip-btn:hover {
+  background: rgba(116, 211, 177, 0.26);
+}
+.cyfirma-rel-row {
+  display: flex;
+  gap: 6px;
+  align-items: baseline;
+  margin-top: 3px;
+}
+.cyfirma-rel-label {
+  flex: 0 0 64px;
+  font-size: 10.5px;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: var(--muted);
+}
+.cyfirma-actor {
+  margin-top: 4px;
+  padding: 10px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: var(--bg2);
+}
+.cyfirma-actor-title {
+  font-weight: 600;
+  color: var(--accent);
+  margin-bottom: 6px;
+}
+
 /* modal */
 .modal-overlay {
   position: fixed;

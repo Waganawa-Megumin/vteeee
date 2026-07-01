@@ -90,6 +90,17 @@ export function IntegrationStatus({ onManage }: { onManage: () => void }) {
             }
           />
           <Chip
+            label="CYFIRMA"
+            on={Boolean(health?.cyfirma) && settings.cyfirma !== false}
+            title={
+              health?.cyfirma
+                ? settings.cyfirma !== false
+                  ? 'CYFIRMA DeCYFIR active — risk dossier + attribution on all types'
+                  : 'CYFIRMA key present, but turned OFF in Settings'
+                : 'Optional — no CYFIRMA_API_KEY on the proxy'
+            }
+          />
+          <Chip
             label="Claude"
             on={Boolean(health?.claude)}
             title={health?.claude ? 'Claude smart-parse available' : 'Optional — no ANTHROPIC_API_KEY on the proxy'}

@@ -7,8 +7,8 @@ name: Deploy Proxy (Cloudflare)
 #   2) Add repo secrets: VT_API_KEY, ANTHROPIC_API_KEY (optional),
 #      SHODAN_API_KEY (optional), DOMAINTOOLS_API_USERNAME + DOMAINTOOLS_API_KEY
 #      (optional), DNSLYTICS_API_KEY (optional), INTEL471_API_USER +
-#      INTEL471_API_KEY (optional), ACCESS_TOKEN, ADMIN_TOKEN,
-#      CLOUDFLARE_API_TOKEN, CLOUDFLARE_ACCOUNT_ID
+#      INTEL471_API_KEY (optional), CYFIRMA_API_KEY (optional),
+#      ACCESS_TOKEN, ADMIN_TOKEN, CLOUDFLARE_API_TOKEN, CLOUDFLARE_ACCOUNT_ID
 #   3) Set ALLOWED_ORIGINS in wrangler.toml to your *.github.io origin + localhost
 on:
   workflow_dispatch:
@@ -55,4 +55,7 @@ jobs:
           if [ -n "${{ secrets.INTEL471_API_USER }}" ] && [ -n "${{ secrets.INTEL471_API_KEY }}" ]; then
             printf '%s' "${{ secrets.INTEL471_API_USER }}" | pnpm exec wrangler secret put INTEL471_API_USER
             printf '%s' "${{ secrets.INTEL471_API_KEY }}" | pnpm exec wrangler secret put INTEL471_API_KEY
+          fi
+          if [ -n "${{ secrets.CYFIRMA_API_KEY }}" ]; then
+            printf '%s' "${{ secrets.CYFIRMA_API_KEY }}" | pnpm exec wrangler secret put CYFIRMA_API_KEY
           fi

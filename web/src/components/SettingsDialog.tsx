@@ -57,6 +57,11 @@ export function SettingsDialog({ onClose }: { onClose: () => void }) {
                 Intel 471{' '}
                 {health?.intel471 ? (draft.intel471 !== false ? 'on' : 'creds set · off') : 'not configured'}
               </span>
+              <span className={`intg-chip ${health?.cyfirma && draft.cyfirma !== false ? 'on' : 'off'}`}>
+                <span className="intg-dot" />
+                CYFIRMA{' '}
+                {health?.cyfirma ? (draft.cyfirma !== false ? 'on' : 'key set · off') : 'not configured'}
+              </span>
               <span className={`intg-chip ${health?.claude ? 'on' : 'off'}`}>
                 <span className="intg-dot" />
                 Claude {health?.claude ? 'on' : 'not configured'}
@@ -194,6 +199,18 @@ export function SettingsDialog({ onClose }: { onClose: () => void }) {
             <InfoTip
               ja="全種別(IP/ドメイン/URL/ハッシュ)を Intel 471 の IOC 照合で付与（confidence相当のactive期間・ISP・関連レポート/アクター等）。詳細では『Global Search』ボタンで横断件数を追加取得。プロキシに INTEL471_API_USER/KEY がある時のみ。"
               en="Enrich every IOC type (IP/domain/URL/hash) via Intel 471's IOC search (active window, ISP, linked reports/actors). The detail panel's 'Global Search' button fetches cross-entity counts on demand. Only if the proxy has Intel 471 creds."
+            />
+          </label>
+          <label className="chk">
+            <input
+              type="checkbox"
+              checked={draft.cyfirma !== false}
+              onChange={(e) => up('cyfirma', e.target.checked)}
+            />
+            🛡 CYFIRMA · DeCYFIR (all IOC types)
+            <InfoTip
+              ja="全種別(IP/ドメイン/URL/ハッシュ)に CYFIRMA DeCYFIR を付与。Risk Dossier（リスク/外部脅威スコア・推奨アクション・ASN/組織・関連インフラ＝攻撃基盤側）＋STIX 2.1検索（関連する脅威アクター/キャンペーン/マルウェア＝アトリビューション）。詳細画面で脅威アクターのチップを押すと『広域サーチ』としてそのアクターのキャンペーン/マルウェア/標的CVEを追加取得。プロキシに CYFIRMA_API_KEY がある時のみ。"
+              en="Enrich every IOC type (IP/domain/URL/hash) via CYFIRMA DeCYFIR: Risk Dossier (risk/external-threat scores, recommended action, ASN/org, correlated infrastructure = attack-infra side) + STIX 2.1 search (associated threat actors/campaigns/malware = attribution). In the detail panel, click a threat-actor chip to run a broad search for that actor's campaigns/malware/targeted CVEs. Only if the proxy has a CYFIRMA key."
             />
           </label>
           <p className="hint shodan-hint">

@@ -143,6 +143,20 @@ export function HelpDialog({ onClose }: { onClose: () => void }) {
                 <span className="help-en">All IOC types. IOC search adds active window/ISP/linked reports+actors; the “Global Search” button fetches cross-entity counts on demand.</span>
               </IntegrationRow>
 
+              <IntegrationRow
+                name="CYFIRMA · DeCYFIR"
+                env="CYFIRMA_API_KEY"
+                on={health?.cyfirma ?? null}
+                live={live}
+              >
+                <span className="help-ja">
+                  <b>全種別</b>（IP/ドメイン/URL/ハッシュ）。Risk Dossier（リスク/外部脅威スコア・推奨アクション・ASN/組織・
+                  <b>関連インフラ＝攻撃基盤側</b>）＋STIX 2.1検索（<b>脅威アクター/キャンペーン/マルウェア＝アトリビューション</b>）。
+                  詳細で<b>脅威アクターのチップ</b>を押すと「広域サーチ」でそのアクターのキャンペーン/マルウェア/標的CVEをオンデマンド取得。
+                </span>
+                <span className="help-en">All IOC types. Risk Dossier (risk/external-threat scores, recommended action, ASN/org, correlated infrastructure = attack-infra side) + STIX 2.1 search (threat actors/campaigns/malware = attribution). Click a threat-actor chip to broad-search that actor's campaigns/malware/targeted CVEs on demand.</span>
+              </IntegrationRow>
+
               <IntegrationRow name="Claude (smart-parse)" env="ANTHROPIC_API_KEY" on={health?.claude ?? null} live={live}>
                 <span className="help-ja">
                   レポート本文などの雑多なテキストからIOCを抽出（「Smart parse (Claude)」ボタン）。無ければ正規表現で代替。
@@ -152,7 +166,7 @@ export function HelpDialog({ onClose }: { onClose: () => void }) {
             </div>
             <p className="help-ja" style={{ marginTop: 8 }}>
               <b>種別で引き分け</b>：ドメイン→VT＋DomainTools(Enrich)＋DNSLytics(HostingHistory) ／ IP→VT＋Shodan＋DNSLytics(IPInfo)＋DomainTools(逆引き)
-              ／ URL→ホスト名をドメイン扱い ／ ハッシュ→VTのみ。<b>Intel 471 は全種別</b>に付与。各連携は Settings で個別ON/OFF可。
+              ／ URL→ホスト名をドメイン扱い ／ ハッシュ→VTのみ。<b>Intel 471 と CYFIRMA は全種別</b>に付与。各連携は Settings で個別ON/OFF可。
             </p>
             <p className="help-en" style={{ marginTop: 8 }}>
               <b>Enable an optional service (3 steps):</b> ① add the env var above as a repo secret /

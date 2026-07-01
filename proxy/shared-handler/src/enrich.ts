@@ -1,6 +1,7 @@
 import {
   buildLinks,
   normalizeVt,
+  type CyfirmaContext,
   type DnslyticsContext,
   type DomainToolsContext,
   type EnrichEvent,
@@ -17,6 +18,7 @@ import { shodanHostLookup } from './shodanFetch';
 import { domaintoolsEnrichDomain, domaintoolsReverseIp } from './domaintoolsFetch';
 import { dnslyticsHostingHistory, dnslyticsIpInfo } from './dnslyticsFetch';
 import { intel471Lookup } from './intel471Fetch';
+import { cyfirmaLookup } from './cyfirmaFetch';
 import { AsyncQueue, backoffMs, clamp, sleep } from './util';
 
 const MAX_RL_RETRIES = 3;
@@ -25,6 +27,7 @@ const DEFAULT_SHODAN_RPM = 60;
 const DEFAULT_DOMAINTOOLS_RPM = 30;
 const DEFAULT_DNSLYTICS_RPM = 60;
 const DEFAULT_INTEL471_RPM = 60;
+const DEFAULT_CYFIRMA_RPM = 30;
 
 /** Hostname from a URL indicator (for treating a URL's host as a domain). null if not parseable. */
 function hostFromUrl(u: string): string | null {
@@ -78,6 +81,11 @@ export async function* runEnrich(
     Boolean(env.intel471ApiUser && env.intel471ApiKey) && req.options?.intel471 !== false;
   const i471Limiter = i471Enabled
     ? new RateLimiter(clamp(env.intel471Rpm ?? DEFAULT_INTEL471_RPM, 1, 600))
+    : null;
+  // CYFIRMA DeCYFIR lookups (all IOC types) under its own limiter.
+  const cyfirmaEnabled = Boolean(env.cyfirmaApiKey) && req.options?.cyfirma !== false;
+  const cyfirmaLimiter = cyfirmaEnabled
+    ? new RateLimiter(clamp(env.cyfirmaRpm ?? DEFAULT_CYFIRMA_RPM, 1, 600))
     : null;
   const queue = new AsyncQueue<EnrichEvent>();
   const tasks = [...req.indicators];
@@ -180,6 +188,18 @@ export async function* runEnrich(
     }
   }
 
+  /** CYFIRMA DeCYFIR lookup (all types). Never throws. */
+  async function enrichCyfirma(value: string, type: EnrichRequest['indicators'][number]['type']): Promise<CyfirmaContext | undefined> {
+    if (!cyfirmaLimiter) return undefined;
+    try {
+      await cyfirmaLimiter.acquire(signal);
+      return await cyfirmaLookup(value, type, env, signal);
+    } catch (e) {
+      if ((e as Error).name === 'AbortError') return undefined;
+      return { found: false, error: (e as Error).message };
+    }
+  }
+
   /** Attach all provider context to a normalized result, routing by IOC type. */
   async function attachContext(ind: EnrichRequest['indicators'][number], result: NormalizedResult): Promise<void> {
     const isIp = ind.type === 'ipv4' || ind.type === 'ipv6';
@@ -187,8 +207,9 @@ export async function* runEnrich(
     const urlHost = ind.type === 'url' ? hostFromUrl(ind.value) : null;
     const domain = ind.type === 'domain' ? ind.value : urlHost && !isIpLiteral(urlHost) ? urlHost : null;
 
-    // Intel 471 applies to every IOC type (IP / domain / URL / hash).
+    // Intel 471 + CYFIRMA apply to every IOC type (IP / domain / URL / hash).
     if (i471Limiter) result.intel471 = await enrichIntel471(ind.value, ind.type);
+    if (cyfirmaLimiter) result.cyfirma = await enrichCyfirma(ind.value, ind.type);
 
     if (isIp) {
       if (shodanLimiter) result.shodan = await enrichShodan(ind.value);

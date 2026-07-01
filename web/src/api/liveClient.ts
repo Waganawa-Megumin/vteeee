@@ -1,5 +1,6 @@
 import type {
   AppSettings,
+  CyfirmaSearch,
   EnrichableType,
   EnrichEvent,
   EnrichRequest,
@@ -21,15 +22,16 @@ export class LiveClient implements EnrichClient {
     this.base = settings.proxyBaseUrl!.replace(/\/$/, '');
     this.accessToken = settings.accessToken;
     // Each indicator issues ~1 subrequest per active provider (VT + Shodan + DomainTools +
-    // DNSLytics). Cloudflare's free plan allows only 50 subrequests per Worker invocation, so
-    // we split the batch into chunks — each POST is a fresh invocation with its own budget.
-    // Target ≤ ~40/invocation to leave headroom for VT 429 retries.
+    // DNSLytics + Intel 471 + CYFIRMA). Cloudflare's free plan allows only 50 subrequests per
+    // Worker invocation, so we split the batch into chunks — each POST is a fresh invocation with
+    // its own budget. Target ≤ ~40/invocation to leave headroom for VT 429 retries.
     const providers =
       1 + // VirusTotal
       (settings.shodan !== false ? 1 : 0) +
       (settings.domaintools !== false ? 1 : 0) +
       (settings.dnslytics !== false ? 1 : 0) +
-      (settings.intel471 !== false ? 2 : 0); // Intel 471 = /indicators + /iocs (+on-demand /search)
+      (settings.intel471 !== false ? 2 : 0) + // Intel 471 = /indicators + /iocs (+on-demand /search)
+      (settings.cyfirma !== false ? 2 : 0); // CYFIRMA = /riskdossier + /threatioc search (+on-demand actor)
     this.chunk = Math.max(3, Math.floor(40 / (providers + 1)));
   }
 
@@ -147,6 +149,14 @@ export class LiveClient implements EnrichClient {
     );
     if (!res.ok) return { error: `Intel 471 search failed: ${res.status}` };
     return (await res.json()) as Intel471Search;
+  }
+
+  async cyfirmaSearch(name: string): Promise<CyfirmaSearch> {
+    const res = await fetch(`${this.base}/api/cyfirma/search?name=${encodeURIComponent(name)}`, {
+      headers: this.headers(false),
+    });
+    if (!res.ok) return { error: `CYFIRMA search failed: ${res.status}` };
+    return (await res.json()) as CyfirmaSearch;
   }
 
   async smartParse(text: string): Promise<ParsedIndicator[]> {

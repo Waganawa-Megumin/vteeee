@@ -3,6 +3,7 @@ import {
   ndjson,
   smartParse,
   intel471GlobalSearch,
+  cyfirmaActorSearch,
   getUsers,
   putUsers,
   getSettings,
@@ -33,6 +34,9 @@ interface Env {
   INTEL471_API_KEY?: string;
   INTEL471_BASE_URL?: string;
   INTEL471_RPM?: string;
+  CYFIRMA_API_KEY?: string;
+  CYFIRMA_BASE_URL?: string;
+  CYFIRMA_RPM?: string;
   ACCESS_TOKEN?: string;
   ADMIN_TOKEN?: string;
   ALLOWED_ORIGINS?: string;
@@ -70,6 +74,9 @@ function build(env: Env): { proxy: ProxyEnv; allowed: string[]; store: Storage }
     intel471ApiKey: env.INTEL471_API_KEY,
     intel471BaseUrl: env.INTEL471_BASE_URL,
     intel471Rpm: env.INTEL471_RPM ? Number(env.INTEL471_RPM) : undefined,
+    cyfirmaApiKey: env.CYFIRMA_API_KEY,
+    cyfirmaBaseUrl: env.CYFIRMA_BASE_URL,
+    cyfirmaRpm: env.CYFIRMA_RPM ? Number(env.CYFIRMA_RPM) : undefined,
     accessToken: env.ACCESS_TOKEN,
     adminToken: env.ADMIN_TOKEN,
     allowedOrigins: allowed,
@@ -112,6 +119,7 @@ export default {
           domaintools: Boolean(proxy.domaintoolsApiUsername && proxy.domaintoolsApiKey),
           dnslytics: Boolean(proxy.dnslyticsApiKey),
           intel471: Boolean(proxy.intel471ApiUser && proxy.intel471ApiKey),
+          cyfirma: Boolean(proxy.cyfirmaApiKey),
         });
 
       if (url.pathname === '/api/enrich' && request.method === 'POST') {
@@ -159,6 +167,15 @@ export default {
         const iocType = (url.searchParams.get('type') ?? 'unknown') as EnrichableType;
         if (!ioc) return json({ error: 'ioc required' }, 400);
         return json((await intel471GlobalSearch(ioc, iocType, proxy, request.signal)) ?? { error: 'unavailable' });
+      }
+
+      // On-demand CYFIRMA Threat-Actor deep-dive (broad search) by actor name.
+      if (url.pathname === '/api/cyfirma/search' && request.method === 'GET') {
+        if (!checkAccess(auth, proxy)) return json({ error: 'unauthorized' }, 401);
+        if (!proxy.cyfirmaApiKey) return json({ error: 'CYFIRMA not configured' }, 400);
+        const name = url.searchParams.get('name') ?? '';
+        if (!name) return json({ error: 'name required' }, 400);
+        return json((await cyfirmaActorSearch(name, proxy, request.signal)) ?? { error: 'unavailable' });
       }
 
       if (url.pathname === '/api/admin/users') {

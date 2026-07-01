@@ -13,6 +13,15 @@ export {
   mapIntel471Indicator,
   mapIntel471Search,
 } from './intel471Fetch';
+export {
+  cyfirmaRiskDossier,
+  cyfirmaStixSearch,
+  cyfirmaLookup,
+  cyfirmaActorSearch,
+  mapRiskDossier,
+  mapStixSearch,
+  mapThreatActor,
+} from './cyfirmaFetch';
 export { smartParse } from './parse';
 export { RateLimiter } from './rateLimiter';
 export { AsyncQueue, sleep, clamp, backoffMs } from './util';

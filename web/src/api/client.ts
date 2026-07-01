@@ -1,5 +1,6 @@
 import type {
   AppSettings,
+  CyfirmaSearch,
   EnrichableType,
   EnrichRequest,
   Intel471Search,
@@ -23,6 +24,8 @@ export interface EnrichClient {
   smartParse(text: string): Promise<ParsedIndicator[]>;
   /** On-demand Intel 471 Global Search — cross-entity counts for one IOC. */
   intel471Search(ioc: string, type: EnrichableType): Promise<Intel471Search>;
+  /** On-demand CYFIRMA Threat-Actor deep-dive (broad search) by actor name. */
+  cyfirmaSearch(name: string): Promise<CyfirmaSearch>;
 }
 
 export function sleep(ms: number, signal?: AbortSignal): Promise<void> {

@@ -6,6 +6,7 @@ import {
   ndjson,
   smartParse,
   intel471GlobalSearch,
+  cyfirmaActorSearch,
   getUsers,
   putUsers,
   getSettings,
@@ -49,6 +50,9 @@ const env: ProxyEnv = {
   intel471ApiKey: process.env.INTEL471_API_KEY || undefined,
   intel471BaseUrl: process.env.INTEL471_BASE_URL || undefined,
   intel471Rpm: process.env.INTEL471_RPM ? Number(process.env.INTEL471_RPM) : undefined,
+  cyfirmaApiKey: process.env.CYFIRMA_API_KEY || undefined,
+  cyfirmaBaseUrl: process.env.CYFIRMA_BASE_URL || undefined,
+  cyfirmaRpm: process.env.CYFIRMA_RPM ? Number(process.env.CYFIRMA_RPM) : undefined,
   accessToken: process.env.ACCESS_TOKEN || undefined,
   adminToken: process.env.ADMIN_TOKEN || undefined,
   allowedOrigins,
@@ -122,6 +126,7 @@ app.get('/health', (_req, res) => {
     domaintools: Boolean(env.domaintoolsApiUsername && env.domaintoolsApiKey),
     dnslytics: Boolean(env.dnslyticsApiKey),
     intel471: Boolean(env.intel471ApiUser && env.intel471ApiKey),
+    cyfirma: Boolean(env.cyfirmaApiKey),
   });
 });
 
@@ -138,6 +143,20 @@ app.get('/api/intel471/search', async (req, res) => {
     return;
   }
   res.json((await intel471GlobalSearch(ioc, type, env)) ?? { error: 'unavailable' });
+});
+
+app.get('/api/cyfirma/search', async (req, res) => {
+  if (!requireAccess(req, res)) return;
+  if (!env.cyfirmaApiKey) {
+    res.status(400).json({ error: 'CYFIRMA not configured' });
+    return;
+  }
+  const name = (req.query.name as string) || '';
+  if (!name) {
+    res.status(400).json({ error: 'name required' });
+    return;
+  }
+  res.json((await cyfirmaActorSearch(name, env)) ?? { error: 'unavailable' });
 });
 
 app.post('/api/enrich', async (req, res) => {
@@ -236,5 +255,5 @@ app.all('/api/history/:id', (req, res) => void handleHistory(req, res, req.param
 app.listen(PORT, () => {
   console.log(`vteeee proxy listening on :${PORT}`);
   console.log(`  allowed origins: ${allowedOrigins.join(', ')}`);
-  console.log(`  VT key: ${env.vtApiKey ? 'set' : 'MISSING'} · Claude: ${env.anthropicApiKey ? 'set' : 'off (regex fallback)'} · Shodan: ${env.shodanApiKey ? 'set' : 'off'} · DomainTools: ${env.domaintoolsApiUsername && env.domaintoolsApiKey ? 'set' : 'off'} · DNSLytics: ${env.dnslyticsApiKey ? 'set' : 'off'} · Intel471: ${env.intel471ApiUser && env.intel471ApiKey ? 'set' : 'off'}`);
+  console.log(`  VT key: ${env.vtApiKey ? 'set' : 'MISSING'} · Claude: ${env.anthropicApiKey ? 'set' : 'off (regex fallback)'} · Shodan: ${env.shodanApiKey ? 'set' : 'off'} · DomainTools: ${env.domaintoolsApiUsername && env.domaintoolsApiKey ? 'set' : 'off'} · DNSLytics: ${env.dnslyticsApiKey ? 'set' : 'off'} · Intel471: ${env.intel471ApiUser && env.intel471ApiKey ? 'set' : 'off'} · CYFIRMA: ${env.cyfirmaApiKey ? 'set' : 'off'}`);
 });

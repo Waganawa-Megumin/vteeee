@@ -2,6 +2,7 @@ import {
   buildLinks,
   extractIndicators,
   normalizeVt,
+  type CyfirmaSearch,
   type EnrichRequest,
   type Intel471Search,
   type NormalizedResult,
@@ -42,6 +43,7 @@ export class DemoClient implements EnrichClient {
         if (fx.domaintools) result.domaintools = fx.domaintools;
         if (fx.dnslytics) result.dnslytics = fx.dnslytics;
         if (fx.intel471) result.intel471 = fx.intel471;
+        if (fx.cyfirma) result.cyfirma = fx.cyfirma;
       } else {
         result = normalizeVt({
           input: ind.input,
@@ -69,5 +71,20 @@ export class DemoClient implements EnrichClient {
   async intel471Search(): Promise<Intel471Search> {
     await sleep(300);
     return { reports: 35, posts: 132, actors: 41, entities: 13, news: 1, credentials: 1, dataLeakPosts: 1, events: 0 };
+  }
+
+  /** Sample CYFIRMA Threat-Actor deep-dive (demo). */
+  async cyfirmaSearch(name: string): Promise<CyfirmaSearch> {
+    await sleep(300);
+    return {
+      actor: name || 'Fancy Bear',
+      aliases: ['APT28', 'Sofacy', 'Strontium', 'Sednit'],
+      description: 'Russian state-sponsored group affiliated with military intelligence.',
+      motivation: 'Espionage',
+      campaigns: ['vision2025', 'credential-harvest-eu'],
+      malware: ['emotet', 'x-agent'],
+      vulnerabilities: ['CVE-2023-23397', 'CVE-2020-0688'],
+      relatedIocs: ['192.243.56.76', 'evil-c2.example'],
+    };
   }
 }

@@ -74,9 +74,10 @@ the proxy's `/health`), and each optional one is toggled in **Settings**.
 | **DomainTools Iris** | Domain/IP intel | optional | `DOMAINTOOLS_API_USERNAME` + `DOMAINTOOLS_API_KEY` | **domains** (Iris Enrich): risk score+components · WHOIS/RDAP · IP/ASN · NS · MX · SSL · website · first seen · tags. **IPs** (Iris Investigate reverse): domains hosted on the IP |
 | **DNSLytics** | IP/domain intel | optional | `DNSLYTICS_API_KEY` | **IPs** (IPInfo): ASN · org · network · reverse DNS · hosted-domain count + sample · blocklist. **domains** (HostingHistory): A/AAAA · NS · MX · SPF history |
 | **Intel 471 (Titan)** | CTI — all IOC types | optional | `INTEL471_API_USER` + `INTEL471_API_KEY` | **IOC search** (any type): active window · ISP · linked reports/actors, plus an on-demand **Global Search** button in the detail panel (cross-entity counts: reports/posts/actors/events/credentials/data-leaks) |
+| **CYFIRMA (DeCYFIR)** | CTI — all IOC types | optional | `CYFIRMA_API_KEY` | **Risk Dossier** (any type): risk + external-threat scores · recommended action · ASN/org/country · correlated infrastructure (attack-infra side) — merged with the **STIX 2.1 IOC search** for threat-actor/campaign/malware attribution. Click a threat-actor chip for an on-demand **broad search** (that actor's campaigns/malware/targeted CVEs) |
 | **Claude (Anthropic)** | Smart-parse | optional | `ANTHROPIC_API_KEY` | extract IOCs from free-form report prose |
 
-**Enrichment routes by IOC type:** domain → VT + DomainTools (Enrich) + DNSLytics (HostingHistory) · IP → VT + Shodan + DNSLytics (IPInfo) + DomainTools (reverse) · URL → host treated as a domain · hash → VT only. **Intel 471 applies to every type.** Each optional service toggles independently in **Settings**.
+**Enrichment routes by IOC type:** domain → VT + DomainTools (Enrich) + DNSLytics (HostingHistory) · IP → VT + Shodan + DNSLytics (IPInfo) + DomainTools (reverse) · URL → host treated as a domain · hash → VT only. **Intel 471 and CYFIRMA apply to every type.** Each optional service toggles independently in **Settings**.
 
 **Enable an optional service — 3 steps:**
 1. Add the env var above as a **repo secret** (GitHub → Settings → Secrets) or a proxy env var.
