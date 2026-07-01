@@ -147,7 +147,8 @@ function stubFetch() {
     'fetch',
     vi.fn(async (url: string) => {
       if (url.includes('iris-enrich')) return resp(200, { response: { results: [ENRICH_RESULT] } });
-      if (url.includes('iris-investigate')) return resp(200, { response: INVESTIGATE });
+      if (url.includes('iris-investigate') && url.includes('ip=')) return resp(200, { response: INVESTIGATE });
+      if (url.includes('iris-investigate')) return resp(200, { response: { results: [ENRICH_RESULT] } });
       if (url.includes('dnslytics') && url.includes('/ipinfo/')) return resp(200, DNSL_IP);
       if (url.includes('dnslytics') && url.includes('/hostinghistory/')) return resp(200, DNSL_HH);
       if (url.includes('/ip_addresses/') || url.includes('/domains/') || url.includes('/urls'))
@@ -186,12 +187,12 @@ describe('runEnrich routing by IOC type', () => {
     expect(r.dnslytics).toMatchObject({ kind: 'domain', found: true });
   });
 
-  it('falls back to Iris Investigate for domains when Enrich returns 403', async () => {
+  it('falls back to Iris Enrich for domains when Investigate returns 403', async () => {
     vi.stubGlobal(
       'fetch',
       vi.fn(async (url: string) => {
-        if (url.includes('iris-enrich')) return resp(403, { error: { code: 403, message: 'no access' } });
-        if (url.includes('iris-investigate')) return resp(200, { response: { results: [ENRICH_RESULT] } });
+        if (url.includes('iris-investigate')) return resp(403, { error: { code: 403, message: 'no access' } });
+        if (url.includes('iris-enrich')) return resp(200, { response: { results: [ENRICH_RESULT] } });
         if (url.includes('dnslytics')) return resp(200, DNSL_HH);
         return resp(200, { data: { attributes: {} } });
       }),
