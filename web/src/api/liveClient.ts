@@ -12,10 +12,22 @@ export class LiveClient implements EnrichClient {
   readonly mode = 'live' as const;
   private base: string;
   private accessToken?: string | null;
+  /** Indicators per /api/enrich call — keeps each Worker invocation under Cloudflare's cap. */
+  private chunk: number;
 
   constructor(settings: AppSettings) {
     this.base = settings.proxyBaseUrl!.replace(/\/$/, '');
     this.accessToken = settings.accessToken;
+    // Each indicator issues ~1 subrequest per active provider (VT + Shodan + DomainTools +
+    // DNSLytics). Cloudflare's free plan allows only 50 subrequests per Worker invocation, so
+    // we split the batch into chunks — each POST is a fresh invocation with its own budget.
+    // Target ≤ ~40/invocation to leave headroom for VT 429 retries.
+    const providers =
+      1 + // VirusTotal
+      (settings.shodan !== false ? 1 : 0) +
+      (settings.domaintools !== false ? 1 : 0) +
+      (settings.dnslytics !== false ? 1 : 0);
+    this.chunk = Math.max(3, Math.floor(40 / (providers + 1)));
   }
 
   private headers(json = true): HeadersInit {
@@ -26,6 +38,49 @@ export class LiveClient implements EnrichClient {
   }
 
   async enrich(req: EnrichRequest, handlers: EnrichHandlers): Promise<void> {
+    const all = req.indicators;
+    if (all.length <= this.chunk) {
+      await this.streamOnce(req, handlers);
+      return;
+    }
+    // Split into sub-batches so a single Worker invocation never exceeds the subrequest cap.
+    const total = all.length;
+    const started = Date.now();
+    let base = 0;
+    let stopped = false;
+    for (let i = 0; i < all.length && !stopped; i += this.chunk) {
+      if (handlers.signal?.aborted) break;
+      const chunk = all.slice(i, i + this.chunk);
+      const done0 = base;
+      await this.streamOnce(
+        { indicators: chunk, options: req.options },
+        {
+          signal: handlers.signal,
+          onResult: handlers.onResult,
+          // Re-base per-chunk progress onto the whole batch; emit a single 'done' at the end.
+          onProgress: (p) =>
+            handlers.onProgress({
+              done: done0 + p.done,
+              total,
+              inflight: p.inflight,
+              rateLimitedUntil: p.rateLimitedUntil,
+            }),
+          onDone: () => {},
+          onError: (m) => {
+            stopped = true;
+            handlers.onError(m);
+          },
+        },
+      );
+      base += chunk.length;
+    }
+    if (!stopped && !handlers.signal?.aborted) {
+      handlers.onDone({ done: base, total, elapsedMs: Date.now() - started });
+    }
+  }
+
+  /** One /api/enrich POST + NDJSON stream (a single Worker invocation). */
+  private async streamOnce(req: EnrichRequest, handlers: EnrichHandlers): Promise<void> {
     let res: Response;
     try {
       res = await fetch(`${this.base}/api/enrich`, {
