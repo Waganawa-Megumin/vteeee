@@ -2,7 +2,7 @@ import { describe, it, expect, vi, afterEach } from 'vitest';
 import type { EnrichEvent } from '@vteeee/shared';
 import { mapIrisEnrich, mapIrisInvestigateReverseIp } from '../domaintoolsFetch';
 import { mapDnslyticsIp, mapDnslyticsHostingHistory } from '../dnslyticsFetch';
-import { mapIntel471Ioc, mapIntel471Search } from '../intel471Fetch';
+import { mapIntel471Ioc, mapIntel471Indicator, mapIntel471Search } from '../intel471Fetch';
 import { runEnrich } from '../enrich';
 import type { ProxyEnv } from '../types';
 
@@ -112,6 +112,28 @@ const I471_IOC = {
   ],
 };
 
+const I471_INDICATORS = {
+  indicatorTotalCount: 1,
+  indicators: [
+    {
+      data: {
+        uid: '03966eb21fe3b33e026f3363b9f012af',
+        threat: { type: 'malware', uid: '29f5', data: { malware_family_profile_uid: '29f5', family: 'redline' } },
+        expiration: 1617937719000,
+        confidence: 'high',
+        context: { description: 'redline controller URL' },
+        mitre_tactics: 'command_and_control',
+        indicator_type: 'url',
+        indicator_data: { url: 'http://45.67.231.78:3214' },
+        intel_requirements: ['1.1.5', '1.1.6'],
+      },
+      last_updated: 1615345743440,
+      uid: '03966eb21fe3b33e026f3363b9f012af',
+      activity: { first: 1615345265000, last: 1615345719000 },
+    },
+  ],
+};
+
 const I471_SEARCH = {
   indicatorTotalCount: 0,
   cveReportsTotalCount: 0,
@@ -203,6 +225,20 @@ describe('Intel 471 mappers', () => {
   it('mapIntel471Ioc returns found:false for an empty result set', () => {
     expect(mapIntel471Ioc({ iocTotalCount: 0, iocs: [] }, 'x')).toMatchObject({ found: false, totalCount: 0 });
   });
+  it('mapIntel471Indicator maps malware family/confidence/threat/context/mitre/GIR', () => {
+    const c = mapIntel471Indicator(I471_INDICATORS, 'http://45.67.231.78:3214');
+    expect(c).toMatchObject({
+      found: true,
+      indicatorCount: 1,
+      malwareFamily: 'redline',
+      confidence: 'high',
+      threatType: 'malware',
+      context: 'redline controller URL',
+      mitreTactics: 'command_and_control',
+    });
+    expect(c.girs).toEqual(['1.1.5', '1.1.6']);
+    expect(c.activeFrom).toBe(new Date(1615345265000).toISOString());
+  });
   it('mapIntel471Search maps cross-entity counts (camelCase + snake_case)', () => {
     const s = mapIntel471Search(I471_SEARCH);
     expect(s).toMatchObject({
@@ -227,6 +263,7 @@ function stubFetch() {
       if (url.includes('iris-investigate')) return resp(200, { response: { results: [ENRICH_RESULT] } });
       if (url.includes('dnslytics') && url.includes('/ipinfo/')) return resp(200, DNSL_IP);
       if (url.includes('dnslytics') && url.includes('/hostinghistory/')) return resp(200, DNSL_HH);
+      if (url.includes('intel471.com') && url.includes('/indicators')) return resp(200, I471_INDICATORS);
       if (url.includes('intel471.com') && url.includes('/iocs')) return resp(200, I471_IOC);
       if (url.includes('/ip_addresses/') || url.includes('/domains/') || url.includes('/urls'))
         return resp(200, { data: { attributes: { last_analysis_stats: { harmless: 9 } } } });
@@ -255,8 +292,9 @@ describe('runEnrich routing by IOC type', () => {
     expect(dom?.dnslytics?.ips).toContain('193.0.2.10');
     expect(ip?.dnslytics).toMatchObject({ found: true, kind: 'ip', asn: 15169 });
     expect(ip?.domaintools).toMatchObject({ found: true, mode: 'reverse-ip' });
-    // Intel 471 applies to every IOC type.
+    // Intel 471 applies to every IOC type, merging Malware Intel (indicators) + IOC feed.
     expect(dom?.intel471?.found).toBe(true);
+    expect(dom?.intel471?.malwareFamily).toBe('redline'); // from /indicators
     expect(ip?.intel471?.found).toBe(true);
   });
 

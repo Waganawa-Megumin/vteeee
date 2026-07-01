@@ -29,7 +29,7 @@ export class LiveClient implements EnrichClient {
       (settings.shodan !== false ? 1 : 0) +
       (settings.domaintools !== false ? 1 : 0) +
       (settings.dnslytics !== false ? 1 : 0) +
-      (settings.intel471 !== false ? 1 : 0);
+      (settings.intel471 !== false ? 2 : 0); // Intel 471 = /indicators + /iocs (+on-demand /search)
     this.chunk = Math.max(3, Math.floor(40 / (providers + 1)));
   }
 

@@ -191,13 +191,31 @@ export interface DnslyticsContext {
  */
 export interface Intel471Context {
   found: boolean;
+  activeFrom?: string;
+  activeTill?: string;
+  lastUpdated?: string;
+
+  // --- Malware Intelligence (/indicators) ---
+  /** Number of matching indicators. */
+  indicatorCount?: number;
+  /** Malware family (threat.data.family), e.g. "orcus", "redline". */
+  malwareFamily?: string;
+  /** Confidence: high / medium / low. */
+  confidence?: string;
+  /** Threat type (threat.type), e.g. "malware". */
+  threatType?: string;
+  /** Human context (context.description), e.g. "redline controller URL". */
+  context?: string;
+  /** MITRE tactic (mitre_tactics), e.g. "command_and_control". */
+  mitreTactics?: string;
+  /** General Intel Requirements (intel_requirements). */
+  girs?: string[];
+
+  // --- Adversary IOC feed (/iocs) ---
   /** iocTotalCount — how many IOC records Intel 471 has for this value. */
   totalCount?: number;
   /** Intel 471 IOC type as returned (e.g. "IPAddress", "MaliciousDomain"). */
   type?: string;
-  activeFrom?: string;
-  activeTill?: string;
-  lastUpdated?: string;
   /** ISP name / country (present for IP IOCs). */
   isp?: string;
   ispCountryCode?: string;
@@ -210,6 +228,7 @@ export interface Intel471Context {
   reportTitles?: string[];
   /** Portal URL of the top linked report (deep link into Titan). */
   portalUrl?: string;
+
   error?: string;
   raw?: unknown;
 }

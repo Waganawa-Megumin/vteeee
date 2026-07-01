@@ -16,7 +16,7 @@ import { vtLookup } from './vtFetch';
 import { shodanHostLookup } from './shodanFetch';
 import { domaintoolsEnrichDomain, domaintoolsReverseIp } from './domaintoolsFetch';
 import { dnslyticsHostingHistory, dnslyticsIpInfo } from './dnslyticsFetch';
-import { intel471IocLookup } from './intel471Fetch';
+import { intel471Lookup } from './intel471Fetch';
 import { AsyncQueue, backoffMs, clamp, sleep } from './util';
 
 const MAX_RL_RETRIES = 3;
@@ -173,7 +173,7 @@ export async function* runEnrich(
     if (!i471Limiter) return undefined;
     try {
       await i471Limiter.acquire(signal);
-      return await intel471IocLookup(value, type, env, signal);
+      return await intel471Lookup(value, type, env, signal);
     } catch (e) {
       if ((e as Error).name === 'AbortError') return undefined;
       return { found: false, error: (e as Error).message };

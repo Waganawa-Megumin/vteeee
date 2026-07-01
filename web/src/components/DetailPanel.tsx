@@ -319,18 +319,32 @@ function Intel471Section({ d, value, type }: { d: Intel471Context; value: string
           🦉
         </span>
         Intel 471 · Titan
-        {d.found && d.totalCount != null && (
-          <span className="shodan-when">{d.totalCount.toLocaleString()} IOC records</span>
+        {d.found && (d.malwareFamily || d.totalCount != null) && (
+          <span className="shodan-when">
+            {d.malwareFamily ? 'Malware Intel + IOC' : `${d.totalCount!.toLocaleString()} IOC records`}
+          </span>
         )}
       </div>
 
       {!d.found ? (
-        <div className="detail-note">{d.error ?? 'No Intel 471 IOC record for this indicator.'}</div>
+        <div className="detail-note">{d.error ?? 'No Intel 471 record for this indicator.'}</div>
       ) : (
         <div className="detail-grid">
-          <Field k="IOC type" v={d.type} />
+          {d.malwareFamily && (
+            <div className="field">
+              <div className="fk">Malware family</div>
+              <div className="fv chips">
+                <span className="chip shodan-vuln">{d.malwareFamily}</span>
+                {d.confidence && <span className="chip">confidence {d.confidence}</span>}
+              </div>
+            </div>
+          )}
+          <Field k="Threat type" v={d.threatType} />
+          <Field k="Context" v={d.context} />
+          <Field k="MITRE tactic" v={d.mitreTactics?.replace(/_/g, ' ')} />
           <Field k="Active" v={activeRange} />
           <Field k="Last updated" v={d.lastUpdated ? new Date(d.lastUpdated).toLocaleString() : undefined} />
+          <Field k="IOC type" v={d.type} />
           <Field k="ISP" v={[d.isp, d.ispCountryCode].filter(Boolean).join(' · ') || undefined} />
           <Field k="Linked" v={linked} />
           {d.reportTitles && d.reportTitles.length > 0 && (
@@ -343,6 +357,7 @@ function Intel471Section({ d, value, type }: { d: Intel471Context; value: string
               </div>
             </div>
           )}
+          <Field k="GIR" v={d.girs && d.girs.length > 0 ? d.girs.join(', ') : undefined} />
         </div>
       )}
 

@@ -149,6 +149,13 @@ export const FIXTURES: Fixture[] = [
     intel471: {
       found: true,
       totalCount: 4,
+      indicatorCount: 1,
+      malwareFamily: 'orcus',
+      confidence: 'high',
+      threatType: 'malware',
+      context: 'orcus controller endpoint',
+      mitreTactics: 'command_and_control',
+      girs: ['1.1.5', '1.1.6'],
       type: 'IPAddress',
       activeFrom: new Date((now - 200 * day) * 1000).toISOString(),
       activeTill: new Date((now - 30 * day) * 1000).toISOString(),

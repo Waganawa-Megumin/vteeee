@@ -5,7 +5,7 @@ import type { ProxyEnv } from './types';
 
 const DEFAULT_BASE = 'https://api.intel471.com/v1';
 
-/** Our IOC type → Intel 471 `iocType` request value. */
+/** Our IOC type → Intel 471 `iocType` request value (adversary IOC feed). */
 const IOC_TYPE: Partial<Record<EnrichableType, string>> = {
   ipv4: 'IpAddress',
   ipv6: 'IpAddress',
@@ -14,6 +14,17 @@ const IOC_TYPE: Partial<Record<EnrichableType, string>> = {
   md5: 'MD5',
   sha1: 'SHA1',
   sha256: 'SHA256',
+};
+
+/** Our IOC type → Intel 471 `indicatorType` (Malware Intelligence indicators; lowercase). */
+const INDICATOR_TYPE: Partial<Record<EnrichableType, string>> = {
+  ipv4: 'ipv4',
+  ipv6: 'ipv6',
+  domain: 'domain',
+  url: 'url',
+  md5: 'file',
+  sha1: 'file',
+  sha256: 'file',
 };
 
 /** ASCII → base64 (works in both Workers and Node without btoa/Buffer typings). */
@@ -64,6 +75,34 @@ export function mapIntel471Ioc(json: any, value: string): Intel471Context {
   const portal = reports.find((r: any) => typeof r?.portalReportUrl === 'string')?.portalReportUrl;
   if (portal) ctx.portalUrl = portal;
 
+  ctx.raw = item;
+  return ctx;
+}
+
+/** Map an Intel 471 `/indicators` (Malware Intelligence) response, picking the record matching `value`. */
+export function mapIntel471Indicator(json: any, value: string): Intel471Context {
+  const list: any[] = Array.isArray(json?.indicators) ? json.indicators : [];
+  const total = typeof json?.indicatorTotalCount === 'number' ? json.indicatorTotalCount : list.length;
+  const v = value.toLowerCase();
+  // `indicator=` is a free-text search; keep the record whose indicator_data actually contains the value.
+  const item =
+    list.find((i) => JSON.stringify(i?.data?.indicator_data ?? '').toLowerCase().includes(v)) ?? list[0];
+  if (!item) return { found: false, indicatorCount: total };
+
+  const data = item.data ?? {};
+  const threat = data.threat ?? {};
+  const ctx: Intel471Context = { found: true, indicatorCount: total };
+  const family = threat?.data?.family;
+  if (typeof family === 'string' && family) ctx.malwareFamily = family;
+  if (typeof data.confidence === 'string' && data.confidence) ctx.confidence = data.confidence;
+  if (typeof threat.type === 'string' && threat.type) ctx.threatType = threat.type;
+  const desc = data.context?.description;
+  if (typeof desc === 'string' && desc) ctx.context = desc;
+  if (typeof data.mitre_tactics === 'string' && data.mitre_tactics) ctx.mitreTactics = data.mitre_tactics;
+  if (Array.isArray(data.intel_requirements) && data.intel_requirements.length) ctx.girs = data.intel_requirements.filter((g: any) => typeof g === 'string');
+  ctx.activeFrom = isoMs(item.activity?.first);
+  ctx.activeTill = isoMs(item.activity?.last);
+  ctx.lastUpdated = isoMs(item.last_updated);
   ctx.raw = item;
   return ctx;
 }
@@ -136,6 +175,73 @@ export async function intel471IocLookup(
   const r = await i471Fetch(url, env, signal);
   if (r.__error) return { found: false, error: r.__error };
   return mapIntel471Ioc(r.json, value);
+}
+
+/** Intel 471 Malware Intelligence `/indicators` lookup for one value. */
+export async function intel471Indicators(
+  value: string,
+  type: EnrichableType,
+  env: ProxyEnv,
+  signal?: AbortSignal,
+): Promise<Intel471Context | undefined> {
+  if (!env.intel471ApiUser || !env.intel471ApiKey) return undefined;
+  if (signal?.aborted) return undefined;
+  const indicatorType = INDICATOR_TYPE[type];
+  const url = `${baseUrl(env)}/indicators?indicator=${encodeURIComponent(value)}${
+    indicatorType ? `&indicatorType=${indicatorType}` : ''
+  }&count=10&sort=latest`;
+  const r = await i471Fetch(url, env, signal);
+  if (r.__error) return { found: false, error: r.__error };
+  return mapIntel471Indicator(r.json, value);
+}
+
+/**
+ * Combined Intel 471 lookup: Malware Intelligence indicators + adversary IOC feed (run together),
+ * merged into one context. Covers hashes/URLs that live in the indicators dataset (not just /iocs).
+ */
+export async function intel471Lookup(
+  value: string,
+  type: EnrichableType,
+  env: ProxyEnv,
+  signal?: AbortSignal,
+): Promise<Intel471Context | undefined> {
+  if (!env.intel471ApiUser || !env.intel471ApiKey) return undefined;
+  const [ind, ioc] = await Promise.all([
+    intel471Indicators(value, type, env, signal),
+    intel471IocLookup(value, type, env, signal),
+  ]);
+  const found = Boolean(ind?.found || ioc?.found);
+  if (!found) {
+    const err = ind?.error ?? ioc?.error;
+    return err ? { found: false, error: err } : { found: false };
+  }
+  const merged: Intel471Context = { found: true };
+  if (ind?.found) {
+    merged.indicatorCount = ind.indicatorCount;
+    merged.malwareFamily = ind.malwareFamily;
+    merged.confidence = ind.confidence;
+    merged.threatType = ind.threatType;
+    merged.context = ind.context;
+    merged.mitreTactics = ind.mitreTactics;
+    merged.girs = ind.girs;
+  }
+  if (ioc?.found) {
+    merged.totalCount = ioc.totalCount;
+    merged.type = ioc.type;
+    merged.isp = ioc.isp;
+    merged.ispCountryCode = ioc.ispCountryCode;
+    merged.reports = ioc.reports;
+    merged.actors = ioc.actors;
+    merged.malwareReports = ioc.malwareReports;
+    merged.events = ioc.events;
+    merged.reportTitles = ioc.reportTitles;
+    merged.portalUrl = ioc.portalUrl;
+  }
+  merged.activeFrom = ind?.activeFrom ?? ioc?.activeFrom;
+  merged.activeTill = ind?.activeTill ?? ioc?.activeTill;
+  merged.lastUpdated = ind?.lastUpdated ?? ioc?.lastUpdated;
+  merged.raw = { indicator: ind?.raw, ioc: ioc?.raw };
+  return merged;
 }
 
 /**
