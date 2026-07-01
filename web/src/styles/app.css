@@ -252,9 +252,17 @@ textarea:focus {
   align-items: center;
   gap: 6px;
   background: none;
-  border: none;
-  padding: 0;
+  border: 1px solid transparent;
+  border-radius: 20px;
+  padding: 3px 6px;
   cursor: pointer;
+  transition: background 0.12s ease, border-color 0.12s ease;
+}
+/* Highlight the whole cluster as one control (it opens Settings), not each chip. */
+.intg-cluster:hover,
+.intg-cluster:focus-visible {
+  background: var(--bg3);
+  border-color: var(--line);
 }
 .intg-chip {
   display: inline-flex;
@@ -287,8 +295,9 @@ textarea:focus {
 .intg-chip.off {
   opacity: 0.7;
 }
-.intg-cluster:hover .intg-chip {
-  border-color: var(--accent);
+/* Chips are status only — keep them inert so hover reads as a single control. */
+.intg-cluster .intg-chip {
+  pointer-events: none;
 }
 .intg-status {
   display: flex;
