@@ -827,6 +827,12 @@ a.chip.shodan-vuln:hover {
   text-decoration: none;
   font-size: 12px;
 }
+.i471-actions {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+  align-items: center;
+}
 .shodan-hint strong {
   color: var(--accent);
 }

@@ -2,6 +2,7 @@ import {
   runEnrich,
   ndjson,
   smartParse,
+  intel471GlobalSearch,
   getUsers,
   putUsers,
   getSettings,
@@ -18,7 +19,7 @@ import {
   type ProxyEnv,
   type Storage,
 } from '@vteeee/proxy-core';
-import type { AppSettings, EnrichRequest, UserRecord } from '@vteeee/shared';
+import type { AppSettings, EnrichableType, EnrichRequest, UserRecord } from '@vteeee/shared';
 
 interface Env {
   VT_API_KEY: string;
@@ -28,6 +29,10 @@ interface Env {
   DOMAINTOOLS_API_KEY?: string;
   DNSLYTICS_API_KEY?: string;
   DNSLYTICS_BASE_URL?: string;
+  INTEL471_API_USER?: string;
+  INTEL471_API_KEY?: string;
+  INTEL471_BASE_URL?: string;
+  INTEL471_RPM?: string;
   ACCESS_TOKEN?: string;
   ADMIN_TOKEN?: string;
   ALLOWED_ORIGINS?: string;
@@ -61,6 +66,10 @@ function build(env: Env): { proxy: ProxyEnv; allowed: string[]; store: Storage }
     domaintoolsApiKey: env.DOMAINTOOLS_API_KEY,
     dnslyticsApiKey: env.DNSLYTICS_API_KEY,
     dnslyticsBaseUrl: env.DNSLYTICS_BASE_URL,
+    intel471ApiUser: env.INTEL471_API_USER,
+    intel471ApiKey: env.INTEL471_API_KEY,
+    intel471BaseUrl: env.INTEL471_BASE_URL,
+    intel471Rpm: env.INTEL471_RPM ? Number(env.INTEL471_RPM) : undefined,
     accessToken: env.ACCESS_TOKEN,
     adminToken: env.ADMIN_TOKEN,
     allowedOrigins: allowed,
@@ -102,6 +111,7 @@ export default {
           shodan: Boolean(proxy.shodanApiKey),
           domaintools: Boolean(proxy.domaintoolsApiUsername && proxy.domaintoolsApiKey),
           dnslytics: Boolean(proxy.dnslyticsApiKey),
+          intel471: Boolean(proxy.intel471ApiUser && proxy.intel471ApiKey),
         });
 
       if (url.pathname === '/api/enrich' && request.method === 'POST') {
@@ -139,6 +149,16 @@ export default {
           return json({ error: 'daily smart-parse quota reached' }, 429);
         const body = (await request.json()) as { text?: string; maxIndicators?: number };
         return json(await smartParse(body.text ?? '', proxy, body.maxIndicators));
+      }
+
+      // On-demand Intel 471 Global Search (cross-entity counts) for one IOC.
+      if (url.pathname === '/api/intel471/search' && request.method === 'GET') {
+        if (!checkAccess(auth, proxy)) return json({ error: 'unauthorized' }, 401);
+        if (!proxy.intel471ApiUser || !proxy.intel471ApiKey) return json({ error: 'Intel 471 not configured' }, 400);
+        const ioc = url.searchParams.get('ioc') ?? '';
+        const iocType = (url.searchParams.get('type') ?? 'unknown') as EnrichableType;
+        if (!ioc) return json({ error: 'ioc required' }, 400);
+        return json((await intel471GlobalSearch(ioc, iocType, proxy, request.signal)) ?? { error: 'unavailable' });
       }
 
       if (url.pathname === '/api/admin/users') {

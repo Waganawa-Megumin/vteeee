@@ -6,6 +6,7 @@ import {
   type EnrichOptions,
   type ExtractStats,
   type HistoryRecord,
+  type Intel471Search,
   type NormalizedResult,
   type ParsedIndicator,
   type ProxyHealth,
@@ -65,6 +66,7 @@ interface State {
   applySettings: (s: AppSettings) => void;
   applyUsers: (u: UserRecord[]) => void;
   refreshHealth: () => Promise<void>;
+  intel471Search: (ioc: string, type: EnrichableType) => Promise<Intel471Search>;
 }
 
 function defaultIncludes(parsed: ParsedIndicator[]): Record<string, boolean> {
@@ -77,7 +79,7 @@ export const useStore = create<State>((set, get) => ({
   booted: false,
   session: null,
   users: [],
-  settings: { proxyBaseUrl: null, rpm: 4, concurrency: 1, gti: false, submitUnknown: false, shodan: true, domaintools: true, dnslytics: true },
+  settings: { proxyBaseUrl: null, rpm: 4, concurrency: 1, gti: false, submitUnknown: false, shodan: true, domaintools: true, dnslytics: true, intel471: true },
   mode: 'demo',
   health: null,
 
@@ -194,6 +196,7 @@ export const useStore = create<State>((set, get) => ({
       shodan: settings.shodan ?? true,
       domaintools: settings.domaintools ?? true,
       dnslytics: settings.dnslytics ?? true,
+      intel471: settings.intel471 ?? true,
     };
     set({
       running: true,
@@ -290,7 +293,7 @@ export const useStore = create<State>((set, get) => ({
     try {
       const res = await fetch(`${base}/health`, { cache: 'no-store' });
       if (!res.ok) {
-        set({ health: { ok: false, vtKey: false, claude: false, shodan: false, domaintools: false, dnslytics: false } });
+        set({ health: { ok: false, vtKey: false, claude: false, shodan: false, domaintools: false, dnslytics: false, intel471: false } });
         return;
       }
       const h = (await res.json()) as Partial<ProxyHealth>;
@@ -302,10 +305,20 @@ export const useStore = create<State>((set, get) => ({
           shodan: Boolean(h.shodan),
           domaintools: Boolean(h.domaintools),
           dnslytics: Boolean(h.dnslytics),
+          intel471: Boolean(h.intel471),
         },
       });
     } catch {
-      set({ health: { ok: false, vtKey: false, claude: false, shodan: false, domaintools: false, dnslytics: false } });
+      set({ health: { ok: false, vtKey: false, claude: false, shodan: false, domaintools: false, dnslytics: false, intel471: false } });
+    }
+  },
+
+  async intel471Search(ioc, type) {
+    try {
+      const client = await makeClient(get().settings);
+      return await client.intel471Search(ioc, type);
+    } catch (e) {
+      return { error: (e as Error).message };
     }
   },
 }));

@@ -3,6 +3,7 @@ import {
   extractIndicators,
   normalizeVt,
   type EnrichRequest,
+  type Intel471Search,
   type NormalizedResult,
   type ParsedIndicator,
 } from '@vteeee/shared';
@@ -40,6 +41,7 @@ export class DemoClient implements EnrichClient {
         if (fx.shodan) result.shodan = fx.shodan;
         if (fx.domaintools) result.domaintools = fx.domaintools;
         if (fx.dnslytics) result.dnslytics = fx.dnslytics;
+        if (fx.intel471) result.intel471 = fx.intel471;
       } else {
         result = normalizeVt({
           input: ind.input,
@@ -61,5 +63,11 @@ export class DemoClient implements EnrichClient {
   async smartParse(text: string): Promise<ParsedIndicator[]> {
     await sleep(250);
     return extractIndicators(text).indicators;
+  }
+
+  /** Sample Intel 471 Global Search counts (demo). */
+  async intel471Search(): Promise<Intel471Search> {
+    await sleep(300);
+    return { reports: 35, posts: 132, actors: 41, entities: 13, news: 1, credentials: 1, dataLeakPosts: 1, events: 0 };
   }
 }

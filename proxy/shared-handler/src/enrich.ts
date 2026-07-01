@@ -5,6 +5,7 @@ import {
   type DomainToolsContext,
   type EnrichEvent,
   type EnrichRequest,
+  type Intel471Context,
   type NormalizedResult,
   type ResultStatus,
   type ShodanContext,
@@ -15,6 +16,7 @@ import { vtLookup } from './vtFetch';
 import { shodanHostLookup } from './shodanFetch';
 import { domaintoolsEnrichDomain, domaintoolsReverseIp } from './domaintoolsFetch';
 import { dnslyticsHostingHistory, dnslyticsIpInfo } from './dnslyticsFetch';
+import { intel471IocLookup } from './intel471Fetch';
 import { AsyncQueue, backoffMs, clamp, sleep } from './util';
 
 const MAX_RL_RETRIES = 3;
@@ -22,6 +24,7 @@ const MAX_TRANSIENT_RETRIES = 2;
 const DEFAULT_SHODAN_RPM = 60;
 const DEFAULT_DOMAINTOOLS_RPM = 30;
 const DEFAULT_DNSLYTICS_RPM = 60;
+const DEFAULT_INTEL471_RPM = 60;
 
 /** Hostname from a URL indicator (for treating a URL's host as a domain). null if not parseable. */
 function hostFromUrl(u: string): string | null {
@@ -69,6 +72,12 @@ export async function* runEnrich(
   const dnslEnabled = Boolean(env.dnslyticsApiKey) && req.options?.dnslytics !== false;
   const dnslLimiter = dnslEnabled
     ? new RateLimiter(clamp(env.dnslyticsRpm ?? DEFAULT_DNSLYTICS_RPM, 1, 600))
+    : null;
+  // Intel 471 IOC lookups (all IOC types) under its own limiter.
+  const i471Enabled =
+    Boolean(env.intel471ApiUser && env.intel471ApiKey) && req.options?.intel471 !== false;
+  const i471Limiter = i471Enabled
+    ? new RateLimiter(clamp(env.intel471Rpm ?? DEFAULT_INTEL471_RPM, 1, 600))
     : null;
   const queue = new AsyncQueue<EnrichEvent>();
   const tasks = [...req.indicators];
@@ -159,12 +168,27 @@ export async function* runEnrich(
     }
   }
 
+  /** Intel 471 IOC lookup (all types). Never throws. */
+  async function enrichIntel471(value: string, type: EnrichRequest['indicators'][number]['type']): Promise<Intel471Context | undefined> {
+    if (!i471Limiter) return undefined;
+    try {
+      await i471Limiter.acquire(signal);
+      return await intel471IocLookup(value, type, env, signal);
+    } catch (e) {
+      if ((e as Error).name === 'AbortError') return undefined;
+      return { found: false, error: (e as Error).message };
+    }
+  }
+
   /** Attach all provider context to a normalized result, routing by IOC type. */
   async function attachContext(ind: EnrichRequest['indicators'][number], result: NormalizedResult): Promise<void> {
     const isIp = ind.type === 'ipv4' || ind.type === 'ipv6';
     // A URL's host is treated as a domain (unless it's an IP literal).
     const urlHost = ind.type === 'url' ? hostFromUrl(ind.value) : null;
     const domain = ind.type === 'domain' ? ind.value : urlHost && !isIpLiteral(urlHost) ? urlHost : null;
+
+    // Intel 471 applies to every IOC type (IP / domain / URL / hash).
+    if (i471Limiter) result.intel471 = await enrichIntel471(ind.value, ind.type);
 
     if (isIp) {
       if (shodanLimiter) result.shodan = await enrichShodan(ind.value);

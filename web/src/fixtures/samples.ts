@@ -1,6 +1,7 @@
 import type {
   DnslyticsContext,
   DomainToolsContext,
+  Intel471Context,
   IocType,
   ResultStatus,
   ShodanContext,
@@ -18,6 +19,8 @@ export interface Fixture {
   domaintools?: DomainToolsContext;
   /** Sample DNSLytics context (IP + domain). */
   dnslytics?: DnslyticsContext;
+  /** Sample Intel 471 IOC context. */
+  intel471?: Intel471Context;
 }
 
 const day = 86400;
@@ -142,6 +145,23 @@ export const FIXTURES: Fixture[] = [
       mode: 'reverse-ip',
       hostedDomainCount: 3,
       sampleDomains: [{ domain: 'relay-notice.example', riskScore: 61 }],
+    },
+    intel471: {
+      found: true,
+      totalCount: 4,
+      type: 'IPAddress',
+      activeFrom: new Date((now - 200 * day) * 1000).toISOString(),
+      activeTill: new Date((now - 30 * day) * 1000).toISOString(),
+      lastUpdated: new Date((now - 30 * day) * 1000).toISOString(),
+      isp: 'Zwiebelfreunde e.V.',
+      ispCountryCode: 'DE',
+      reports: 2,
+      actors: 1,
+      reportTitles: [
+        'Tor exit relay abused in credential-stuffing campaign',
+        'Bulletproof hosting actor advertises proxy inventory',
+      ],
+      portalUrl: 'https://titan.intel471.com/report/inforep/example',
     },
   },
   {

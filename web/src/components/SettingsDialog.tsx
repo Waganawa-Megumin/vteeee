@@ -52,6 +52,11 @@ export function SettingsDialog({ onClose }: { onClose: () => void }) {
                 DNSLytics{' '}
                 {health?.dnslytics ? (draft.dnslytics !== false ? 'on' : 'key set · off') : 'not configured'}
               </span>
+              <span className={`intg-chip ${health?.intel471 && draft.intel471 !== false ? 'on' : 'off'}`}>
+                <span className="intg-dot" />
+                Intel 471{' '}
+                {health?.intel471 ? (draft.intel471 !== false ? 'on' : 'creds set · off') : 'not configured'}
+              </span>
               <span className={`intg-chip ${health?.claude ? 'on' : 'off'}`}>
                 <span className="intg-dot" />
                 Claude {health?.claude ? 'on' : 'not configured'}
@@ -177,6 +182,18 @@ export function SettingsDialog({ onClose }: { onClose: () => void }) {
             <InfoTip
               ja="IPは IPInfo（ASN/組織/逆引き/同居ドメイン数＋サンプル/ブロックリスト）、ドメインは HostingHistory（A/AAAA・NS・MX・SPF の履歴）を付与。プロキシに DNSLYTICS_API_KEY がある時のみ。"
               en="IPs via IPInfo (ASN/org/reverse DNS/hosted-domain count + sample/blocklist); domains via HostingHistory (A/AAAA · NS · MX · SPF history). Only if the proxy has a DNSLytics key."
+            />
+          </label>
+          <label className="chk">
+            <input
+              type="checkbox"
+              checked={draft.intel471 !== false}
+              onChange={(e) => up('intel471', e.target.checked)}
+            />
+            🦉 Intel 471 · Titan (all IOC types)
+            <InfoTip
+              ja="全種別(IP/ドメイン/URL/ハッシュ)を Intel 471 の IOC 照合で付与（confidence相当のactive期間・ISP・関連レポート/アクター等）。詳細では『Global Search』ボタンで横断件数を追加取得。プロキシに INTEL471_API_USER/KEY がある時のみ。"
+              en="Enrich every IOC type (IP/domain/URL/hash) via Intel 471's IOC search (active window, ISP, linked reports/actors). The detail panel's 'Global Search' button fetches cross-entity counts on demand. Only if the proxy has Intel 471 creds."
             />
           </label>
           <p className="hint shodan-hint">

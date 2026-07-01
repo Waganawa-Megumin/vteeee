@@ -1,4 +1,13 @@
-import type { DnslyticsContext, DomainToolsContext, ShodanContext, ShodanService } from '@vteeee/shared';
+import { useState } from 'react';
+import type {
+  DnslyticsContext,
+  DomainToolsContext,
+  EnrichableType,
+  Intel471Context,
+  Intel471Search,
+  ShodanContext,
+  ShodanService,
+} from '@vteeee/shared';
 import { useStore } from '../state/store';
 import { GtiBadge, VerdictBadge } from './Badges';
 import { detectionRatio } from '../lib/verdict';
@@ -259,6 +268,120 @@ function DnslyticsSection({ d }: { d: DnslyticsContext }) {
   );
 }
 
+/** Non-zero Global Search counts as [label, count] pairs. */
+function intelCounts(s: Intel471Search): [string, number][] {
+  const entries: [string, number | undefined][] = [
+    ['reports', s.reports],
+    ['malware', s.malwareReports],
+    ['actors', s.actors],
+    ['entities', s.entities],
+    ['events', s.events],
+    ['posts', s.posts],
+    ['news', s.news],
+    ['IOCs', s.iocs],
+    ['indicators', s.indicators],
+    ['credentials', s.credentials],
+    ['cred sets', s.credentialSets],
+    ['data-leak posts', s.dataLeakPosts],
+    ['breach alerts', s.breachAlerts],
+    ['CVEs', s.cveReports],
+  ];
+  return entries.filter((e): e is [string, number] => typeof e[1] === 'number' && e[1] > 0);
+}
+
+/** Intel 471 (Titan) IOC block — auto IOC context + on-demand Global Search counts. */
+function Intel471Section({ d, value, type }: { d: Intel471Context; value: string; type: EnrichableType }) {
+  const search = useStore((s) => s.intel471Search);
+  const [gs, setGs] = useState<{ loading: boolean; data?: Intel471Search }>({ loading: false });
+
+  async function runSearch() {
+    setGs({ loading: true });
+    setGs({ loading: false, data: await search(value, type) });
+  }
+
+  const activeRange =
+    [d.activeFrom, d.activeTill].filter(Boolean).map((s) => new Date(s!).toLocaleDateString()).join(' – ') || undefined;
+  const linked =
+    [
+      d.reports != null ? `${d.reports} reports` : '',
+      d.actors != null ? `${d.actors} actors` : '',
+      d.malwareReports ? `${d.malwareReports} malware` : '',
+      d.events ? `${d.events} events` : '',
+    ]
+      .filter(Boolean)
+      .join(' · ') || undefined;
+  const counts = gs.data && !gs.data.error ? intelCounts(gs.data) : [];
+
+  return (
+    <div className="shodan-block">
+      <div className="shodan-head">
+        <span className="shodan-logo" aria-hidden>
+          🦉
+        </span>
+        Intel 471 · Titan
+        {d.found && d.totalCount != null && (
+          <span className="shodan-when">{d.totalCount.toLocaleString()} IOC records</span>
+        )}
+      </div>
+
+      {!d.found ? (
+        <div className="detail-note">{d.error ?? 'No Intel 471 IOC record for this indicator.'}</div>
+      ) : (
+        <div className="detail-grid">
+          <Field k="IOC type" v={d.type} />
+          <Field k="Active" v={activeRange} />
+          <Field k="Last updated" v={d.lastUpdated ? new Date(d.lastUpdated).toLocaleString() : undefined} />
+          <Field k="ISP" v={[d.isp, d.ispCountryCode].filter(Boolean).join(' · ') || undefined} />
+          <Field k="Linked" v={linked} />
+          {d.reportTitles && d.reportTitles.length > 0 && (
+            <div className="field">
+              <div className="fk">Reports</div>
+              <div className="fv">
+                {d.reportTitles.map((t, i) => (
+                  <div key={i}>• {t}</div>
+                ))}
+              </div>
+            </div>
+          )}
+        </div>
+      )}
+
+      <div className="i471-actions">
+        {d.portalUrl && (
+          <a className="btn btn-ghost shodan-link" href={d.portalUrl} target="_blank" rel="noreferrer">
+            Open report ↗
+          </a>
+        )}
+        <button className="btn btn-ghost" onClick={runSearch} disabled={gs.loading}>
+          {gs.loading ? 'Searching…' : 'Global Search'}
+        </button>
+      </div>
+
+      {gs.data &&
+        (gs.data.error ? (
+          <div className="detail-note">{gs.data.error}</div>
+        ) : counts.length ? (
+          <div className="fv chips">
+            {counts.map(([label, n]) => (
+              <span key={label} className="chip">
+                {label} {n.toLocaleString()}
+              </span>
+            ))}
+          </div>
+        ) : (
+          <div className="detail-note">No matches across Intel 471 collections.</div>
+        ))}
+
+      {d.raw != null && (
+        <details className="raw">
+          <summary>Raw Intel 471 data</summary>
+          <pre>{JSON.stringify(d.raw, null, 2)}</pre>
+        </details>
+      )}
+    </div>
+  );
+}
+
 export function DetailPanel() {
   const selected = useStore((s) => s.selected);
   const results = useStore((s) => s.results);
@@ -385,6 +508,9 @@ export function DetailPanel() {
         {r.shodan && <ShodanSection s={r.shodan} ip={r.value} />}
         {r.domaintools && <DomainToolsSection d={r.domaintools} />}
         {r.dnslytics && <DnslyticsSection d={r.dnslytics} />}
+        {r.intel471 && r.type !== 'unknown' && (
+          <Intel471Section d={r.intel471} value={r.value} type={r.type as EnrichableType} />
+        )}
 
         <a className="btn btn-primary detail-vt" href={r.links.gui} target="_blank" rel="noreferrer">
           Open in VirusTotal ↗

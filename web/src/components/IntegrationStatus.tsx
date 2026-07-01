@@ -79,6 +79,17 @@ export function IntegrationStatus({ onManage }: { onManage: () => void }) {
             }
           />
           <Chip
+            label="Intel471"
+            on={Boolean(health?.intel471) && settings.intel471 !== false}
+            title={
+              health?.intel471
+                ? settings.intel471 !== false
+                  ? 'Intel 471 (Titan) active — IOC intel on all types'
+                  : 'Intel 471 creds present, but turned OFF in Settings'
+                : 'Optional — no INTEL471_API_USER/KEY on the proxy'
+            }
+          />
+          <Chip
             label="Claude"
             on={Boolean(health?.claude)}
             title={health?.claude ? 'Claude smart-parse available' : 'Optional — no ANTHROPIC_API_KEY on the proxy'}

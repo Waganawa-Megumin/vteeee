@@ -73,9 +73,10 @@ the proxy's `/health`), and each optional one is toggled in **Settings**.
 | **Shodan** | OSINT — IPs | optional | `SHODAN_API_KEY` | open ports · services · known CVEs · org/ISP/OS · hostnames · tags |
 | **DomainTools Iris** | Domain/IP intel | optional | `DOMAINTOOLS_API_USERNAME` + `DOMAINTOOLS_API_KEY` | **domains** (Iris Enrich): risk score+components · WHOIS/RDAP · IP/ASN · NS · MX · SSL · website · first seen · tags. **IPs** (Iris Investigate reverse): domains hosted on the IP |
 | **DNSLytics** | IP/domain intel | optional | `DNSLYTICS_API_KEY` | **IPs** (IPInfo): ASN · org · network · reverse DNS · hosted-domain count + sample · blocklist. **domains** (HostingHistory): A/AAAA · NS · MX · SPF history |
+| **Intel 471 (Titan)** | CTI — all IOC types | optional | `INTEL471_API_USER` + `INTEL471_API_KEY` | **IOC search** (any type): active window · ISP · linked reports/actors, plus an on-demand **Global Search** button in the detail panel (cross-entity counts: reports/posts/actors/events/credentials/data-leaks) |
 | **Claude (Anthropic)** | Smart-parse | optional | `ANTHROPIC_API_KEY` | extract IOCs from free-form report prose |
 
-**Enrichment routes by IOC type:** domain → VT + DomainTools (Enrich) + DNSLytics (HostingHistory) · IP → VT + Shodan + DNSLytics (IPInfo) + DomainTools (reverse) · URL → host treated as a domain · hash → VT only. Each optional service toggles independently in **Settings**.
+**Enrichment routes by IOC type:** domain → VT + DomainTools (Enrich) + DNSLytics (HostingHistory) · IP → VT + Shodan + DNSLytics (IPInfo) + DomainTools (reverse) · URL → host treated as a domain · hash → VT only. **Intel 471 applies to every type.** Each optional service toggles independently in **Settings**.
 
 **Enable an optional service — 3 steps:**
 1. Add the env var above as a **repo secret** (GitHub → Settings → Secrets) or a proxy env var.

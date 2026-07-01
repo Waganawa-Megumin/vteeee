@@ -17,6 +17,13 @@ export interface ProxyEnv {
   dnslyticsBaseUrl?: string;
   /** Per-minute cap on DNSLytics lookups. Default 60. */
   dnslyticsRpm?: number;
+  /** Intel 471 (Titan) BasicAuth: API email (login) + API key (password). */
+  intel471ApiUser?: string;
+  intel471ApiKey?: string;
+  /** Intel 471 API base URL. Default https://api.intel471.com/v1. */
+  intel471BaseUrl?: string;
+  /** Per-minute cap on Intel 471 lookups. Default 60. */
+  intel471Rpm?: number;
   /** Shared token required on /api/* (enrich, parse). */
   accessToken?: string;
   /** Token required to write users/settings via /api/admin/*. */

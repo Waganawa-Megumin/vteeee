@@ -15,6 +15,11 @@ DNSLYTICS_API_KEY=
 # Override only if your DNSLytics endpoint differs from the default:
 # DNSLYTICS_BASE_URL=https://api.dnslytics.net/v1
 # DNSLYTICS_RPM=60
+# Optional — Intel 471 (Titan): BasicAuth = API email (login) + API key (password):
+INTEL471_API_USER=
+INTEL471_API_KEY=
+# INTEL471_BASE_URL=https://api.intel471.com/v1
+# INTEL471_RPM=60
 # Shared token required on /api/* (set the same value in the web Settings dialog):
 ACCESS_TOKEN=
 # Token required to write users/settings via /api/admin/* :

@@ -1,7 +1,9 @@
 import type {
   AppSettings,
+  EnrichableType,
   EnrichEvent,
   EnrichRequest,
+  Intel471Search,
   ParsedIndicator,
   ParseResponse,
 } from '@vteeee/shared';
@@ -26,7 +28,8 @@ export class LiveClient implements EnrichClient {
       1 + // VirusTotal
       (settings.shodan !== false ? 1 : 0) +
       (settings.domaintools !== false ? 1 : 0) +
-      (settings.dnslytics !== false ? 1 : 0);
+      (settings.dnslytics !== false ? 1 : 0) +
+      (settings.intel471 !== false ? 1 : 0);
     this.chunk = Math.max(3, Math.floor(40 / (providers + 1)));
   }
 
@@ -135,6 +138,15 @@ export class LiveClient implements EnrichClient {
         h.onError(ev.message);
         break;
     }
+  }
+
+  async intel471Search(ioc: string, type: EnrichableType): Promise<Intel471Search> {
+    const res = await fetch(
+      `${this.base}/api/intel471/search?ioc=${encodeURIComponent(ioc)}&type=${encodeURIComponent(type)}`,
+      { headers: this.headers(false) },
+    );
+    if (!res.ok) return { error: `Intel 471 search failed: ${res.status}` };
+    return (await res.json()) as Intel471Search;
   }
 
   async smartParse(text: string): Promise<ParsedIndicator[]> {

@@ -27,6 +27,7 @@ id = "64fde3553d4b4272a3afa346945a0ce0"
 # SHODAN_RPM = "60"
 # DOMAINTOOLS_RPM = "30"
 # DNSLYTICS_RPM = "60"
+# INTEL471_RPM = "60"
 # Override only if your DNSLytics endpoint differs from the default:
 # DNSLYTICS_BASE_URL = "https://api.dnslytics.net/v1"
 
@@ -37,5 +38,7 @@ id = "64fde3553d4b4272a3afa346945a0ce0"
 #   wrangler secret put DOMAINTOOLS_API_USERNAME  # optional (Iris: domains + IP reverse)
 #   wrangler secret put DOMAINTOOLS_API_KEY       # optional (paired with the username)
 #   wrangler secret put DNSLYTICS_API_KEY         # optional (IP + domain intel)
+#   wrangler secret put INTEL471_API_USER         # optional (Titan: API email)
+#   wrangler secret put INTEL471_API_KEY          # optional (Titan: API key)
 #   wrangler secret put ACCESS_TOKEN              # required on /api/*
 #   wrangler secret put ADMIN_TOKEN               # required on /api/admin/*

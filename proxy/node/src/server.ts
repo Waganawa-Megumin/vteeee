@@ -5,6 +5,7 @@ import {
   runEnrich,
   ndjson,
   smartParse,
+  intel471GlobalSearch,
   getUsers,
   putUsers,
   getSettings,
@@ -44,6 +45,10 @@ const env: ProxyEnv = {
   domaintoolsApiKey: process.env.DOMAINTOOLS_API_KEY || undefined,
   dnslyticsApiKey: process.env.DNSLYTICS_API_KEY || undefined,
   dnslyticsBaseUrl: process.env.DNSLYTICS_BASE_URL || undefined,
+  intel471ApiUser: process.env.INTEL471_API_USER || undefined,
+  intel471ApiKey: process.env.INTEL471_API_KEY || undefined,
+  intel471BaseUrl: process.env.INTEL471_BASE_URL || undefined,
+  intel471Rpm: process.env.INTEL471_RPM ? Number(process.env.INTEL471_RPM) : undefined,
   accessToken: process.env.ACCESS_TOKEN || undefined,
   adminToken: process.env.ADMIN_TOKEN || undefined,
   allowedOrigins,
@@ -116,7 +121,23 @@ app.get('/health', (_req, res) => {
     shodan: Boolean(env.shodanApiKey),
     domaintools: Boolean(env.domaintoolsApiUsername && env.domaintoolsApiKey),
     dnslytics: Boolean(env.dnslyticsApiKey),
+    intel471: Boolean(env.intel471ApiUser && env.intel471ApiKey),
   });
+});
+
+app.get('/api/intel471/search', async (req, res) => {
+  if (!requireAccess(req, res)) return;
+  if (!env.intel471ApiUser || !env.intel471ApiKey) {
+    res.status(400).json({ error: 'Intel 471 not configured' });
+    return;
+  }
+  const ioc = (req.query.ioc as string) || '';
+  const type = ((req.query.type as string) || 'unknown') as import('@vteeee/shared').EnrichableType;
+  if (!ioc) {
+    res.status(400).json({ error: 'ioc required' });
+    return;
+  }
+  res.json((await intel471GlobalSearch(ioc, type, env)) ?? { error: 'unavailable' });
 });
 
 app.post('/api/enrich', async (req, res) => {
@@ -215,5 +236,5 @@ app.all('/api/history/:id', (req, res) => void handleHistory(req, res, req.param
 app.listen(PORT, () => {
   console.log(`vteeee proxy listening on :${PORT}`);
   console.log(`  allowed origins: ${allowedOrigins.join(', ')}`);
-  console.log(`  VT key: ${env.vtApiKey ? 'set' : 'MISSING'} · Claude: ${env.anthropicApiKey ? 'set' : 'off (regex fallback)'} · Shodan: ${env.shodanApiKey ? 'set' : 'off'} · DomainTools: ${env.domaintoolsApiUsername && env.domaintoolsApiKey ? 'set' : 'off'} · DNSLytics: ${env.dnslyticsApiKey ? 'set' : 'off'}`);
+  console.log(`  VT key: ${env.vtApiKey ? 'set' : 'MISSING'} · Claude: ${env.anthropicApiKey ? 'set' : 'off (regex fallback)'} · Shodan: ${env.shodanApiKey ? 'set' : 'off'} · DomainTools: ${env.domaintoolsApiUsername && env.domaintoolsApiKey ? 'set' : 'off'} · DNSLytics: ${env.dnslyticsApiKey ? 'set' : 'off'} · Intel471: ${env.intel471ApiUser && env.intel471ApiKey ? 'set' : 'off'}`);
 });

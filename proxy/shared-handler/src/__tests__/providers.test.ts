@@ -2,6 +2,7 @@ import { describe, it, expect, vi, afterEach } from 'vitest';
 import type { EnrichEvent } from '@vteeee/shared';
 import { mapIrisEnrich, mapIrisInvestigateReverseIp } from '../domaintoolsFetch';
 import { mapDnslyticsIp, mapDnslyticsHostingHistory } from '../dnslyticsFetch';
+import { mapIntel471Ioc, mapIntel471Search } from '../intel471Fetch';
 import { runEnrich } from '../enrich';
 import type { ProxyEnv } from '../types';
 
@@ -12,6 +13,9 @@ const env: ProxyEnv = {
   domaintoolsRpm: 600,
   dnslyticsApiKey: 'd',
   dnslyticsRpm: 600,
+  intel471ApiUser: 'e@x.com',
+  intel471ApiKey: 'k',
+  intel471Rpm: 600,
   allowedOrigins: ['*'],
   defaultRpm: 600,
   maxRpm: 1000,
@@ -81,6 +85,50 @@ const DNSL_HH = {
   },
 };
 
+const I471_IOC = {
+  iocTotalCount: 4724,
+  iocs: [
+    {
+      lastUpdated: 1600336264566,
+      ispName: 'A-COM',
+      links: {
+        actorTotalCount: 0,
+        reportTotalCount: 1,
+        reports: [
+          {
+            subject: 'SOCKS proxy service provider actor Insorg adds 500 front-end proxies',
+            portalReportUrl: 'https://titan.intel471.com/report/inforep/77ac9c8ec3009a1d3b8366a38cdbb55f',
+            admiraltyCode: 'B3',
+          },
+        ],
+      },
+      activeFrom: 1522874107000,
+      ispCountryCode: 'RU',
+      activeTill: 1522874107000,
+      uid: '10f35fc08ec94dfb3dcc1c4a49547dee',
+      type: 'IPAddress',
+      value: '188.130.163.218',
+    },
+  ],
+};
+
+const I471_SEARCH = {
+  indicatorTotalCount: 0,
+  cveReportsTotalCount: 0,
+  iocTotalCount: 0,
+  eventTotalCount: 0,
+  postTotalCount: 132,
+  reportTotalCount: 35,
+  entityTotalCount: 13,
+  newsTotalCount: 1,
+  malwareReportTotalCount: 0,
+  actorTotalCount: 41,
+  credentials_total_count: 1,
+  credential_sets_total_count: 1,
+  breach_alerts_total_count: 0,
+  data_leak_post_total_count: 1,
+};
+
 afterEach(() => vi.unstubAllGlobals());
 
 describe('DomainTools mappers', () => {
@@ -142,6 +190,34 @@ describe('DNSLytics HostingHistory mapper', () => {
   });
 });
 
+describe('Intel 471 mappers', () => {
+  it('mapIntel471Ioc maps the matching record (type/active/ISP/links/reports)', () => {
+    const c = mapIntel471Ioc(I471_IOC, '188.130.163.218');
+    expect(c).toMatchObject({ found: true, totalCount: 4724, type: 'IPAddress', isp: 'A-COM', ispCountryCode: 'RU' });
+    expect(c.reports).toBe(1);
+    expect(c.actors).toBe(0);
+    expect(c.reportTitles?.[0]).toMatch(/SOCKS proxy/);
+    expect(c.portalUrl).toContain('titan.intel471.com');
+    expect(c.activeFrom).toBe(new Date(1522874107000).toISOString());
+  });
+  it('mapIntel471Ioc returns found:false for an empty result set', () => {
+    expect(mapIntel471Ioc({ iocTotalCount: 0, iocs: [] }, 'x')).toMatchObject({ found: false, totalCount: 0 });
+  });
+  it('mapIntel471Search maps cross-entity counts (camelCase + snake_case)', () => {
+    const s = mapIntel471Search(I471_SEARCH);
+    expect(s).toMatchObject({
+      reports: 35,
+      posts: 132,
+      actors: 41,
+      entities: 13,
+      news: 1,
+      credentials: 1,
+      credentialSets: 1,
+      dataLeakPosts: 1,
+    });
+  });
+});
+
 function stubFetch() {
   vi.stubGlobal(
     'fetch',
@@ -151,6 +227,7 @@ function stubFetch() {
       if (url.includes('iris-investigate')) return resp(200, { response: { results: [ENRICH_RESULT] } });
       if (url.includes('dnslytics') && url.includes('/ipinfo/')) return resp(200, DNSL_IP);
       if (url.includes('dnslytics') && url.includes('/hostinghistory/')) return resp(200, DNSL_HH);
+      if (url.includes('intel471.com') && url.includes('/iocs')) return resp(200, I471_IOC);
       if (url.includes('/ip_addresses/') || url.includes('/domains/') || url.includes('/urls'))
         return resp(200, { data: { attributes: { last_analysis_stats: { harmless: 9 } } } });
       return resp(404, '{}');
@@ -178,6 +255,9 @@ describe('runEnrich routing by IOC type', () => {
     expect(dom?.dnslytics?.ips).toContain('193.0.2.10');
     expect(ip?.dnslytics).toMatchObject({ found: true, kind: 'ip', asn: 15169 });
     expect(ip?.domaintools).toMatchObject({ found: true, mode: 'reverse-ip' });
+    // Intel 471 applies to every IOC type.
+    expect(dom?.intel471?.found).toBe(true);
+    expect(ip?.intel471?.found).toBe(true);
   });
 
   it("treats a URL's host as a domain", async () => {

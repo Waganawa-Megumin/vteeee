@@ -184,6 +184,58 @@ export interface DnslyticsContext {
   raw?: unknown;
 }
 
+/**
+ * Intel 471 (Titan) IOC context — from `GET /iocs?ioc=&iocType=`. Applies to all IOC types
+ * (IP / domain / URL / hash). `found: false` = no matching IOC record (or lookup failed).
+ * Field mapping is tolerant + keeps `raw`, pending a populated sample response.
+ */
+export interface Intel471Context {
+  found: boolean;
+  /** iocTotalCount — how many IOC records Intel 471 has for this value. */
+  totalCount?: number;
+  /** Intel 471 IOC type as returned (e.g. "IPAddress", "MaliciousDomain"). */
+  type?: string;
+  activeFrom?: string;
+  activeTill?: string;
+  lastUpdated?: string;
+  /** ISP name / country (present for IP IOCs). */
+  isp?: string;
+  ispCountryCode?: string;
+  /** Counts of linked intel objects (links.*TotalCount). */
+  reports?: number;
+  actors?: number;
+  malwareReports?: number;
+  events?: number;
+  /** Subjects of the top linked reports. */
+  reportTitles?: string[];
+  /** Portal URL of the top linked report (deep link into Titan). */
+  portalUrl?: string;
+  error?: string;
+  raw?: unknown;
+}
+
+/**
+ * Intel 471 Global Search cross-entity counts — from `GET /search?ioc=`. Fetched on demand
+ * (a button in the detail panel), not during batch enrichment. Only non-zero counts are shown.
+ */
+export interface Intel471Search {
+  reports?: number;
+  malwareReports?: number;
+  actors?: number;
+  entities?: number;
+  events?: number;
+  posts?: number;
+  news?: number;
+  iocs?: number;
+  indicators?: number;
+  credentials?: number;
+  credentialSets?: number;
+  dataLeakPosts?: number;
+  breachAlerts?: number;
+  cveReports?: number;
+  error?: string;
+}
+
 /** The single shape the results table & detail panel consume, for all IOC types. */
 export interface NormalizedResult {
   input: string;
@@ -217,6 +269,9 @@ export interface NormalizedResult {
 
   /** DNSLytics context (IPs via IPInfo, domains via DomainInfo). */
   dnslytics?: DnslyticsContext;
+
+  /** Intel 471 (Titan) IOC context — all IOC types. */
+  intel471?: Intel471Context;
 
   ip?: {
     country?: string;
@@ -266,6 +321,8 @@ export interface EnrichOptions {
   domaintools?: boolean;
   /** Request DNSLytics (IP + domain). Ignored if the proxy has no DNSLytics key. */
   dnslytics?: boolean;
+  /** Request Intel 471 IOC lookups. Ignored if the proxy has no Intel 471 credentials. */
+  intel471?: boolean;
 }
 
 /** What the proxy `GET /health` reports — which integrations are configured server-side. */
@@ -281,6 +338,8 @@ export interface ProxyHealth {
   domaintools: boolean;
   /** DNSLytics key present (optional — IP/domain intel). */
   dnslytics: boolean;
+  /** Intel 471 (Titan) credentials present (optional — IOC intel). */
+  intel471: boolean;
 }
 
 export interface EnrichRequest {
@@ -338,6 +397,8 @@ export interface AppSettings {
   domaintools?: boolean;
   /** Request DNSLytics enrichment (default true; only used if the proxy has a DNSLytics key). */
   dnslytics?: boolean;
+  /** Request Intel 471 IOC enrichment (default true; only used if the proxy has Intel 471 creds). */
+  intel471?: boolean;
   /** Days to keep local search history (per browser). 0 = disabled. Default 30. */
   historyRetentionDays?: number;
   /** Documentation-only note shown in the admin UI. */

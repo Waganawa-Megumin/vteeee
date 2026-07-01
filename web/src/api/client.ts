@@ -1,6 +1,8 @@
 import type {
   AppSettings,
+  EnrichableType,
   EnrichRequest,
+  Intel471Search,
   NormalizedResult,
   ParsedIndicator,
 } from '@vteeee/shared';
@@ -19,6 +21,8 @@ export interface EnrichClient {
   enrich(req: EnrichRequest, handlers: EnrichHandlers): Promise<void>;
   /** Smart-parse messy text into candidate indicators. */
   smartParse(text: string): Promise<ParsedIndicator[]>;
+  /** On-demand Intel 471 Global Search — cross-entity counts for one IOC. */
+  intel471Search(ioc: string, type: EnrichableType): Promise<Intel471Search>;
 }
 
 export function sleep(ms: number, signal?: AbortSignal): Promise<void> {

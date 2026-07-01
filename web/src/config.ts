@@ -15,6 +15,7 @@ export const DEFAULT_SETTINGS: AppSettings = {
   shodan: true,
   domaintools: true,
   dnslytics: true,
+  intel471: true,
   historyRetentionDays: 30,
 };
 

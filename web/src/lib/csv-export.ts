@@ -27,6 +27,7 @@ export function resultsToCsv(results: NormalizedResult[]): string {
     'last_modified',
     'domaintools_risk',
     'dnslytics',
+    'intel471',
     'vt_link',
   ];
   const rows = results.map((r) => [
@@ -56,6 +57,11 @@ export function resultsToCsv(results: NormalizedResult[]): string {
       ? r.dnslytics.kind === 'ip'
         ? [r.dnslytics.asn ? `AS${r.dnslytics.asn}` : '', r.dnslytics.org].filter(Boolean).join(' ')
         : (r.dnslytics.ips?.[0] ?? r.dnslytics.nameServers?.[0] ?? '')
+      : '',
+    r.intel471?.found
+      ? [r.intel471.totalCount != null ? `${r.intel471.totalCount} recs` : '', r.intel471.reports ? `${r.intel471.reports} reports` : '']
+          .filter(Boolean)
+          .join(' · ')
       : '',
     r.links.gui,
   ]);

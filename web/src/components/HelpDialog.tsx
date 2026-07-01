@@ -130,6 +130,19 @@ export function HelpDialog({ onClose }: { onClose: () => void }) {
                 <span className="help-en">IPs (IPInfo): ASN/org/network/reverse DNS/hosted-domain count + sample/blocklist. Domains (HostingHistory): A/AAAA · NS · MX · SPF history.</span>
               </IntegrationRow>
 
+              <IntegrationRow
+                name="Intel 471 · Titan"
+                env="INTEL471_API_USER + _KEY"
+                on={health?.intel471 ?? null}
+                live={live}
+              >
+                <span className="help-ja">
+                  <b>全種別</b>（IP/ドメイン/URL/ハッシュ）。IOC照合で active期間・ISP・<b>関連レポート/アクター</b>等を付与。詳細の
+                  <b>「Global Search」</b>ボタンで、そのIOCが横断的に何件（reports/posts/actors/events/credentials/data-leaks…）に出るかをオンデマンド取得。
+                </span>
+                <span className="help-en">All IOC types. IOC search adds active window/ISP/linked reports+actors; the “Global Search” button fetches cross-entity counts on demand.</span>
+              </IntegrationRow>
+
               <IntegrationRow name="Claude (smart-parse)" env="ANTHROPIC_API_KEY" on={health?.claude ?? null} live={live}>
                 <span className="help-ja">
                   レポート本文などの雑多なテキストからIOCを抽出（「Smart parse (Claude)」ボタン）。無ければ正規表現で代替。
@@ -139,7 +152,7 @@ export function HelpDialog({ onClose }: { onClose: () => void }) {
             </div>
             <p className="help-ja" style={{ marginTop: 8 }}>
               <b>種別で引き分け</b>：ドメイン→VT＋DomainTools(Enrich)＋DNSLytics(HostingHistory) ／ IP→VT＋Shodan＋DNSLytics(IPInfo)＋DomainTools(逆引き)
-              ／ URL→ホスト名をドメイン扱い ／ ハッシュ→VTのみ。各連携は Settings で個別ON/OFF可。
+              ／ URL→ホスト名をドメイン扱い ／ ハッシュ→VTのみ。<b>Intel 471 は全種別</b>に付与。各連携は Settings で個別ON/OFF可。
             </p>
             <p className="help-en" style={{ marginTop: 8 }}>
               <b>Enable an optional service (3 steps):</b> ① add the env var above as a repo secret /
