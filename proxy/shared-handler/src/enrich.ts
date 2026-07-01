@@ -14,7 +14,7 @@ import { RateLimiter } from './rateLimiter';
 import { vtLookup } from './vtFetch';
 import { shodanHostLookup } from './shodanFetch';
 import { domaintoolsEnrichDomain, domaintoolsReverseIp } from './domaintoolsFetch';
-import { dnslyticsDomainInfo, dnslyticsIpInfo } from './dnslyticsFetch';
+import { dnslyticsHostingHistory, dnslyticsIpInfo } from './dnslyticsFetch';
 import { AsyncQueue, backoffMs, clamp, sleep } from './util';
 
 const MAX_RL_RETRIES = 3;
@@ -151,7 +151,7 @@ export async function* runEnrich(
     try {
       await dnslLimiter.acquire(signal);
       return kind === 'domain'
-        ? await dnslyticsDomainInfo(value, env, signal)
+        ? await dnslyticsHostingHistory(value, env, signal)
         : await dnslyticsIpInfo(value, env, signal);
     } catch (e) {
       if ((e as Error).name === 'AbortError') return undefined;
@@ -172,8 +172,9 @@ export async function* runEnrich(
       if (dnslLimiter) result.dnslytics = await enrichDnslytics('ip', ind.value);
       if (dtLimiter) result.domaintools = await enrichDomaintools('ip', ind.value);
     } else if (domain) {
-      // Domains are covered by DomainTools Iris Enrich (registration + infra + risk).
+      // Domains: DomainTools Iris Enrich (registration + infra + risk) + DNSLytics HostingHistory (DNS/IP history).
       if (dtLimiter) result.domaintools = await enrichDomaintools('domain', domain);
+      if (dnslLimiter) result.dnslytics = await enrichDnslytics('domain', domain);
     }
   }
 

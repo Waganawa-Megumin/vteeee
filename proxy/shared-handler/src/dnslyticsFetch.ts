@@ -32,20 +32,6 @@ function pickNum(o: any, keys: string[]): number | undefined {
   return undefined;
 }
 
-/** Normalize an array of host-like entries (strings or {host}/{name}/{nameserver}) to strings. */
-function hostList(o: any, keys: string[]): string[] {
-  for (const k of keys) {
-    const v = o?.[k];
-    if (Array.isArray(v) && v.length) {
-      const out = v
-        .map((e) => (typeof e === 'string' ? e : e?.host ?? e?.name ?? e?.nameserver ?? e?.value ?? e?.hostname))
-        .filter((s: any): s is string => typeof s === 'string' && s.length > 0);
-      if (out.length) return [...new Set(out)];
-    }
-  }
-  return [];
-}
-
 /** Summarize the DNSLytics `blocklist` flags into a short threat string (undefined when clean). */
 function blocklistSummary(bl: any): string | undefined {
   if (!bl || typeof bl !== 'object') return undefined;
@@ -88,23 +74,41 @@ export function mapDnslyticsIp(json: any): DnslyticsContext {
   return ctx;
 }
 
-/** Map a DNSLytics DomainInfo payload into our context shape (tolerant to key naming). */
-export function mapDnslyticsDomain(json: any): DnslyticsContext {
+/** Dedupe a list of history records by key, keeping the most recent (by `updatedate`) first. */
+function recentUnique(recs: unknown, keyOf: (r: any) => unknown): string[] {
+  if (!Array.isArray(recs)) return [];
+  const sorted = [...recs].sort((a, b) =>
+    String(b?.updatedate ?? b?.lastseen ?? '').localeCompare(String(a?.updatedate ?? a?.lastseen ?? '')),
+  );
+  const seen = new Set<string>();
+  const out: string[] = [];
+  for (const r of sorted) {
+    const k = keyOf(r);
+    if (typeof k === 'string' && k.length > 0 && !seen.has(k)) {
+      seen.add(k);
+      out.push(k);
+    }
+  }
+  return out;
+}
+
+/**
+ * Map a DNSLytics HostingHistory payload (IP/DNS history for a domain) into our context shape.
+ * Verified shape: `{ status, data: { ipv4:[{ip,updatedate}], ipv6:[…], dns:[{dns,updatedate}],
+ * mx:[{mx,updatedate}], spf:[{record,updatedate}] } }`.
+ */
+export function mapDnslyticsHostingHistory(json: any): DnslyticsContext {
   const o = root(json);
   const ctx: DnslyticsContext = { found: true, kind: 'domain' };
-  ctx.registrar = pickStr(o, ['registrar', 'registrarname']);
-  ctx.created = pickStr(o, ['created', 'createddate', 'create_date', 'registered', 'creationdate']);
-  ctx.updated = pickStr(o, ['updated', 'updateddate', 'changed', 'lastupdated']);
-  ctx.expires = pickStr(o, ['expires', 'expiresdate', 'expiration', 'expiry', 'expirationdate']);
-  const ns = hostList(o, ['nameservers', 'ns', 'nameserver']);
+  const ips = recentUnique([...(Array.isArray(o?.ipv4) ? o.ipv4 : []), ...(Array.isArray(o?.ipv6) ? o.ipv6 : [])], (r) => r?.ip).slice(0, 12);
+  if (ips.length) ctx.ips = ips;
+  // NS records come under `dns` in the example (or `ns` per the field list).
+  const ns = recentUnique([...(Array.isArray(o?.dns) ? o.dns : []), ...(Array.isArray(o?.ns) ? o.ns : [])], (r) => r?.dns ?? r?.ns ?? r?.host).slice(0, 12);
   if (ns.length) ctx.nameServers = ns;
-  const mx = hostList(o, ['mx', 'mailservers', 'mailserver']);
+  const mx = recentUnique(o?.mx, (r) => r?.mx ?? r?.host).slice(0, 12);
   if (mx.length) ctx.mailServers = mx;
-  ctx.provider = pickStr(o, ['provider', 'hoster', 'hosting', 'hostingprovider']);
-  ctx.popularity = pickNum(o, ['rank', 'popularity', 'globalrank', 'alexarank']);
-  ctx.threat = pickStr(o, ['threat', 'threatlevel', 'reputation']);
-  const tags = Array.isArray(o?.tags) ? o.tags.filter((t: any) => typeof t === 'string') : [];
-  if (tags.length) ctx.tags = tags;
+  const spf = recentUnique(o?.spf, (r) => r?.record ?? r?.spf).slice(0, 4);
+  if (spf.length) ctx.spf = spf;
   ctx.raw = o;
   return ctx;
 }
@@ -149,19 +153,20 @@ export async function dnslyticsIpInfo(
   return mapDnslyticsIp(json);
 }
 
-/** DNSLytics DomainInfo for a single domain. */
-export async function dnslyticsDomainInfo(
+/** DNSLytics HostingHistory for a single domain (IP/DNS history: A/AAAA/MX/NS/SPF). */
+export async function dnslyticsHostingHistory(
   domain: string,
   env: ProxyEnv,
   signal?: AbortSignal,
 ): Promise<DnslyticsContext | undefined> {
   if (!env.dnslyticsApiKey) return undefined;
   if (signal?.aborted) return undefined;
-  const url = `${baseUrl(env)}/domaininfo/${encodeURIComponent(domain)}?apikey=${encodeURIComponent(
+  const url = `${baseUrl(env)}/hostinghistory/${encodeURIComponent(domain)}?apikey=${encodeURIComponent(
     env.dnslyticsApiKey,
   )}`;
   const json = await dnslFetch(url, signal);
   if (json?.__error) return { found: false, kind: 'domain', error: json.__error };
   if (json?.__notFound) return { found: false, kind: 'domain' };
-  return mapDnslyticsDomain(json);
+  if (json?.status && json.status !== 'succeed') return { found: false, kind: 'domain' };
+  return mapDnslyticsHostingHistory(json);
 }

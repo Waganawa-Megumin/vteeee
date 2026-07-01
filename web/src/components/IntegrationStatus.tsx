@@ -73,7 +73,7 @@ export function IntegrationStatus({ onManage }: { onManage: () => void }) {
             title={
               health?.dnslytics
                 ? settings.dnslytics !== false
-                  ? 'DNSLytics active — IP intel (IPInfo)'
+                  ? 'DNSLytics active — IP (IPInfo) + domain (HostingHistory)'
                   : 'DNSLytics key present, but turned OFF in Settings'
                 : 'Optional — no DNSLYTICS_API_KEY on the proxy'
             }

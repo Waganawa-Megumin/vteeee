@@ -1,7 +1,7 @@
 import { describe, it, expect, vi, afterEach } from 'vitest';
 import type { EnrichEvent } from '@vteeee/shared';
 import { mapIrisEnrich, mapIrisInvestigateReverseIp } from '../domaintoolsFetch';
-import { mapDnslyticsIp } from '../dnslyticsFetch';
+import { mapDnslyticsIp, mapDnslyticsHostingHistory } from '../dnslyticsFetch';
 import { runEnrich } from '../enrich';
 import type { ProxyEnv } from '../types';
 
@@ -67,6 +67,20 @@ const DNSL_IP = {
   },
 };
 
+// Real DNSLytics HostingHistory shape.
+const DNSL_HH = {
+  status: 'succeed',
+  data: {
+    question: 'evil.com',
+    typeinfo: 'hostinghistory',
+    ipv4: [{ ip: '193.0.2.10', updatedate: '2024-05-01' }, { ip: '5.45.109.92', updatedate: '2023-01-01' }],
+    ipv6: [{ ip: '2400:cb00::1', updatedate: '2024-04-01' }],
+    dns: [{ dns: 'ns1.reg.com', updatedate: '2024-05-01' }, { dns: 'ns1.reg.com', updatedate: '2023-01-01' }],
+    mx: [{ mx: 'mx.evil.com', updatedate: '2024-05-01' }],
+    spf: [{ record: 'v=spf1 -all', updatedate: '2024-05-01' }],
+  },
+};
+
 afterEach(() => vi.unstubAllGlobals());
 
 describe('DomainTools mappers', () => {
@@ -117,6 +131,17 @@ describe('DNSLytics IPInfo mapper', () => {
   });
 });
 
+describe('DNSLytics HostingHistory mapper', () => {
+  it('collects A/AAAA/NS/MX/SPF history, deduped and most-recent first', () => {
+    const c = mapDnslyticsHostingHistory(DNSL_HH);
+    expect(c).toMatchObject({ found: true, kind: 'domain' });
+    expect(c.ips).toEqual(['193.0.2.10', '2400:cb00::1', '5.45.109.92']); // by updatedate desc
+    expect(c.nameServers).toEqual(['ns1.reg.com']); // deduped
+    expect(c.mailServers).toEqual(['mx.evil.com']);
+    expect(c.spf).toEqual(['v=spf1 -all']);
+  });
+});
+
 function stubFetch() {
   vi.stubGlobal(
     'fetch',
@@ -124,6 +149,7 @@ function stubFetch() {
       if (url.includes('iris-enrich')) return resp(200, { response: { results: [ENRICH_RESULT] } });
       if (url.includes('iris-investigate')) return resp(200, { response: INVESTIGATE });
       if (url.includes('dnslytics') && url.includes('/ipinfo/')) return resp(200, DNSL_IP);
+      if (url.includes('dnslytics') && url.includes('/hostinghistory/')) return resp(200, DNSL_HH);
       if (url.includes('/ip_addresses/') || url.includes('/domains/') || url.includes('/urls'))
         return resp(200, { data: { attributes: { last_analysis_stats: { harmless: 9 } } } });
       return resp(404, '{}');
@@ -138,7 +164,7 @@ async function collect(indicators: { type: any; value: string; input: string }[]
 }
 
 describe('runEnrich routing by IOC type', () => {
-  it('domains → DomainTools Enrich (no DNSLytics); IPs → DNSLytics IP + DomainTools reverse', async () => {
+  it('domains → DomainTools Enrich + DNSLytics HostingHistory; IPs → DNSLytics IP + DomainTools reverse', async () => {
     stubFetch();
     const results = await collect([
       { type: 'domain', value: 'evil.com', input: 'evil.com' },
@@ -147,16 +173,17 @@ describe('runEnrich routing by IOC type', () => {
     const dom = results.find((r) => r.value === 'evil.com');
     const ip = results.find((r) => r.value === '9.9.9.9');
     expect(dom?.domaintools).toMatchObject({ found: true, mode: 'enrich', riskScore: 88 });
-    expect(dom?.dnslytics).toBeUndefined(); // DNSLytics is IP-only (no domaininfo endpoint)
+    expect(dom?.dnslytics).toMatchObject({ found: true, kind: 'domain' }); // HostingHistory
+    expect(dom?.dnslytics?.ips).toContain('193.0.2.10');
     expect(ip?.dnslytics).toMatchObject({ found: true, kind: 'ip', asn: 15169 });
     expect(ip?.domaintools).toMatchObject({ found: true, mode: 'reverse-ip' });
   });
 
-  it("treats a URL's host as a domain (DomainTools only)", async () => {
+  it("treats a URL's host as a domain", async () => {
     stubFetch();
     const [r] = await collect([{ type: 'url', value: 'http://evil.com/login', input: 'http://evil.com/login' }]);
     expect(r.domaintools).toMatchObject({ mode: 'enrich', found: true });
-    expect(r.dnslytics).toBeUndefined();
+    expect(r.dnslytics).toMatchObject({ kind: 'domain', found: true });
   });
 
   it('client opt-out (options) skips a provider even when configured', async () => {

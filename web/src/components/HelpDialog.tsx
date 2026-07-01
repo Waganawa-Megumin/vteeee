@@ -125,9 +125,9 @@ export function HelpDialog({ onClose }: { onClose: () => void }) {
 
               <IntegrationRow name="DNSLytics" env="DNSLYTICS_API_KEY" on={health?.dnslytics ?? null} live={live}>
                 <span className="help-ja">
-                  <b>IP専用</b>（IPInfo）：ASN/組織/ネットワーク/逆引き/同居ドメイン数＋サンプル/ブロックリスト（DNSBL・オープンプロキシ等）。ドメインの登録情報は DomainTools が担当。
+                  <b>IP</b>（IPInfo）：ASN/組織/ネットワーク/逆引き/同居ドメイン数＋サンプル/ブロックリスト。<b>ドメイン</b>（HostingHistory）：A/AAAA・NS・MX・SPF の履歴。登録者情報は DomainTools が担当。
                 </span>
-                <span className="help-en">IPs (IPInfo): ASN/org/network/reverse DNS/hosted-domain count + sample/blocklist. Domain registration is covered by DomainTools.</span>
+                <span className="help-en">IPs (IPInfo): ASN/org/network/reverse DNS/hosted-domain count + sample/blocklist. Domains (HostingHistory): A/AAAA · NS · MX · SPF history.</span>
               </IntegrationRow>
 
               <IntegrationRow name="Claude (smart-parse)" env="ANTHROPIC_API_KEY" on={health?.claude ?? null} live={live}>
@@ -138,7 +138,7 @@ export function HelpDialog({ onClose }: { onClose: () => void }) {
               </IntegrationRow>
             </div>
             <p className="help-ja" style={{ marginTop: 8 }}>
-              <b>種別で引き分け</b>：ドメイン→VT＋DomainTools(Enrich) ／ IP→VT＋Shodan＋DNSLytics(IPInfo)＋DomainTools(逆引き)
+              <b>種別で引き分け</b>：ドメイン→VT＋DomainTools(Enrich)＋DNSLytics(HostingHistory) ／ IP→VT＋Shodan＋DNSLytics(IPInfo)＋DomainTools(逆引き)
               ／ URL→ホスト名をドメイン扱い ／ ハッシュ→VTのみ。各連携は Settings で個別ON/OFF可。
             </p>
             <p className="help-en" style={{ marginTop: 8 }}>

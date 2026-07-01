@@ -169,17 +169,13 @@ export interface DnslyticsContext {
   domainsOnIp?: number;
   /** A sample of domains hosted on the IP (IPInfo returns a sample inline; no extra ReverseIP call needed). */
   hostedDomains?: string[];
-  // --- domain ---
-  registrar?: string;
-  created?: string;
-  updated?: string;
-  expires?: string;
+  // --- domain (HostingHistory: current + past A/AAAA/MX/NS/SPF, most-recent first) ---
+  /** A/AAAA addresses seen for the domain (recent first). */
+  ips?: string[];
   nameServers?: string[];
   mailServers?: string[];
-  /** Hosting / DNS provider name. */
-  provider?: string;
-  /** Popularity / rank when available. */
-  popularity?: number;
+  /** SPF record strings seen for the domain. */
+  spf?: string[];
   // --- shared ---
   tags?: string[];
   /** Threat / blocklist signal when the provider returns one. */

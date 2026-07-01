@@ -173,10 +173,10 @@ export function SettingsDialog({ onClose }: { onClose: () => void }) {
               checked={draft.dnslytics !== false}
               onChange={(e) => up('dnslytics', e.target.checked)}
             />
-            🌐 DNSLytics (IP intel)
+            🌐 DNSLytics (IP + domain)
             <InfoTip
-              ja="IP行に IPInfo（ASN/組織/ネットワーク/逆引き/同居ドメイン数＋サンプル/ブロックリスト）を付与。プロキシに DNSLYTICS_API_KEY がある時のみ。ドメインの登録情報は DomainTools が担当。"
-              en="Enrich IP rows via IPInfo (ASN/org/network/reverse DNS/hosted-domain count + sample/blocklist). Only if the proxy has a DNSLytics key. Domain registration is handled by DomainTools."
+              ja="IPは IPInfo（ASN/組織/逆引き/同居ドメイン数＋サンプル/ブロックリスト）、ドメインは HostingHistory（A/AAAA・NS・MX・SPF の履歴）を付与。プロキシに DNSLYTICS_API_KEY がある時のみ。"
+              en="IPs via IPInfo (ASN/org/reverse DNS/hosted-domain count + sample/blocklist); domains via HostingHistory (A/AAAA · NS · MX · SPF history). Only if the proxy has a DNSLytics key."
             />
           </label>
           <p className="hint shodan-hint">

@@ -212,7 +212,7 @@ function DnslyticsSection({ d }: { d: DnslyticsContext }) {
         <span className="shodan-logo" aria-hidden>
           🌐
         </span>
-        DNSLytics · {d.kind === 'ip' ? 'IP' : 'Domain'}
+        DNSLytics · {d.kind === 'ip' ? 'IP' : 'Domain (hosting history)'}
       </div>
 
       {!d.found ? (
@@ -242,15 +242,10 @@ function DnslyticsSection({ d }: { d: DnslyticsContext }) {
         </div>
       ) : (
         <div className="detail-grid">
-          <Field k="Registrar" v={d.registrar} />
-          <Field k="Created" v={d.created} />
-          <Field k="Updated" v={d.updated} />
-          <Field k="Expires" v={d.expires} />
+          <Field k="IP history (A/AAAA)" v={d.ips?.join(', ')} mono />
           <Field k="Name servers" v={d.nameServers?.join(', ')} mono />
-          <Field k="MX" v={d.mailServers?.join(', ')} mono />
-          <Field k="Provider" v={d.provider} />
-          <Field k="Popularity" v={d.popularity != null ? d.popularity.toLocaleString() : undefined} />
-          <Field k="Threat" v={d.threat} />
+          <Field k="Mail servers" v={d.mailServers?.join(', ')} mono />
+          <Field k="SPF" v={d.spf?.join('  |  ')} mono />
         </div>
       )}
 

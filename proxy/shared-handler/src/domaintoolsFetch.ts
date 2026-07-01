@@ -111,16 +111,40 @@ export function mapIrisInvestigateReverseIp(resp: any): DomainToolsContext {
   };
 }
 
-async function irisFetch(url: string, signal?: AbortSignal): Promise<any | { __error: string }> {
-  let res: Response;
-  try {
-    res = await fetch(url, { headers: { accept: 'application/json' }, signal });
-  } catch (e) {
-    if ((e as Error).name === 'AbortError') return { __error: 'aborted' };
-    return { __error: `DomainTools unreachable: ${(e as Error).message}` };
+/**
+ * Fetch an Iris endpoint. Tries Header auth (`X-Api-Key`, DomainTools' recommended scheme)
+ * first, and falls back to open-key (`api_username` + `api_key`) if the account rejects the
+ * header (401). Splits 401 (bad key) from 403 (endpoint not in the account's subscription).
+ */
+async function irisFetch(base: string, query: string, env: ProxyEnv, signal?: AbortSignal): Promise<any> {
+  const enc = encodeURIComponent;
+  const attempt = async (headerAuth: boolean): Promise<Response | { __error: string }> => {
+    const url = headerAuth
+      ? `${base}?${query}`
+      : `${base}?${query}&api_username=${enc(env.domaintoolsApiUsername ?? '')}&api_key=${enc(env.domaintoolsApiKey ?? '')}`;
+    try {
+      const headers: Record<string, string> = { accept: 'application/json' };
+      if (headerAuth) headers['X-Api-Key'] = env.domaintoolsApiKey ?? '';
+      return await fetch(url, { headers, signal });
+    } catch (e) {
+      if ((e as Error).name === 'AbortError') return { __error: 'aborted' };
+      return { __error: `DomainTools unreachable: ${(e as Error).message}` };
+    }
+  };
+
+  let res = await attempt(true);
+  if ('__error' in res) return res;
+  if (res.status === 401) {
+    const fallback = await attempt(false); // header rejected — try open-key
+    if ('__error' in fallback) return fallback;
+    res = fallback;
   }
+
   if (res.status === 404) return { __notFound: true };
-  if (res.status === 401 || res.status === 403) return { __error: 'DomainTools: auth/permission error' };
+  if (res.status === 401)
+    return { __error: 'DomainTools 401 — invalid API key/username (check DOMAINTOOLS_API_KEY & _USERNAME)' };
+  if (res.status === 403)
+    return { __error: 'DomainTools 403 — account lacks access to this endpoint (Enrich / Investigate subscription)' };
   if (res.status === 429 || res.status === 503) return { __error: 'DomainTools: rate limited' };
   // 200 and 206 (partial) both carry usable data.
   if (!res.ok && res.status !== 206) return { __error: `DomainTools error ${res.status}` };
@@ -131,12 +155,6 @@ async function irisFetch(url: string, signal?: AbortSignal): Promise<any | { __e
   }
 }
 
-function creds(env: ProxyEnv): string {
-  return `api_username=${encodeURIComponent(env.domaintoolsApiUsername ?? '')}&api_key=${encodeURIComponent(
-    env.domaintoolsApiKey ?? '',
-  )}`;
-}
-
 /** DomainTools Iris Enrich for a single domain (forward lookup). */
 export async function domaintoolsEnrichDomain(
   domain: string,
@@ -145,7 +163,7 @@ export async function domaintoolsEnrichDomain(
 ): Promise<DomainToolsContext | undefined> {
   if (!env.domaintoolsApiUsername || !env.domaintoolsApiKey) return undefined;
   if (signal?.aborted) return undefined;
-  const json = await irisFetch(`${IRIS_ENRICH}?domain=${encodeURIComponent(domain)}&${creds(env)}`, signal);
+  const json = await irisFetch(IRIS_ENRICH, `domain=${encodeURIComponent(domain)}`, env, signal);
   if (json?.__error) return { found: false, mode: 'enrich', error: json.__error };
   if (json?.__notFound) return { found: false, mode: 'enrich' };
   const result = json?.response?.results?.[0];
@@ -161,7 +179,7 @@ export async function domaintoolsReverseIp(
 ): Promise<DomainToolsContext | undefined> {
   if (!env.domaintoolsApiUsername || !env.domaintoolsApiKey) return undefined;
   if (signal?.aborted) return undefined;
-  const json = await irisFetch(`${IRIS_INVESTIGATE}?ip=${encodeURIComponent(ip)}&${creds(env)}`, signal);
+  const json = await irisFetch(IRIS_INVESTIGATE, `ip=${encodeURIComponent(ip)}`, env, signal);
   if (json?.__error) return { found: false, mode: 'reverse-ip', error: json.__error };
   if (json?.__notFound) return { found: false, mode: 'reverse-ip' };
   return mapIrisInvestigateReverseIp(json?.response ?? {});

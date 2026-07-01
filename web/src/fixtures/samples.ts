@@ -198,6 +198,14 @@ export const FIXTURES: Fixture[] = [
       websiteTitle: 'Google',
       tags: [],
     },
+    dnslytics: {
+      found: true,
+      kind: 'domain',
+      ips: ['142.250.72.238', '142.250.72.206'],
+      nameServers: ['ns1.google.com', 'ns2.google.com'],
+      mailServers: ['smtp.google.com'],
+      spf: ['v=spf1 include:_spf.google.com ~all'],
+    },
   },
   {
     value: 'phishy-malware-example.com',

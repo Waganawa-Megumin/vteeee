@@ -55,7 +55,7 @@ export function resultsToCsv(results: NormalizedResult[]): string {
     r.dnslytics?.found
       ? r.dnslytics.kind === 'ip'
         ? [r.dnslytics.asn ? `AS${r.dnslytics.asn}` : '', r.dnslytics.org].filter(Boolean).join(' ')
-        : (r.dnslytics.registrar ?? '')
+        : (r.dnslytics.ips?.[0] ?? r.dnslytics.nameServers?.[0] ?? '')
       : '',
     r.links.gui,
   ]);

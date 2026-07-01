@@ -34,10 +34,10 @@ APIキーはすべて**プロキシ側のみ**が保持します。**VirusTotal 
 | **VirusTotal / GTI** | 脅威情報（基本） | ✅ 必須 | `VT_API_KEY` | 判定・検出比・レピュテーション・ASN/国・カテゴリ・脅威ラベル・First/Last seen(ファイル・URL)・GTI評価 |
 | **Shodan** | OSINT（IP限定） | 任意 | `SHODAN_API_KEY` | 開放ポート・稼働サービス・既知CVE・組織/ISP/OS・ホスト名・タグ |
 | **DomainTools Iris** | ドメイン/IP情報 | 任意 | `DOMAINTOOLS_API_USERNAME`＋`DOMAINTOOLS_API_KEY` | **ドメイン**(Enrich)：リスクスコア＋内訳/WHOIS/RDAP/IP/ASN/NS/MX/SSL/website/first_seen/tags。**IP**(Investigate逆引き)：そのIP上のドメイン |
-| **DNSLytics** | IP情報 | 任意 | `DNSLYTICS_API_KEY` | **IP専用**(IPInfo)：ASN/組織/ネットワーク/逆引き/同居ドメイン数＋サンプル/ブロックリスト(DNSBL・オープンプロキシ等) |
+| **DNSLytics** | IP/ドメイン情報 | 任意 | `DNSLYTICS_API_KEY` | **IP**(IPInfo)：ASN/組織/ネットワーク/逆引き/同居ドメイン数＋サンプル/ブロックリスト。**ドメイン**(HostingHistory)：A/AAAA・NS・MX・SPF の履歴 |
 | **Claude (Anthropic)** | スマートパース | 任意 | `ANTHROPIC_API_KEY` | レポート本文からIOC抽出 |
 
-**IOC種別で引き分け**：ドメイン→VT＋DomainTools(Enrich) ／ IP→VT＋Shodan＋DNSLytics(IPInfo)＋DomainTools(逆引き) ／ URL→ホスト名をドメイン扱い ／ ハッシュ→VTのみ。各連携は Settings で個別ON/OFF可。DomainToolsは従量課金・Investigateは低レート制限のため、`DOMAINTOOLS_RPM`(既定30)/`DNSLYTICS_RPM`(既定60)で調整、`DNSLYTICS_BASE_URL`でエンドポイント変更可。（DNSLytics のドメイン側=HostingHistory 等は将来の任意追加）
+**IOC種別で引き分け**：ドメイン→VT＋DomainTools(Enrich)＋DNSLytics(HostingHistory) ／ IP→VT＋Shodan＋DNSLytics(IPInfo)＋DomainTools(逆引き) ／ URL→ホスト名をドメイン扱い ／ ハッシュ→VTのみ。各連携は Settings で個別ON/OFF可。DomainToolsは従量課金・Investigateは低レート制限のため、`DOMAINTOOLS_RPM`(既定30)/`DNSLYTICS_RPM`(既定60)で調整、`DNSLYTICS_BASE_URL`でエンドポイント変更可。
 
 **任意サービスを有効化する手順（3ステップ）:**
 1. 上表の環境変数を **リポジトリ Secret**（GitHub → Settings → Secrets → Actions）に登録。
