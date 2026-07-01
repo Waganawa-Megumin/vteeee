@@ -68,10 +68,28 @@ export class DemoClient implements EnrichClient {
     return extractIndicators(text).indicators;
   }
 
-  /** Sample Intel 471 Global Search counts (demo). */
+  /** Sample Intel 471 Global Search counts + drill-down items (demo). */
   async intel471Search(): Promise<Intel471Search> {
     await sleep(300);
-    return { reports: 35, posts: 132, actors: 41, entities: 13, news: 1, credentials: 1, dataLeakPosts: 1, events: 0 };
+    return {
+      reports: 35,
+      posts: 132,
+      actors: 41,
+      entities: 13,
+      news: 1,
+      credentials: 1,
+      dataLeakPosts: 1,
+      events: 0,
+      items: {
+        reports: [
+          { title: 'SOCKS proxy service provider actor Insorg adds 500 front-end proxies', url: 'https://titan.intel471.com/report/inforep/example' },
+          { title: 'Bulletproof hosting actor advertises new proxy inventory' },
+        ],
+        actors: [{ title: 'Insorg' }, { title: 'MrBlonde' }],
+        posts: [{ title: 'Selling fresh SOCKS5 proxies, US/EU, low latency…' }],
+        news: [{ title: 'Proxy abuse trends in credential-stuffing campaigns' }],
+      },
+    };
   }
 
   /** Sample Intel 471 malware family details (demo). */

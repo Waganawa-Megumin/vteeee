@@ -1,4 +1,10 @@
-import type { EnrichableType, Intel471Context, Intel471Malware, Intel471Search } from '@vteeee/shared';
+import type {
+  EnrichableType,
+  Intel471Context,
+  Intel471Malware,
+  Intel471Search,
+  Intel471SearchItem,
+} from '@vteeee/shared';
 import type { ProxyEnv } from './types';
 
 /* eslint-disable @typescript-eslint/no-explicit-any */
@@ -109,13 +115,47 @@ export function mapIntel471Indicator(json: any, value: string): Intel471Context 
   return ctx;
 }
 
-/** Map an Intel 471 `/search` response to cross-entity counts (handles camelCase + snake_case). */
+/** Collapse whitespace + cap a string for use as a result title. */
+function snippet(s: unknown): string | undefined {
+  if (typeof s !== 'string') return undefined;
+  const t = s.replace(/\s+/g, ' ').trim();
+  if (!t) return undefined;
+  return t.length > 120 ? `${t.slice(0, 117)}…` : t;
+}
+
+/** Best-effort human title for a Global Search result item (shape varies by collection). */
+function searchItemTitle(i: any): string | undefined {
+  if (typeof i === 'string') return snippet(i);
+  if (!i || typeof i !== 'object') return undefined;
+  const direct =
+    i.subject ?? i.title ?? i.name ?? i.handle ?? i.value ?? i.login ?? i.email ?? i.threat?.data?.family ??
+    i.data?.threat?.data?.family ?? i.message ?? i.text;
+  const s = snippet(direct);
+  if (s) return s;
+  const idata = i.data?.indicator_data;
+  if (idata && typeof idata === 'object') {
+    return snippet(
+      Object.values(idata)
+        .filter((v): v is string => typeof v === 'string')
+        .join(' '),
+    );
+  }
+  return undefined;
+}
+
+/** Deep link into the Titan portal for a result item, when present. */
+function searchItemUrl(i: any): string | undefined {
+  const u = i?.portalReportUrl ?? i?.portalPostUrl ?? i?.portalActorUrl ?? i?.portal_url ?? i?.url;
+  return typeof u === 'string' && u ? u : undefined;
+}
+
+/** Map an Intel 471 `/search` response to cross-entity counts + top items per category. */
 export function mapIntel471Search(json: any): Intel471Search {
   const n = (...keys: string[]): number | undefined => {
     for (const k of keys) if (typeof json?.[k] === 'number') return json[k];
     return undefined;
   };
-  return {
+  const out: Intel471Search = {
     reports: n('reportTotalCount'),
     malwareReports: n('malwareReportTotalCount'),
     actors: n('actorTotalCount'),
@@ -131,6 +171,34 @@ export function mapIntel471Search(json: any): Intel471Search {
     breachAlerts: n('breach_alerts_total_count', 'breachAlertsTotalCount'),
     cveReports: n('cveReportsTotalCount'),
   };
+  const items: NonNullable<Intel471Search['items']> = {};
+  const keys = [
+    'reports',
+    'malwareReports',
+    'actors',
+    'entities',
+    'events',
+    'posts',
+    'news',
+    'iocs',
+    'indicators',
+    'credentials',
+    'cveReports',
+  ] as const;
+  for (const k of keys) {
+    const arr: any[] = Array.isArray(json?.[k]) ? json[k] : [];
+    const list: Intel471SearchItem[] = [];
+    for (const it of arr) {
+      const title = searchItemTitle(it);
+      if (!title) continue;
+      const url = searchItemUrl(it);
+      list.push(url ? { title, url } : { title });
+      if (list.length >= 5) break;
+    }
+    if (list.length) items[k] = list;
+  }
+  if (Object.keys(items).length) out.items = items;
+  return out;
 }
 
 function authHeader(env: ProxyEnv): string {
@@ -261,7 +329,8 @@ export async function intel471GlobalSearch(
   signal?: AbortSignal,
 ): Promise<Intel471Search | undefined> {
   if (!env.intel471ApiUser || !env.intel471ApiKey) return undefined;
-  const url = `${baseUrl(env)}/search?text=${encodeURIComponent(value)}&count=1`;
+  // count=5 → the response carries the top items per category (not just counts) for drill-down.
+  const url = `${baseUrl(env)}/search?text=${encodeURIComponent(value)}&count=5`;
   const r = await i471Fetch(url, env, signal);
   if (r.__error) return { error: r.__error };
   return mapIntel471Search(r.json);

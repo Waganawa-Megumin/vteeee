@@ -193,6 +193,13 @@ const I471_SEARCH = {
   credential_sets_total_count: 1,
   breach_alerts_total_count: 0,
   data_leak_post_total_count: 1,
+  // count=5 also returns the top item arrays for drill-down:
+  reports: [
+    { subject: 'SOCKS proxy provider Insorg adds 500 front-end proxies', portalReportUrl: 'https://titan.intel471.com/report/inforep/abc' },
+    { subject: 'Bulletproof hosting actor advertises proxy inventory' },
+  ],
+  actors: [{ handle: 'Insorg' }, { handle: 'MrBlonde' }],
+  posts: [{ message: '   Selling fresh SOCKS5 proxies,\n US/EU low latency   ' }],
 };
 
 // CYFIRMA Risk Dossier — real multi-entry shape: indicator entry + CAMPAIGN entry (TA in details) +
@@ -412,6 +419,16 @@ describe('Intel 471 mappers', () => {
       credentialSets: 1,
       dataLeakPosts: 1,
     });
+  });
+  it('mapIntel471Search extracts top drill-down items (title + Titan url, whitespace collapsed)', () => {
+    const s = mapIntel471Search(I471_SEARCH);
+    expect(s.items?.reports?.[0]).toEqual({
+      title: 'SOCKS proxy provider Insorg adds 500 front-end proxies',
+      url: 'https://titan.intel471.com/report/inforep/abc',
+    });
+    expect(s.items?.reports?.[1]).toEqual({ title: 'Bulletproof hosting actor advertises proxy inventory' });
+    expect(s.items?.actors?.map((a) => a.title)).toEqual(['Insorg', 'MrBlonde']);
+    expect(s.items?.posts?.[0]?.title).toBe('Selling fresh SOCKS5 proxies, US/EU low latency'); // collapsed
   });
 });
 

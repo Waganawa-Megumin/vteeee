@@ -235,9 +235,18 @@ export interface Intel471Context {
   raw?: unknown;
 }
 
+/** A single top result within a Global Search category (for drill-down). */
+export interface Intel471SearchItem {
+  /** Short human title (report subject, actor handle, post snippet, IOC value, …). */
+  title: string;
+  /** Deep link into the Titan portal, when the item exposes one. */
+  url?: string;
+}
+
 /**
- * Intel 471 Global Search cross-entity counts — from `GET /search?ioc=`. Fetched on demand
- * (a button in the detail panel), not during batch enrichment. Only non-zero counts are shown.
+ * Intel 471 Global Search — from `GET /search?text=&count=5`. Fetched on demand (a button in the
+ * detail panel). Returns cross-entity counts plus the top items per category so each hit can be
+ * expanded to show details (and deep-linked into Titan). Only non-zero counts are shown.
  */
 export interface Intel471Search {
   reports?: number;
@@ -254,6 +263,20 @@ export interface Intel471Search {
   dataLeakPosts?: number;
   breachAlerts?: number;
   cveReports?: number;
+  /** Top items per category (same /search call), keyed by the response array name. */
+  items?: {
+    reports?: Intel471SearchItem[];
+    malwareReports?: Intel471SearchItem[];
+    actors?: Intel471SearchItem[];
+    entities?: Intel471SearchItem[];
+    events?: Intel471SearchItem[];
+    posts?: Intel471SearchItem[];
+    news?: Intel471SearchItem[];
+    iocs?: Intel471SearchItem[];
+    indicators?: Intel471SearchItem[];
+    credentials?: Intel471SearchItem[];
+    cveReports?: Intel471SearchItem[];
+  };
   error?: string;
 }
 

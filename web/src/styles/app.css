@@ -837,7 +837,7 @@ a.chip.shodan-vuln:hover {
   color: var(--accent);
 }
 
-/* clickable chips (CYFIRMA actor pivots, Intel 471 malware family) */
+/* clickable chips (CYFIRMA actor pivots, Intel 471 malware family + search drill-down) */
 button.chip {
   cursor: pointer;
   font-family: inherit;
@@ -845,6 +845,13 @@ button.chip {
 }
 button.chip:hover {
   filter: brightness(1.14);
+}
+button.chip:disabled {
+  cursor: default;
+  opacity: 0.7;
+}
+button.chip:disabled:hover {
+  filter: none;
 }
 button.chip-btn {
   background: rgba(116, 211, 177, 0.14);
@@ -854,6 +861,37 @@ button.chip-btn {
 button.chip-btn:hover {
   background: rgba(116, 211, 177, 0.26);
   filter: none;
+}
+button.chip.chip-open {
+  background: rgba(116, 211, 177, 0.28);
+  border-color: var(--accent);
+}
+
+/* Intel 471 Global Search drill-down list */
+.i471-search-results {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+.i471-search-items {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  padding: 8px 10px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: var(--bg2);
+}
+.i471-search-item {
+  font-size: 12px;
+  color: var(--fg);
+  text-decoration: none;
+  line-height: 1.4;
+  word-break: break-word;
+}
+a.i471-search-item:hover {
+  color: var(--accent);
+  text-decoration: underline;
 }
 .cyfirma-rel-row {
   display: flex;
@@ -869,11 +907,20 @@ button.chip-btn:hover {
   color: var(--muted);
 }
 .cyfirma-actor {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
   margin-top: 4px;
   padding: 10px;
   border: 1px solid var(--line);
   border-radius: 8px;
   background: var(--bg2);
+}
+/* Buttons inside the malware / actor block sit on their own line, not overlapping the border. */
+.cyfirma-actor .shodan-link,
+.cyfirma-actor .btn {
+  align-self: flex-start;
+  margin: 0;
 }
 .cyfirma-actor-title {
   font-weight: 600;

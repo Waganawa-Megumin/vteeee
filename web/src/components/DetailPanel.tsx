@@ -9,6 +9,7 @@ import type {
   Intel471Context,
   Intel471Malware,
   Intel471Search,
+  Intel471SearchItem,
   ShodanContext,
   ShodanService,
 } from '@vteeee/shared';
@@ -272,25 +273,32 @@ function DnslyticsSection({ d }: { d: DnslyticsContext }) {
   );
 }
 
-/** Non-zero Global Search counts as [label, count] pairs. */
-function intelCounts(s: Intel471Search): [string, number][] {
-  const entries: [string, number | undefined][] = [
-    ['reports', s.reports],
-    ['malware', s.malwareReports],
-    ['actors', s.actors],
-    ['entities', s.entities],
-    ['events', s.events],
-    ['posts', s.posts],
-    ['news', s.news],
-    ['IOCs', s.iocs],
-    ['indicators', s.indicators],
-    ['credentials', s.credentials],
-    ['cred sets', s.credentialSets],
-    ['data-leak posts', s.dataLeakPosts],
-    ['breach alerts', s.breachAlerts],
-    ['CVEs', s.cveReports],
+interface IntelCount {
+  label: string;
+  count: number;
+  items?: Intel471SearchItem[];
+}
+
+/** Non-zero Global Search categories, each with its top drill-down items (when available). */
+function intelCounts(s: Intel471Search): IntelCount[] {
+  const it = s.items ?? {};
+  const entries: { label: string; count?: number; items?: Intel471SearchItem[] }[] = [
+    { label: 'reports', count: s.reports, items: it.reports },
+    { label: 'malware', count: s.malwareReports, items: it.malwareReports },
+    { label: 'actors', count: s.actors, items: it.actors },
+    { label: 'entities', count: s.entities, items: it.entities },
+    { label: 'events', count: s.events, items: it.events },
+    { label: 'posts', count: s.posts, items: it.posts },
+    { label: 'news', count: s.news, items: it.news },
+    { label: 'IOCs', count: s.iocs, items: it.iocs },
+    { label: 'indicators', count: s.indicators, items: it.indicators },
+    { label: 'credentials', count: s.credentials, items: it.credentials },
+    { label: 'cred sets', count: s.credentialSets },
+    { label: 'data-leak posts', count: s.dataLeakPosts },
+    { label: 'breach alerts', count: s.breachAlerts },
+    { label: 'CVEs', count: s.cveReports, items: it.cveReports },
   ];
-  return entries.filter((e): e is [string, number] => typeof e[1] === 'number' && e[1] > 0);
+  return entries.filter((e): e is IntelCount => typeof e.count === 'number' && e.count > 0);
 }
 
 /** Intel 471 (Titan) IOC block — auto IOC context + on-demand Global Search counts. */
@@ -299,8 +307,10 @@ function Intel471Section({ d, value, type }: { d: Intel471Context; value: string
   const malware = useStore((s) => s.intel471Malware);
   const [gs, setGs] = useState<{ loading: boolean; data?: Intel471Search }>({ loading: false });
   const [mw, setMw] = useState<{ loading: boolean; data?: Intel471Malware } | null>(null);
+  const [openCat, setOpenCat] = useState<string | null>(null);
 
   async function runSearch() {
+    setOpenCat(null);
     setGs({ loading: true });
     setGs({ loading: false, data: await search(value, type) });
   }
@@ -448,12 +458,44 @@ function Intel471Section({ d, value, type }: { d: Intel471Context; value: string
         (gs.data.error ? (
           <div className="detail-note">{gs.data.error}</div>
         ) : counts.length ? (
-          <div className="fv chips">
-            {counts.map(([label, n]) => (
-              <span key={label} className="chip">
-                {label} {n.toLocaleString()}
-              </span>
-            ))}
+          <div className="i471-search-results">
+            <div className="fv chips">
+              {counts.map((c) => {
+                const hasItems = !!c.items && c.items.length > 0;
+                const open = openCat === c.label;
+                return (
+                  <button
+                    key={c.label}
+                    className={`chip${hasItems ? ' chip-btn' : ''}${open ? ' chip-open' : ''}`}
+                    onClick={() => hasItems && setOpenCat(open ? null : c.label)}
+                    disabled={!hasItems}
+                    title={hasItems ? `Show top ${c.label}` : `${c.count} ${c.label} — no preview available`}
+                  >
+                    {c.label} {c.count.toLocaleString()}
+                    {hasItems ? (open ? ' ▾' : ' ▸') : ''}
+                  </button>
+                );
+              })}
+            </div>
+            {(() => {
+              const open = counts.find((c) => c.label === openCat);
+              if (!open?.items?.length) return null;
+              return (
+                <div className="i471-search-items">
+                  {open.items.map((it, i) =>
+                    it.url ? (
+                      <a key={i} className="i471-search-item" href={it.url} target="_blank" rel="noreferrer">
+                        • {it.title} ↗
+                      </a>
+                    ) : (
+                      <div key={i} className="i471-search-item">
+                        • {it.title}
+                      </div>
+                    ),
+                  )}
+                </div>
+              );
+            })()}
           </div>
         ) : (
           <div className="detail-note">No matches across Intel 471 collections.</div>
