@@ -1,7 +1,7 @@
 import { describe, it, expect, vi, afterEach } from 'vitest';
 import type { EnrichEvent } from '@vteeee/shared';
 import { mapIrisEnrich, mapIrisInvestigateReverseIp } from '../domaintoolsFetch';
-import { mapDnslyticsIp, mapDnslyticsDomain } from '../dnslyticsFetch';
+import { mapDnslyticsIp } from '../dnslyticsFetch';
 import { runEnrich } from '../enrich';
 import type { ProxyEnv } from '../types';
 
@@ -51,8 +51,21 @@ const INVESTIGATE = {
   ],
 };
 
-const DNSL_IP = { ip: '8.8.8.8', asn: 15169, org: 'GOOGLE', isp: 'Google LLC', network: '8.8.8.0/24', country: 'US', city: 'Mountain View', hostname: 'dns.google', domains: 1234 };
-const DNSL_DOMAIN = { domain: 'x.com', registrar: 'ENOM', created: '1998-08-02', expires: '2027-08-01', nameservers: ['ns1.x', 'ns2.x'], mx: [{ host: 'mx1.x' }], provider: 'WPEngine', rank: 2417 };
+// Real DNSLytics IPInfo shape: { status, data: { asinfo, shortname, ptr, ndomains, blocklist, geoinfo } }.
+const DNSL_IP = {
+  status: 'succeed',
+  data: {
+    question: '8.8.8.8',
+    typeinfo: 'ipinfo',
+    asinfo: { asn: 15169, cidr: '8.8.8.0/24', shortname: 'GOOGLE' },
+    shortname: 'GOOGLE',
+    ptr: 'dns.google',
+    ndomains: 1234,
+    domains: ['dns.google', 'google-public-dns-a.google.com'],
+    blocklist: { dnsbl: false, openproxy: false, adulthosting: false, mthreats: false },
+    geoinfo: { country_code: 'US', country_name: 'United States' },
+  },
+};
 
 afterEach(() => vi.unstubAllGlobals());
 
@@ -79,20 +92,28 @@ describe('DomainTools mappers', () => {
   });
 });
 
-describe('DNSLytics mappers', () => {
-  it('mapDnslyticsIp reads asn/org/network/reverse/hosted count', () => {
+describe('DNSLytics IPInfo mapper', () => {
+  it('reads nested asinfo/geoinfo/ptr/ndomains from the real schema', () => {
     const c = mapDnslyticsIp(DNSL_IP);
-    expect(c).toMatchObject({ found: true, kind: 'ip', asn: 15169, org: 'GOOGLE', hostname: 'dns.google', domainsOnIp: 1234 });
+    expect(c).toMatchObject({
+      found: true,
+      kind: 'ip',
+      asn: 15169,
+      org: 'GOOGLE',
+      network: '8.8.8.0/24',
+      country: 'United States',
+      hostname: 'dns.google',
+      domainsOnIp: 1234,
+    });
+    expect(c.hostedDomains).toEqual(['dns.google', 'google-public-dns-a.google.com']);
+    expect(c.threat).toBeUndefined(); // all blocklist flags false → no threat
   });
-  it('unwraps a { data: … } envelope', () => {
-    expect(mapDnslyticsIp({ data: DNSL_IP }).asn).toBe(15169);
+  it('summarizes blocklist flags into a threat string', () => {
+    const c = mapDnslyticsIp({ status: 'succeed', data: { blocklist: { dnsbl: true, openproxy: true } } });
+    expect(c.threat).toBe('DNSBL, open proxy');
   });
-  it('mapDnslyticsDomain reads registration/NS/MX/provider/rank', () => {
-    const c = mapDnslyticsDomain(DNSL_DOMAIN);
-    expect(c).toMatchObject({ found: true, kind: 'domain', registrar: 'ENOM', provider: 'WPEngine', popularity: 2417 });
-    expect(c.nameServers).toEqual(['ns1.x', 'ns2.x']);
-    expect(c.mailServers).toEqual(['mx1.x']); // {host} objects normalized to strings
-    expect(c.expires).toBe('2027-08-01');
+  it('accepts the inner object without the { data } envelope', () => {
+    expect(mapDnslyticsIp(DNSL_IP.data).asn).toBe(15169);
   });
 });
 
@@ -103,7 +124,6 @@ function stubFetch() {
       if (url.includes('iris-enrich')) return resp(200, { response: { results: [ENRICH_RESULT] } });
       if (url.includes('iris-investigate')) return resp(200, { response: INVESTIGATE });
       if (url.includes('dnslytics') && url.includes('/ipinfo/')) return resp(200, DNSL_IP);
-      if (url.includes('dnslytics') && url.includes('/domaininfo/')) return resp(200, DNSL_DOMAIN);
       if (url.includes('/ip_addresses/') || url.includes('/domains/') || url.includes('/urls'))
         return resp(200, { data: { attributes: { last_analysis_stats: { harmless: 9 } } } });
       return resp(404, '{}');
@@ -118,7 +138,7 @@ async function collect(indicators: { type: any; value: string; input: string }[]
 }
 
 describe('runEnrich routing by IOC type', () => {
-  it('domains → DomainTools Enrich + DNSLytics domain; IPs → DNSLytics IP + DomainTools reverse', async () => {
+  it('domains → DomainTools Enrich (no DNSLytics); IPs → DNSLytics IP + DomainTools reverse', async () => {
     stubFetch();
     const results = await collect([
       { type: 'domain', value: 'evil.com', input: 'evil.com' },
@@ -127,16 +147,16 @@ describe('runEnrich routing by IOC type', () => {
     const dom = results.find((r) => r.value === 'evil.com');
     const ip = results.find((r) => r.value === '9.9.9.9');
     expect(dom?.domaintools).toMatchObject({ found: true, mode: 'enrich', riskScore: 88 });
-    expect(dom?.dnslytics).toMatchObject({ found: true, kind: 'domain' });
+    expect(dom?.dnslytics).toBeUndefined(); // DNSLytics is IP-only (no domaininfo endpoint)
     expect(ip?.dnslytics).toMatchObject({ found: true, kind: 'ip', asn: 15169 });
     expect(ip?.domaintools).toMatchObject({ found: true, mode: 'reverse-ip' });
   });
 
-  it("treats a URL's host as a domain", async () => {
+  it("treats a URL's host as a domain (DomainTools only)", async () => {
     stubFetch();
     const [r] = await collect([{ type: 'url', value: 'http://evil.com/login', input: 'http://evil.com/login' }]);
     expect(r.domaintools).toMatchObject({ mode: 'enrich', found: true });
-    expect(r.dnslytics).toMatchObject({ kind: 'domain', found: true });
+    expect(r.dnslytics).toBeUndefined();
   });
 
   it('client opt-out (options) skips a provider even when configured', async () => {

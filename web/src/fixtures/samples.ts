@@ -71,6 +71,7 @@ export const FIXTURES: Fixture[] = [
       city: 'Sydney',
       hostname: 'one.one.one.one',
       domainsOnIp: 42817,
+      hostedDomains: ['one.one', 'cloudflare-dns.com', 'workers.dev'],
     },
     domaintools: {
       found: true,
@@ -133,7 +134,8 @@ export const FIXTURES: Fixture[] = [
       city: 'Frankfurt',
       hostname: 'tor-exit-1.example',
       domainsOnIp: 3,
-      threat: 'tor-exit',
+      hostedDomains: ['relay-notice.example'],
+      threat: 'DNSBL',
     },
     domaintools: {
       found: true,
@@ -196,18 +198,6 @@ export const FIXTURES: Fixture[] = [
       websiteTitle: 'Google',
       tags: [],
     },
-    dnslytics: {
-      found: true,
-      kind: 'domain',
-      registrar: 'MarkMonitor Inc.',
-      created: '1997-09-15',
-      updated: '2024-08-01',
-      expires: '2028-09-14',
-      nameServers: ['ns1.google.com', 'ns2.google.com'],
-      mailServers: ['smtp.google.com'],
-      provider: 'Google LLC',
-      popularity: 1,
-    },
   },
   {
     value: 'phishy-malware-example.com',
@@ -251,16 +241,6 @@ export const FIXTURES: Fixture[] = [
       serverType: 'nginx',
       websiteTitle: 'Account verification required',
       tags: ['phishing'],
-    },
-    dnslytics: {
-      found: true,
-      kind: 'domain',
-      registrar: 'NameCheap, Inc.',
-      created: new Date((now - 20 * day) * 1000).toISOString().slice(0, 10),
-      expires: new Date((now + 345 * day) * 1000).toISOString().slice(0, 10),
-      nameServers: ['dns1.registrar-servers.com', 'dns2.registrar-servers.com'],
-      provider: 'Contabo GmbH',
-      threat: 'phishing',
     },
   },
   {

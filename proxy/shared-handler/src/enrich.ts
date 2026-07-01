@@ -168,11 +168,12 @@ export async function* runEnrich(
 
     if (isIp) {
       if (shodanLimiter) result.shodan = await enrichShodan(ind.value);
+      // DNSLytics IPInfo is the verified per-IP endpoint (there is no per-domain "domaininfo" in v1).
       if (dnslLimiter) result.dnslytics = await enrichDnslytics('ip', ind.value);
       if (dtLimiter) result.domaintools = await enrichDomaintools('ip', ind.value);
     } else if (domain) {
+      // Domains are covered by DomainTools Iris Enrich (registration + infra + risk).
       if (dtLimiter) result.domaintools = await enrichDomaintools('domain', domain);
-      if (dnslLimiter) result.dnslytics = await enrichDnslytics('domain', domain);
     }
   }
 

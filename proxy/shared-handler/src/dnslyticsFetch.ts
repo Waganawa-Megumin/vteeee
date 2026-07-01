@@ -46,19 +46,42 @@ function hostList(o: any, keys: string[]): string[] {
   return [];
 }
 
-/** Map a DNSLytics IPInfo payload into our context shape (tolerant to key naming). */
+/** Summarize the DNSLytics `blocklist` flags into a short threat string (undefined when clean). */
+function blocklistSummary(bl: any): string | undefined {
+  if (!bl || typeof bl !== 'object') return undefined;
+  const flags: string[] = [];
+  if (bl.dnsbl) flags.push('DNSBL');
+  if (bl.openproxy) flags.push('open proxy');
+  if (bl.adulthosting) flags.push('adult hosting');
+  if (bl.mthreats) flags.push('malware/threats');
+  return flags.length ? flags.join(', ') : undefined;
+}
+
+/**
+ * Map a DNSLytics IPInfo payload into our context shape. Shape (verified against a real
+ * response): `{ status, data: { asinfo:{asn,cidr,shortname}, shortname, ptr, ndomains,
+ * blocklist:{dnsbl,openproxy,...}, geoinfo:{country_name,country_code} } }`.
+ */
 export function mapDnslyticsIp(json: any): DnslyticsContext {
-  const o = root(json);
+  const o = root(json); // unwraps the { data: … } envelope
+  const as = o?.asinfo ?? {};
+  const geo = o?.geoinfo ?? {};
   const ctx: DnslyticsContext = { found: true, kind: 'ip' };
-  ctx.asn = pickNum(o, ['asn', 'as', 'as_number', 'asnumber']);
-  ctx.org = pickStr(o, ['org', 'as_org', 'asorg', 'asname', 'as_name', 'organization']);
-  ctx.isp = pickStr(o, ['isp']);
-  ctx.network = pickStr(o, ['network', 'prefix', 'cidr', 'route', 'subnet']);
-  ctx.country = pickStr(o, ['country', 'countrycode', 'country_code', 'countryname']);
-  ctx.city = pickStr(o, ['city']);
-  ctx.hostname = pickStr(o, ['hostname', 'reverse', 'ptr', 'rdns', 'host']);
-  ctx.domainsOnIp = pickNum(o, ['domains', 'domainscount', 'numdomains', 'hosted_domains', 'domains_count']);
-  ctx.threat = pickStr(o, ['threat', 'threatlevel', 'blocklist', 'reputation']);
+  ctx.asn = pickNum(as, ['asn']) ?? pickNum(o, ['asn', 'as', 'as_number']);
+  ctx.org = pickStr(o, ['shortname', 'org', 'as_org', 'organization']) ?? pickStr(as, ['shortname']);
+  ctx.network = pickStr(as, ['cidr', 'prefix']) ?? pickStr(o, ['network', 'cidr', 'prefix', 'route']);
+  ctx.country = pickStr(geo, ['country_name', 'country_code']) ?? pickStr(o, ['country', 'countryname', 'country_code']);
+  const city = pickStr(geo, ['city']) ?? pickStr(o, ['city']);
+  if (city) ctx.city = city;
+  const ptr = pickStr(o, ['ptr', 'hostname', 'reverse', 'rdns', 'host']);
+  if (ptr) ctx.hostname = ptr;
+  ctx.domainsOnIp = pickNum(o, ['ndomains', 'domainscount', 'numdomains', 'hosted_domains']);
+  // IPInfo returns a `domains` sample inline — surface it (avoids a separate ReverseIP credit).
+  if (Array.isArray(o?.domains)) {
+    const sample = o.domains.filter((d: any): d is string => typeof d === 'string' && d.length > 0).slice(0, 12);
+    if (sample.length) ctx.hostedDomains = sample;
+  }
+  ctx.threat = blocklistSummary(o?.blocklist) ?? pickStr(o, ['threat', 'threatlevel', 'reputation']);
   const tags = Array.isArray(o?.tags) ? o.tags.filter((t: any) => typeof t === 'string') : [];
   if (tags.length) ctx.tags = tags;
   ctx.raw = o;
@@ -121,6 +144,8 @@ export async function dnslyticsIpInfo(
   const json = await dnslFetch(url, signal);
   if (json?.__error) return { found: false, kind: 'ip', error: json.__error };
   if (json?.__notFound) return { found: false, kind: 'ip' };
+  // DNSLytics wraps results in `{ status: 'succeed', data: … }`.
+  if (json?.status && json.status !== 'succeed') return { found: false, kind: 'ip' };
   return mapDnslyticsIp(json);
 }
 

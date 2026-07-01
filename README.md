@@ -72,10 +72,10 @@ the proxy's `/health`), and each optional one is toggled in **Settings**.
 | **VirusTotal / GTI** | Threat intel (base) | ✅ **required** | `VT_API_KEY` | verdict · detections · reputation · ASN/country · categories · threat label · first/last seen (files/URLs) · GTI verdict/severity/score |
 | **Shodan** | OSINT — IPs | optional | `SHODAN_API_KEY` | open ports · services · known CVEs · org/ISP/OS · hostnames · tags |
 | **DomainTools Iris** | Domain/IP intel | optional | `DOMAINTOOLS_API_USERNAME` + `DOMAINTOOLS_API_KEY` | **domains** (Iris Enrich): risk score+components · WHOIS/RDAP · IP/ASN · NS · MX · SSL · website · first seen · tags. **IPs** (Iris Investigate reverse): domains hosted on the IP |
-| **DNSLytics** | Domain/IP intel | optional | `DNSLYTICS_API_KEY` | **IPs** (IPInfo): ASN · org/ISP · network · reverse DNS · hosted-domain count. **domains** (DomainInfo): registrar · NS · MX · provider · popularity |
+| **DNSLytics** | IP intel | optional | `DNSLYTICS_API_KEY` | **IPs** (IPInfo): ASN · org · network · reverse DNS · hosted-domain count + sample · blocklist (DNSBL / open proxy / …) |
 | **Claude (Anthropic)** | Smart-parse | optional | `ANTHROPIC_API_KEY` | extract IOCs from free-form report prose |
 
-**Enrichment routes by IOC type:** domain → VT + DomainTools (Enrich) + DNSLytics · IP → VT + Shodan + DNSLytics + DomainTools (reverse) · URL → host treated as a domain · hash → VT only. Each optional service toggles independently in **Settings**.
+**Enrichment routes by IOC type:** domain → VT + DomainTools (Enrich) · IP → VT + Shodan + DNSLytics (IPInfo) + DomainTools (reverse) · URL → host treated as a domain · hash → VT only. Each optional service toggles independently in **Settings**.
 
 **Enable an optional service — 3 steps:**
 1. Add the env var above as a **repo secret** (GitHub → Settings → Secrets) or a proxy env var.

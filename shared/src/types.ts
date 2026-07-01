@@ -165,8 +165,10 @@ export interface DnslyticsContext {
   city?: string;
   /** Reverse DNS / PTR host. */
   hostname?: string;
-  /** Domains DNSLytics sees hosted on this IP. */
+  /** Number of domains DNSLytics sees hosted on this IP. */
   domainsOnIp?: number;
+  /** A sample of domains hosted on the IP (IPInfo returns a sample inline; no extra ReverseIP call needed). */
+  hostedDomains?: string[];
   // --- domain ---
   registrar?: string;
   created?: string;

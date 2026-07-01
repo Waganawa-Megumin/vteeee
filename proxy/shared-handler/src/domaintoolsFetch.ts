@@ -79,26 +79,35 @@ export function mapIrisEnrich(r: any): DomainToolsContext {
 /** Map an Iris Investigate reverse-IP response (domains hosted on an IP) into our context shape. */
 export function mapIrisInvestigateReverseIp(resp: any): DomainToolsContext {
   const results: any[] = Array.isArray(resp?.results) ? resp.results : [];
-  const total =
+  // >10,000 matches returns HTTP 200 with response.error.code 413 + limit_exceeded.
+  const limited = resp?.limit_exceeded === true || resp?.error?.code === 413;
+  const totalRaw =
     typeof resp?.total_count === 'number'
       ? resp.total_count
       : typeof resp?.results_count === 'number'
         ? resp.results_count
         : results.length;
+  const total = limited && !totalRaw ? 10000 : totalRaw;
   const sample = results
     .map((r) => ({
       domain: typeof r?.domain === 'string' ? r.domain : String(val(r?.domain) ?? ''),
-      riskScore: typeof r?.domain_risk?.risk_score === 'number' ? r.domain_risk.risk_score : undefined,
+      // Risk can be top-level (risk_score) or nested (domain_risk.risk_score).
+      riskScore:
+        typeof r?.domain_risk?.risk_score === 'number'
+          ? r.domain_risk.risk_score
+          : typeof r?.risk_score === 'number'
+            ? r.risk_score
+            : undefined,
     }))
     .filter((d) => d.domain)
     .sort((a, b) => (b.riskScore ?? -1) - (a.riskScore ?? -1))
     .slice(0, 12);
   return {
-    found: total > 0,
+    found: total > 0 || limited,
     mode: 'reverse-ip',
     hostedDomainCount: total,
     sampleDomains: sample.length ? sample : undefined,
-    raw: { total_count: total, results_count: resp?.results_count, sample },
+    raw: { total_count: total, results_count: resp?.results_count, limited, sample },
   };
 }
 

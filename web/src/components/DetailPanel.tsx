@@ -226,6 +226,18 @@ function DnslyticsSection({ d }: { d: DnslyticsContext }) {
           <Field k="Location" v={[d.city, d.country].filter(Boolean).join(', ') || undefined} />
           <Field k="Reverse DNS" v={d.hostname} mono />
           <Field k="Domains on IP" v={d.domainsOnIp != null ? d.domainsOnIp.toLocaleString() : undefined} />
+          {d.hostedDomains && d.hostedDomains.length > 0 && (
+            <div className="field">
+              <div className="fk">Hosted domains</div>
+              <div className="fv chips">
+                {d.hostedDomains.map((dm) => (
+                  <span key={dm} className="chip mono">
+                    {dm}
+                  </span>
+                ))}
+              </div>
+            </div>
+          )}
           <Field k="Threat" v={d.threat} />
         </div>
       ) : (
