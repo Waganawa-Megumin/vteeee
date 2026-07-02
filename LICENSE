@@ -1,21 +1,42 @@
-MIT License
+Copyright © 2026 Waganawa-Megumin. All rights reserved.
 
-Copyright (c) 2026 Waganawa-Megumin
+This project ("vteeee", the "Software") is the personal property of the
+copyright holder. It is published for viewing convenience only and is NOT
+open-source software. No license — express or implied — is granted, and no
+rights are transferred, by making the source visible.
 
-Permission is hereby granted, free of charge, to any person obtaining a copy
-of this software and associated documentation files (the "Software"), to deal
-in the Software without restriction, including without limitation the rights
-to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
-copies of the Software, and to permit persons to whom the Software is
-furnished to do so, subject to the following conditions:
+Without the copyright holder's prior written permission you may NOT:
+  - use, run, host, or deploy the Software or any instance of it;
+  - copy, reproduce, download, or store the Software or its source, in whole
+    or in part, beyond the transient copy your browser/tools make to view it;
+  - modify, adapt, translate, or create derivative works;
+  - distribute, publish, sublicense, sell, or otherwise make it available; or
+  - remove, obscure, or alter this notice.
 
-The above copyright notice and this permission notice shall be included in all
-copies or substantial portions of the Software.
+Reservation against AI/ML and text-and-data-mining (TDM)
+--------------------------------------------------------
+The copyright holder expressly RESERVES all rights and does NOT consent to the
+Software, its source code, this repository, or the hosted site being collected,
+scraped, or used — in whole or in part — as input for training, fine-tuning, or
+evaluating machine-learning or artificial-intelligence models, or for any other
+text-and-data-mining. This is a machine-readable reservation of rights within
+the meaning of Article 4(3) of EU Directive (EU) 2019/790, reinforced by the
+robots.txt, the `noai` / `noimageai` / `tdm-reservation` meta tags, and the
+`/.well-known/tdmrep.json` shipped with the site.
+
+Third parties
+-------------
+No trademark, patent, or other right is granted. Third-party components retain
+their own licenses. Threat-intelligence data returned through the tool
+(VirusTotal, Shodan, DomainTools, DNSLytics, Intel 471, CYFIRMA, and any other
+provider) belongs to the respective providers and remains subject to their
+terms; nothing here grants rights to that data.
+
+To request permission for any use, contact the copyright holder.
 
 THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
 IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
 FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
-AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
-LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
-OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
-SOFTWARE.
+COPYRIGHT HOLDER BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER
+IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN
+CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.

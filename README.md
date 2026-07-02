@@ -10,7 +10,8 @@
   <img alt="Cloudflare Workers" src="https://img.shields.io/badge/proxy-Cloudflare%20Workers-f38020?style=flat&labelColor=1f2a24" />
   <img alt="VirusTotal / GTI" src="https://img.shields.io/badge/enrichment-VirusTotal%20%2F%20GTI-394eff?style=flat&labelColor=1f2a24" />
   <img alt="Shodan OSINT" src="https://img.shields.io/badge/OSINT-Shodan-c4302b?style=flat&labelColor=1f2a24" />
-  <a href="LICENSE"><img alt="License: MIT" src="https://img.shields.io/badge/license-MIT-74d3b1?style=flat&labelColor=1f2a24" /></a>
+  <a href="LICENSE"><img alt="License: Proprietary — all rights reserved" src="https://img.shields.io/badge/license-proprietary-cf3552?style=flat&labelColor=1f2a24" /></a>
+  <img alt="No AI training" src="https://img.shields.io/badge/AI%20training-reserved%2Fno-cf3552?style=flat&labelColor=1f2a24" />
   <a href="https://ko-fi.com/shonanboyeah"><img alt="Ko-fi" src="https://img.shields.io/badge/Ko--fi-support-ff5e5b?style=flat&logo=ko-fi&logoColor=white&labelColor=1f2a24" /></a>
 </p>
 
@@ -196,9 +197,9 @@ If vteeee saves you triage time, you can support development on **[Ko-fi](https:
 役に立ったら **[Ko-fi](https://ko-fi.com/shonanboyeah)**
 ## License &amp; AI use
 
-**Code: [MIT](./LICENSE).** © 2026 Waganawa-Megumin. You're welcome to read, run, fork and build on it — just keep the copyright notice.
+**Proprietary — all rights reserved. © 2026 Waganawa-Megumin.** This is **personal property**, published for viewing only; it is **not** open source. No license is granted: without written permission you may not use, run, host, copy, modify, or redistribute it. See [`LICENSE`](./LICENSE).
 
-**Reserved: AI/LLM training &amp; text-and-data-mining (TDM).** Permissive reuse of the *code* is fine, but the author does **not** consent to this repository or the hosted site being ingested for AI/ML model training or TDM. It's declared in a machine-readable way (a legally meaningful opt-out under the EU TDM regime, and honoured by many crawlers):
+**Reserved: AI/LLM training &amp; text-and-data-mining (TDM).** The author does **not** consent to this repository or the hosted site being ingested for AI/ML model training, fine-tuning, evaluation, or TDM. It's declared in a machine-readable way (a legally meaningful reservation under the EU TDM regime, and honoured by many crawlers):
 
 - [`web/public/robots.txt`](./web/public/robots.txt) — disallows GPTBot, Google-Extended, ClaudeBot / anthropic-ai, CCBot, PerplexityBot, Bytespider and other training crawlers.
 - `<meta name="robots" content="noai, noimageai">` + `<meta name="tdm-reservation" content="1">` on every page.
