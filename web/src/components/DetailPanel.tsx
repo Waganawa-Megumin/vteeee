@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useRef, useState } from 'react';
 import type {
   CyfirmaContext,
   CyfirmaRelated,
@@ -18,6 +18,7 @@ import type {
 import { useStore } from '../state/store';
 import { GtiBadge, VerdictBadge } from './Badges';
 import { detectionRatio } from '../lib/verdict';
+import { resultToText } from '../lib/detailText';
 
 function Field({ k, v, mono }: { k: string; v?: string; mono?: boolean }) {
   if (!v) return null;
@@ -799,12 +800,57 @@ export function DetailPanel() {
   const selected = useStore((s) => s.selected);
   const results = useStore((s) => s.results);
   const select = useStore((s) => s.select);
+  const panelRef = useRef<HTMLElement>(null);
+  const [copied, setCopied] = useState<'text' | 'image' | 'err' | null>(null);
+  const [busy, setBusy] = useState(false);
   const r = selected ? results[selected] : null;
+
+  function flash(kind: 'text' | 'image' | 'err'): void {
+    setCopied(kind);
+    setTimeout(() => setCopied((c) => (c === kind ? null : c)), 1600);
+  }
+
+  async function copyText(): Promise<void> {
+    if (!r) return;
+    try {
+      await navigator.clipboard.writeText(resultToText(r));
+      flash('text');
+    } catch {
+      flash('err');
+    }
+  }
+
+  async function copyImage(): Promise<void> {
+    const node = panelRef.current;
+    if (!node || busy) return;
+    setBusy(true);
+    try {
+      const { toBlob } = await import('html-to-image');
+      const bg = getComputedStyle(node).backgroundColor || '#2b3f37';
+      const blob = await toBlob(node, {
+        backgroundColor: bg,
+        pixelRatio: 2,
+        // Capture the full scroll height, not just the visible viewport of the panel.
+        height: node.scrollHeight,
+        style: { maxHeight: 'none', overflow: 'visible' },
+        // Skip the action buttons (and anything else opted out) in the image.
+        filter: (el) => !(el instanceof HTMLElement && el.dataset.noimage === 'true'),
+      });
+      if (!blob) throw new Error('no blob');
+      await navigator.clipboard.write([new ClipboardItem({ 'image/png': blob })]);
+      flash('image');
+    } catch {
+      flash('err');
+    } finally {
+      setBusy(false);
+    }
+  }
+
   if (!r) return null;
 
   return (
     <div className="detail-overlay" onClick={() => select(null)}>
-      <aside className="detail-panel" onClick={(e) => e.stopPropagation()}>
+      <aside className="detail-panel" ref={panelRef} onClick={(e) => e.stopPropagation()}>
         <div className="detail-head">
           <div>
             <div className="detail-title mono">{r.value}</div>
@@ -813,9 +859,26 @@ export function DetailPanel() {
               <VerdictBadge verdict={r.verdict} status={r.status} /> <GtiBadge r={r} />
             </div>
           </div>
-          <button className="btn btn-ghost" onClick={() => select(null)}>
-            ✕
-          </button>
+          <div className="detail-actions" data-noimage="true">
+            <button
+              className="btn btn-sm btn-ghost"
+              onClick={copyText}
+              title="Copy the whole detail as text"
+            >
+              {copied === 'text' ? '✓ Copied' : copied === 'err' ? '⚠ Failed' : 'Copy text'}
+            </button>
+            <button
+              className="btn btn-sm btn-ghost"
+              onClick={copyImage}
+              disabled={busy}
+              title="Copy the whole detail as an image"
+            >
+              {busy ? '…' : copied === 'image' ? '✓ Copied' : 'Copy image'}
+            </button>
+            <button className="btn btn-ghost" onClick={() => select(null)} title="Close">
+              ✕
+            </button>
+          </div>
         </div>
 
         {r.status !== 'success' && (
@@ -918,6 +981,12 @@ export function DetailPanel() {
           {r.links.apiId && <Field k="VT URL id (base64)" v={r.links.apiId} mono />}
         </div>
 
+        {/* VT call-to-action stays with the VirusTotal data at the top — the enrichment
+            sections below can grow long, so the button must not sink to the bottom. */}
+        <a className="btn btn-primary detail-vt" href={r.links.gui} target="_blank" rel="noreferrer">
+          Open in VirusTotal ↗
+        </a>
+
         {r.shodan && <ShodanSection s={r.shodan} ip={r.value} />}
         {r.domaintools && <DomainToolsSection d={r.domaintools} />}
         {r.dnslytics && <DnslyticsSection d={r.dnslytics} />}
@@ -926,10 +995,6 @@ export function DetailPanel() {
         )}
         {r.cyfirma && <CyfirmaSection d={r.cyfirma} />}
         {r.threatvision && <ThreatVisionSection d={r.threatvision} />}
-
-        <a className="btn btn-primary detail-vt" href={r.links.gui} target="_blank" rel="noreferrer">
-          Open in VirusTotal ↗
-        </a>
 
         {r.raw != null && (
           <details className="raw">

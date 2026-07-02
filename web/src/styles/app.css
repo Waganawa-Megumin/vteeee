@@ -703,7 +703,15 @@ textarea:focus {
 .detail-head {
   display: flex;
   justify-content: space-between;
+  align-items: flex-start;
   gap: 12px;
+}
+.detail-actions {
+  display: flex;
+  gap: 6px;
+  flex: none;
+  flex-wrap: wrap;
+  justify-content: flex-end;
 }
 .detail-title {
   font-size: 15px;
@@ -742,6 +750,7 @@ textarea:focus {
 .detail-vt {
   text-align: center;
   text-decoration: none;
+  margin: 8px 0 2px;
 }
 .raw summary {
   cursor: pointer;
