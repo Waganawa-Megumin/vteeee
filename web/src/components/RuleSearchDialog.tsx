@@ -5,6 +5,7 @@ import { SIEM_FORMATS } from '../lib/siemFormats';
 import { RuleCard } from './RuleCard';
 
 const LEVELS = ['', 'low', 'medium', 'high', 'critical'];
+const SIGMA_TYPES = ['', 'IOC Sigma', 'Threat Hunting Sigma', 'Compliance'];
 
 /**
  * SOC Prime detection-rule search — find Sigma rules by free text / ATT&CK actor / tool / technique /
@@ -29,6 +30,7 @@ export function RuleSearchDialog({
   const [tool, setTool] = useState(prefillTool ?? '');
   const [techniqueId, setTechniqueId] = useState('');
   const [level, setLevel] = useState('');
+  const [sigmaType, setSigmaType] = useState('');
   const [page, setPage] = useState(1);
   const [state, setState] = useState<{ loading: boolean; data?: SocPrimeRuleSearchResult }>({ loading: false });
 
@@ -42,6 +44,7 @@ export function RuleSearchDialog({
       tool: tool.trim() || undefined,
       techniqueId: techniqueId.trim() || undefined,
       sigmaLevel: level || undefined,
+      sigmaType: sigmaType || undefined,
       pageSize: 25,
       pageNumber,
     };
@@ -49,7 +52,9 @@ export function RuleSearchDialog({
   }
 
   const rules = state.data?.rules ?? [];
-  const canSearch = Boolean(query.trim() || actor.trim() || tool.trim() || techniqueId.trim() || level);
+  const canSearch = Boolean(
+    query.trim() || actor.trim() || tool.trim() || techniqueId.trim() || level || sigmaType,
+  );
 
   return (
     <div className="modal-overlay" onClick={onClose}>
@@ -112,6 +117,19 @@ export function RuleSearchDialog({
                 ))}
               </select>
             </label>
+          </div>
+          <div className="fld-row">
+            <label className="fld">
+              <span className="fld-label">Sigma type</span>
+              <select value={sigmaType} onChange={(e) => setSigmaType(e.target.value)}>
+                {SIGMA_TYPES.map((t) => (
+                  <option key={t} value={t}>
+                    {t || 'any'}
+                  </option>
+                ))}
+              </select>
+            </label>
+            <div className="fld" />
           </div>
 
           <div className="siem-actions">

@@ -831,7 +831,10 @@ function SocPrimeSection({ r }: { r: NormalizedResult }) {
     const params =
       mode === 'threat' && (tool || actor)
         ? { siemType: siem, tool, actor, pageSize: 5 }
-        : { siemType: siem, query: `"${basis}"`, pageSize: 5 };
+        : mode === 'ioc'
+          ? // Search the rule body specifically — "is this exact IOC already covered by a rule?"
+            { siemType: siem, query: `sigma.text: "${r.value}"`, pageSize: 5 }
+          : { siemType: siem, query: `"${basis}"`, pageSize: 5 };
     setRules({ loading: false, mode, basis, data: await searchRules(params) });
   }
 

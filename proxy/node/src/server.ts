@@ -249,6 +249,7 @@ app.post('/api/socprime/rules', async (req, res) => {
         tool: req.body?.tool,
         techniqueId: req.body?.techniqueId,
         sigmaLevel: req.body?.sigmaLevel,
+        sigmaType: req.body?.sigmaType,
         pageSize: req.body?.pageSize,
         pageNumber: req.body?.pageNumber,
       },

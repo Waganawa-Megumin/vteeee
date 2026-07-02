@@ -260,6 +260,7 @@ export default {
           tool?: string;
           techniqueId?: string;
           sigmaLevel?: string;
+          sigmaType?: string;
           pageSize?: number;
           pageNumber?: number;
         };
@@ -273,6 +274,7 @@ export default {
               tool: p.tool,
               techniqueId: p.techniqueId,
               sigmaLevel: p.sigmaLevel,
+              sigmaType: p.sigmaType,
               pageSize: p.pageSize,
               pageNumber: p.pageNumber,
             },

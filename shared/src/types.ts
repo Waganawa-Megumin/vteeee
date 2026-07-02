@@ -499,6 +499,8 @@ export interface SocPrimeRuleSearchParams {
   techniqueId?: string;
   /** Severity: low / medium / high / critical (sigma_level). */
   sigmaLevel?: string;
+  /** Sigma type: "IOC Sigma" / "Threat Hunting Sigma" / "Compliance" (client_sigma_type). */
+  sigmaType?: string;
   /** Results per page (max 50). */
   pageSize?: number;
   /** 1-based page number. */

@@ -214,6 +214,7 @@ export async function socprimeSearchRules(
   if (params.tool) headers.client_tags_tool = params.tool;
   if (params.techniqueId) headers.tags_technique_id = params.techniqueId;
   if (params.sigmaLevel) headers.sigma_level = params.sigmaLevel;
+  if (params.sigmaType) headers.client_sigma_type = params.sigmaType;
   headers.page_size = String(Math.min(Math.max(params.pageSize ?? 25, 1), 50));
   if (params.pageNumber && params.pageNumber > 1) headers.page_number = String(params.pageNumber);
 
