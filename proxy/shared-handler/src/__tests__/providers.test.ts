@@ -10,6 +10,7 @@ import {
   mapIntel471Family,
 } from '../intel471Fetch';
 import { mapRiskDossier, mapStixSearch, mapThreatActor } from '../cyfirmaFetch';
+import { mapTvIp, mapTvDomain, mapTvSample, mapTvAdversary } from '../threatvisionFetch';
 import { runEnrich } from '../enrich';
 import type { ProxyEnv } from '../types';
 
@@ -25,6 +26,9 @@ const env: ProxyEnv = {
   intel471Rpm: 600,
   cyfirmaApiKey: 'c',
   cyfirmaRpm: 600,
+  threatvisionClientId: 'tv-id',
+  threatvisionClientSecret: 'tv-sec',
+  threatvisionRpm: 600,
   allowedOrigins: ['*'],
   defaultRpm: 600,
   maxRpm: 1000,
@@ -297,6 +301,72 @@ const CYF_ACTOR = [
   },
 ];
 
+// TeamT5 ThreatVision — IP detail (§6.3), domain detail (§7.3), samples search (§3.4b), adversary (§12.4).
+const TV_IP = {
+  success: true,
+  id: '167.179.85.233',
+  analysis_status: true,
+  risk_level: 'medium',
+  risk_score: 70,
+  risk_types: ['ce'],
+  adversaries: ['Amoeba'],
+  attributes: [{ name: 'Malware C2', first_seen: '2023-12-19T05:37:32.633Z', last_seen: '2023-12-19T05:37:32.633Z' }],
+  ip_sharing: [{ name: 'Hosting', first_seen: '2023-12-27T11:13:49.394Z', last_seen: '2023-12-27T11:13:49.394Z' }],
+  services: [],
+  country: 'Japan',
+  city: 'Ōi',
+  region: 'Saitama',
+  last_update_at: '2023-12-27T11:13:54.578Z',
+  summary: { whois: true, related_adversaries: 1, related_reports: 6, related_samples: 1, dns_records: 7, osint: 0 },
+};
+
+const TV_DOMAIN = {
+  success: true,
+  id: 'lomeptos.com',
+  analysis_status: true,
+  risk_level: 'high',
+  risk_score: 75,
+  adversaries: [],
+  attributes: [],
+  services: [],
+  registrar: 'OwnRegistrar, Inc.',
+  last_update_at: '2023-12-27T11:19:27.727Z',
+  summary: { whois: true, related_adversaries: 0, related_reports: 0, related_samples: 0, dns_records: 41, osint: 1 },
+};
+
+const TV_SAMPLE_SEARCH = {
+  success: true,
+  samples: [
+    {
+      sha256: 'b4e11a083c5dc3b69d0866f80193d10e96dbe611961f5f108cbe78dc8c93c2be',
+      md5: 'f233991c8b0da42504e1af7e859bf292',
+      size: 46592,
+      first_seen: 1632405027,
+      adversaries: ['Huapi'],
+      malwares: ['Bifrost'],
+      filename: 'f233991c8b0da42504e1af7e859bf292.virus',
+      risk_level: 'high',
+      has_network_activity: false,
+      url: 'https://api.threatvision.org/api/v2/samples/b4e11a083c5dc3b69d0866f80193d10e96dbe611961f5f108cbe78dc8c93c2be',
+    },
+  ],
+};
+
+const TV_ADVERSARY = {
+  success: true,
+  adversaries: [
+    {
+      name: 'Polaris',
+      aliases: ['Mustang Panda', 'HoneyMyte', 'Earth Preta'],
+      origin_countries: ['China'],
+      targeted_countries: ['South Korea', 'Japan', null, 'Taiwan'],
+      targeted_industries: ['Media', 'Government'],
+      overview: 'The Polaris group has been active since at least 2011.',
+      last_updated_at: 1695916800,
+    },
+  ],
+};
+
 afterEach(() => vi.unstubAllGlobals());
 
 describe('DomainTools mappers', () => {
@@ -495,6 +565,46 @@ describe('CYFIRMA mappers', () => {
   });
 });
 
+describe('ThreatVision mappers', () => {
+  it('mapTvIp maps risk, adversaries, attributes (+ ip_sharing), geo and summary counts', () => {
+    const c = mapTvIp(TV_IP);
+    expect(c).toMatchObject({ found: true, kind: 'ip', riskLevel: 'medium', riskScore: 70, country: 'Japan' });
+    expect(c.riskTypes).toEqual(['ce']);
+    expect(c.adversaries).toEqual(['Amoeba']);
+    expect(c.attributes).toEqual(['Malware C2', 'Hosting']); // attributes[].name + ip_sharing[].name
+    expect(c.relatedReports).toBe(6);
+    expect(c.dnsRecords).toBe(7);
+  });
+  it('mapTvIp returns found:false when the IP is not yet analyzed', () => {
+    expect(mapTvIp({ success: true, analysis_status: false, message: 'Analyzing' })).toMatchObject({
+      found: false,
+      kind: 'ip',
+    });
+  });
+  it('mapTvDomain maps risk + registrar (no geo) + summary', () => {
+    const c = mapTvDomain(TV_DOMAIN);
+    expect(c).toMatchObject({ found: true, kind: 'domain', riskLevel: 'high', riskScore: 75, registrar: 'OwnRegistrar, Inc.' });
+    expect(c.dnsRecords).toBe(41);
+  });
+  it('mapTvSample picks the matching sample → risk + adversary + malware family (0 AAP path)', () => {
+    const c = mapTvSample(TV_SAMPLE_SEARCH, 'b4e11a083c5dc3b69d0866f80193d10e96dbe611961f5f108cbe78dc8c93c2be');
+    expect(c).toMatchObject({ found: true, kind: 'sample', riskLevel: 'high', md5: 'f233991c8b0da42504e1af7e859bf292' });
+    expect(c.adversaries).toEqual(['Huapi']);
+    expect(c.malwareFamilies).toEqual(['Bifrost']);
+    expect(c.hasNetworkActivity).toBe(false);
+    expect(c.firstSeen).toBe(new Date(1632405027 * 1000).toISOString());
+  });
+  it('mapTvAdversary maps aliases/origin/targets, dropping nulls from targeted_countries', () => {
+    const a = mapTvAdversary(TV_ADVERSARY);
+    expect(a.name).toBe('Polaris');
+    expect(a.aliases).toContain('Mustang Panda');
+    expect(a.originCountries).toEqual(['China']);
+    expect(a.targetedCountries).toEqual(['South Korea', 'Japan', 'Taiwan']); // null filtered out
+    expect(a.targetedIndustries).toEqual(['Media', 'Government']);
+    expect(a.overview).toContain('Polaris');
+  });
+});
+
 function stubFetch() {
   vi.stubGlobal(
     'fetch',
@@ -509,6 +619,12 @@ function stubFetch() {
       if (url.includes('decyfir') && url.includes('/risk-dossier')) return resp(200, CYF_DOSSIER);
       if (url.includes('decyfir') && url.includes('/threatioc/stix/v2.1/search')) return resp(200, CYF_STIX);
       if (url.includes('decyfir') && url.includes('/threatactor')) return resp(200, CYF_ACTOR);
+      // ThreatVision (before the VT catch-all: its domain path also contains "/domains/").
+      if (url.includes('threatvision.org') && url.includes('/oauth/token')) return resp(200, { access_token: 'tv-tok', expires_in: 3600 });
+      if (url.includes('threatvision.org') && url.includes('/network/ips/')) return resp(200, TV_IP);
+      if (url.includes('threatvision.org') && url.includes('/network/domains/')) return resp(200, TV_DOMAIN);
+      if (url.includes('threatvision.org') && url.includes('/samples/search')) return resp(200, TV_SAMPLE_SEARCH);
+      if (url.includes('threatvision.org') && url.includes('/adversaries/search')) return resp(200, TV_ADVERSARY);
       if (url.includes('/ip_addresses/') || url.includes('/domains/') || url.includes('/urls'))
         return resp(200, { data: { attributes: { last_analysis_stats: { harmless: 9 } } } });
       return resp(404, '{}');
@@ -546,6 +662,24 @@ describe('runEnrich routing by IOC type', () => {
     expect(dom?.cyfirma?.threatActors).toContain('Emissary Panda'); // harvested from dossier spans
     expect(dom?.cyfirma?.malware).toContain('Poison Ivy'); // from STIX search
     expect(ip?.cyfirma?.found).toBe(true);
+    // ThreatVision: IPs → ips detail (1 AAP), domains → domains detail (1 AAP).
+    expect(ip?.threatvision).toMatchObject({ found: true, kind: 'ip', riskLevel: 'medium' });
+    expect(ip?.threatvision?.adversaries).toEqual(['Amoeba']);
+    expect(dom?.threatvision).toMatchObject({ found: true, kind: 'domain', registrar: 'OwnRegistrar, Inc.' });
+  });
+
+  it('hashes → ThreatVision sample attribution (adversary + malware family) via search', async () => {
+    stubFetch();
+    const [r] = await collect([
+      {
+        type: 'sha256',
+        value: 'b4e11a083c5dc3b69d0866f80193d10e96dbe611961f5f108cbe78dc8c93c2be',
+        input: 'b4e11a083c5dc3b69d0866f80193d10e96dbe611961f5f108cbe78dc8c93c2be',
+      },
+    ]);
+    expect(r.threatvision).toMatchObject({ found: true, kind: 'sample', riskLevel: 'high' });
+    expect(r.threatvision?.adversaries).toEqual(['Huapi']);
+    expect(r.threatvision?.malwareFamilies).toEqual(['Bifrost']);
   });
 
   it("treats a URL's host as a domain", async () => {
@@ -573,10 +707,11 @@ describe('runEnrich routing by IOC type', () => {
     stubFetch();
     const [r] = await collect(
       [{ type: 'domain', value: 'evil.com', input: 'evil.com' }],
-      { domaintools: false, dnslytics: false, cyfirma: false },
+      { domaintools: false, dnslytics: false, cyfirma: false, threatvision: false },
     );
     expect(r.domaintools).toBeUndefined();
     expect(r.dnslytics).toBeUndefined();
     expect(r.cyfirma).toBeUndefined();
+    expect(r.threatvision).toBeUndefined();
   });
 });

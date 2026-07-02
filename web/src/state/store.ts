@@ -13,6 +13,7 @@ import {
   type ParsedIndicator,
   type ProxyHealth,
   type Session,
+  type ThreatVisionAdversary,
   type UserRecord,
 } from '@vteeee/shared';
 import { loadSettings, loadUsers, resolveMode, saveSettings, saveUsers, type Mode } from '../config';
@@ -71,6 +72,7 @@ interface State {
   intel471Search: (ioc: string, type: EnrichableType) => Promise<Intel471Search>;
   intel471Malware: (uid: string, family?: string) => Promise<Intel471Malware>;
   cyfirmaSearch: (name: string) => Promise<CyfirmaSearch>;
+  threatvisionAdversary: (name: string) => Promise<ThreatVisionAdversary>;
 }
 
 function defaultIncludes(parsed: ParsedIndicator[]): Record<string, boolean> {
@@ -83,7 +85,7 @@ export const useStore = create<State>((set, get) => ({
   booted: false,
   session: null,
   users: [],
-  settings: { proxyBaseUrl: null, rpm: 4, concurrency: 1, gti: false, submitUnknown: false, shodan: true, domaintools: true, dnslytics: true, intel471: true, cyfirma: true },
+  settings: { proxyBaseUrl: null, rpm: 4, concurrency: 1, gti: false, submitUnknown: false, shodan: true, domaintools: true, dnslytics: true, intel471: true, cyfirma: true, threatvision: true },
   mode: 'demo',
   health: null,
 
@@ -202,6 +204,7 @@ export const useStore = create<State>((set, get) => ({
       dnslytics: settings.dnslytics ?? true,
       intel471: settings.intel471 ?? true,
       cyfirma: settings.cyfirma ?? true,
+      threatvision: settings.threatvision ?? true,
     };
     set({
       running: true,
@@ -298,7 +301,7 @@ export const useStore = create<State>((set, get) => ({
     try {
       const res = await fetch(`${base}/health`, { cache: 'no-store' });
       if (!res.ok) {
-        set({ health: { ok: false, vtKey: false, claude: false, shodan: false, domaintools: false, dnslytics: false, intel471: false, cyfirma: false } });
+        set({ health: { ok: false, vtKey: false, claude: false, shodan: false, domaintools: false, dnslytics: false, intel471: false, cyfirma: false, threatvision: false } });
         return;
       }
       const h = (await res.json()) as Partial<ProxyHealth>;
@@ -312,10 +315,11 @@ export const useStore = create<State>((set, get) => ({
           dnslytics: Boolean(h.dnslytics),
           intel471: Boolean(h.intel471),
           cyfirma: Boolean(h.cyfirma),
+          threatvision: Boolean(h.threatvision),
         },
       });
     } catch {
-      set({ health: { ok: false, vtKey: false, claude: false, shodan: false, domaintools: false, dnslytics: false, intel471: false, cyfirma: false } });
+      set({ health: { ok: false, vtKey: false, claude: false, shodan: false, domaintools: false, dnslytics: false, intel471: false, cyfirma: false, threatvision: false } });
     }
   },
 
@@ -341,6 +345,15 @@ export const useStore = create<State>((set, get) => ({
     try {
       const client = await makeClient(get().settings);
       return await client.cyfirmaSearch(name);
+    } catch (e) {
+      return { error: (e as Error).message };
+    }
+  },
+
+  async threatvisionAdversary(name) {
+    try {
+      const client = await makeClient(get().settings);
+      return await client.threatvisionAdversary(name);
     } catch (e) {
       return { error: (e as Error).message };
     }

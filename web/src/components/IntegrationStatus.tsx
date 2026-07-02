@@ -101,6 +101,17 @@ export function IntegrationStatus({ onManage }: { onManage: () => void }) {
             }
           />
           <Chip
+            label="ThreatVision"
+            on={Boolean(health?.threatvision) && settings.threatvision !== false}
+            title={
+              health?.threatvision
+                ? settings.threatvision !== false
+                  ? 'TeamT5 ThreatVision active — APT attribution (IP/domain = 1 AAP each, hash = 0 AAP)'
+                  : 'ThreatVision creds present, but turned OFF in Settings'
+                : 'Optional — no THREATVISION credentials on the proxy'
+            }
+          />
+          <Chip
             label="Claude"
             on={Boolean(health?.claude)}
             title={health?.claude ? 'Claude smart-parse available' : 'Optional — no ANTHROPIC_API_KEY on the proxy'}

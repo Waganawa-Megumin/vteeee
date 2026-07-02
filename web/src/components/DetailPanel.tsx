@@ -12,6 +12,8 @@ import type {
   Intel471SearchItem,
   ShodanContext,
   ShodanService,
+  ThreatVisionAdversary,
+  ThreatVisionContext,
 } from '@vteeee/shared';
 import { useStore } from '../state/store';
 import { GtiBadge, VerdictBadge } from './Badges';
@@ -666,6 +668,133 @@ function CyfirmaSection({ d }: { d: CyfirmaContext }) {
   );
 }
 
+/**
+ * TeamT5 ThreatVision block — APT-attribution CTI. Risk + adversary groups (clickable → on-demand
+ * APT profile with origin/targeting), malware families (samples), attributes (Malware C2 / Hosting),
+ * geo/registrar and related-intel counts.
+ */
+function ThreatVisionSection({ d }: { d: ThreatVisionContext }) {
+  const lookup = useStore((s) => s.threatvisionAdversary);
+  const [adv, setAdv] = useState<{ name: string; loading: boolean; data?: ThreatVisionAdversary } | null>(null);
+
+  async function runAdv(name: string) {
+    setAdv({ name, loading: true });
+    setAdv({ name, loading: false, data: await lookup(name) });
+  }
+
+  const risk =
+    [d.riskLevel, d.riskScore != null ? `score ${d.riskScore}` : ''].filter(Boolean).join(' · ') || undefined;
+  const summary =
+    [
+      d.relatedReports ? `${d.relatedReports} reports` : '',
+      d.relatedSamples ? `${d.relatedSamples} samples` : '',
+      d.relatedAdversaries ? `${d.relatedAdversaries} adversaries` : '',
+      d.dnsRecords ? `${d.dnsRecords} DNS` : '',
+      d.osint ? `${d.osint} OSINT` : '',
+    ]
+      .filter(Boolean)
+      .join(' · ') || undefined;
+
+  return (
+    <div className="shodan-block">
+      <div className="shodan-head">
+        <span className="shodan-logo" aria-hidden>
+          🔭
+        </span>
+        ThreatVision · TeamT5
+        {d.found && d.riskLevel && <span className="shodan-when">{d.riskLevel} risk</span>}
+      </div>
+
+      {!d.found ? (
+        <div className="detail-note">{d.error ?? 'No ThreatVision record for this indicator.'}</div>
+      ) : (
+        <div className="detail-grid">
+          <Field k="Risk" v={risk} />
+          <Field k="Risk types" v={d.riskTypes && d.riskTypes.length ? d.riskTypes.join(', ') : undefined} />
+          {d.adversaries && d.adversaries.length > 0 && (
+            <div className="field">
+              <div className="fk">Adversaries</div>
+              <div className="fv chips">
+                {d.adversaries.map((a) => (
+                  <button
+                    key={a}
+                    className="chip chip-btn"
+                    onClick={() => runAdv(a)}
+                    title={`ThreatVision APT profile — ${a}: aliases, origin, targets`}
+                  >
+                    🔎 {a}
+                  </button>
+                ))}
+              </div>
+            </div>
+          )}
+          {d.malwareFamilies && d.malwareFamilies.length > 0 && (
+            <div className="field">
+              <div className="fk">Malware</div>
+              <div className="fv chips">
+                {d.malwareFamilies.map((m) => (
+                  <span key={m} className="chip shodan-vuln">
+                    {m}
+                  </span>
+                ))}
+              </div>
+            </div>
+          )}
+          {d.attributes && d.attributes.length > 0 && (
+            <div className="field">
+              <div className="fk">Attributes</div>
+              <div className="fv chips">
+                {d.attributes.map((a) => (
+                  <span key={a} className="chip">
+                    {a}
+                  </span>
+                ))}
+              </div>
+            </div>
+          )}
+          <Field k="Location" v={[d.city, d.region, d.country].filter(Boolean).join(', ') || undefined} />
+          <Field k="Registrar" v={d.registrar} />
+          <Field k="SHA-256" v={d.sha256} mono />
+          <Field k="MD5" v={d.md5} mono />
+          <Field k="Size" v={d.size != null ? `${d.size.toLocaleString()} bytes` : undefined} />
+          <Field k="First seen" v={d.firstSeen ? new Date(d.firstSeen).toLocaleDateString() : undefined} />
+          {d.hasNetworkActivity != null && <Field k="Network activity" v={d.hasNetworkActivity ? 'yes' : 'no'} />}
+          <Field k="Related intel" v={summary} />
+          <Field k="Updated" v={d.lastUpdate ? new Date(d.lastUpdate).toLocaleDateString() : undefined} />
+        </div>
+      )}
+
+      {adv && (
+        <div className="cyfirma-actor">
+          {adv.loading ? (
+            <div className="detail-note">Loading {adv.name}…</div>
+          ) : adv.data?.error ? (
+            <div className="detail-note">{adv.data.error}</div>
+          ) : adv.data ? (
+            <>
+              <div className="cyfirma-actor-title">APT · {adv.data.name}</div>
+              <div className="detail-grid">
+                <Field k="Aliases" v={adv.data.aliases?.join(', ')} />
+                <Field k="Origin" v={adv.data.originCountries?.join(', ')} />
+                <Field k="Targets" v={adv.data.targetedCountries?.join(', ')} />
+                <Field k="Industries" v={adv.data.targetedIndustries?.join(', ')} />
+                <Field k="Overview" v={adv.data.overview} />
+              </div>
+            </>
+          ) : null}
+        </div>
+      )}
+
+      {d.raw != null && (
+        <details className="raw">
+          <summary>Raw ThreatVision data</summary>
+          <pre>{JSON.stringify(d.raw, null, 2)}</pre>
+        </details>
+      )}
+    </div>
+  );
+}
+
 export function DetailPanel() {
   const selected = useStore((s) => s.selected);
   const results = useStore((s) => s.results);
@@ -796,6 +925,7 @@ export function DetailPanel() {
           <Intel471Section d={r.intel471} value={r.value} type={r.type as EnrichableType} />
         )}
         {r.cyfirma && <CyfirmaSection d={r.cyfirma} />}
+        {r.threatvision && <ThreatVisionSection d={r.threatvision} />}
 
         <a className="btn btn-primary detail-vt" href={r.links.gui} target="_blank" rel="noreferrer">
           Open in VirusTotal ↗

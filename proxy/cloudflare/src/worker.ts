@@ -5,6 +5,7 @@ import {
   intel471GlobalSearch,
   intel471MalwareProfile,
   cyfirmaActorSearch,
+  threatvisionAdversary,
   getUsers,
   putUsers,
   getSettings,
@@ -38,6 +39,11 @@ interface Env {
   CYFIRMA_API_KEY?: string;
   CYFIRMA_BASE_URL?: string;
   CYFIRMA_RPM?: string;
+  THREATVISION_CLIENT_ID?: string;
+  THREATVISION_CLIENT_SECRET?: string;
+  THREATVISION_ACCESS_TOKEN?: string;
+  THREATVISION_BASE_URL?: string;
+  THREATVISION_RPM?: string;
   ACCESS_TOKEN?: string;
   ADMIN_TOKEN?: string;
   ALLOWED_ORIGINS?: string;
@@ -78,6 +84,11 @@ function build(env: Env): { proxy: ProxyEnv; allowed: string[]; store: Storage }
     cyfirmaApiKey: env.CYFIRMA_API_KEY,
     cyfirmaBaseUrl: env.CYFIRMA_BASE_URL,
     cyfirmaRpm: env.CYFIRMA_RPM ? Number(env.CYFIRMA_RPM) : undefined,
+    threatvisionClientId: env.THREATVISION_CLIENT_ID,
+    threatvisionClientSecret: env.THREATVISION_CLIENT_SECRET,
+    threatvisionAccessToken: env.THREATVISION_ACCESS_TOKEN,
+    threatvisionBaseUrl: env.THREATVISION_BASE_URL,
+    threatvisionRpm: env.THREATVISION_RPM ? Number(env.THREATVISION_RPM) : undefined,
     accessToken: env.ACCESS_TOKEN,
     adminToken: env.ADMIN_TOKEN,
     allowedOrigins: allowed,
@@ -121,6 +132,9 @@ export default {
           dnslytics: Boolean(proxy.dnslyticsApiKey),
           intel471: Boolean(proxy.intel471ApiUser && proxy.intel471ApiKey),
           cyfirma: Boolean(proxy.cyfirmaApiKey),
+          threatvision: Boolean(
+            proxy.threatvisionAccessToken || (proxy.threatvisionClientId && proxy.threatvisionClientSecret),
+          ),
         });
 
       if (url.pathname === '/api/enrich' && request.method === 'POST') {
@@ -187,6 +201,16 @@ export default {
         const name = url.searchParams.get('name') ?? '';
         if (!name) return json({ error: 'name required' }, 400);
         return json((await cyfirmaActorSearch(name, proxy, request.signal)) ?? { error: 'unavailable' });
+      }
+
+      // On-demand ThreatVision adversary (APT group) profile by name.
+      if (url.pathname === '/api/threatvision/adversary' && request.method === 'GET') {
+        if (!checkAccess(auth, proxy)) return json({ error: 'unauthorized' }, 401);
+        if (!(proxy.threatvisionAccessToken || (proxy.threatvisionClientId && proxy.threatvisionClientSecret)))
+          return json({ error: 'ThreatVision not configured' }, 400);
+        const name = url.searchParams.get('name') ?? '';
+        if (!name) return json({ error: 'name required' }, 400);
+        return json((await threatvisionAdversary(name, proxy, request.signal)) ?? { error: 'unavailable' });
       }
 
       if (url.pathname === '/api/admin/users') {

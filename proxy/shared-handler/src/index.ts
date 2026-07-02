@@ -25,6 +25,17 @@ export {
   mapStixSearch,
   mapThreatActor,
 } from './cyfirmaFetch';
+export {
+  threatvisionIp,
+  threatvisionDomain,
+  threatvisionSample,
+  threatvisionLookup,
+  threatvisionAdversary,
+  mapTvIp,
+  mapTvDomain,
+  mapTvSample,
+  mapTvAdversary,
+} from './threatvisionFetch';
 export { smartParse } from './parse';
 export { RateLimiter } from './rateLimiter';
 export { AsyncQueue, sleep, clamp, backoffMs } from './util';

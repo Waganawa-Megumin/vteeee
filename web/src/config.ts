@@ -17,6 +17,7 @@ export const DEFAULT_SETTINGS: AppSettings = {
   dnslytics: true,
   intel471: true,
   cyfirma: true,
+  threatvision: true,
   historyRetentionDays: 30,
 };
 

@@ -10,6 +10,7 @@ import {
   type NormalizedResult,
   type ResultStatus,
   type ShodanContext,
+  type ThreatVisionContext,
 } from '@vteeee/shared';
 import { FatalError, RateLimitError, type ProxyEnv } from './types';
 import { RateLimiter } from './rateLimiter';
@@ -19,6 +20,7 @@ import { domaintoolsEnrichDomain, domaintoolsReverseIp } from './domaintoolsFetc
 import { dnslyticsHostingHistory, dnslyticsIpInfo } from './dnslyticsFetch';
 import { intel471Lookup } from './intel471Fetch';
 import { cyfirmaLookup } from './cyfirmaFetch';
+import { threatvisionLookup } from './threatvisionFetch';
 import { AsyncQueue, backoffMs, clamp, sleep } from './util';
 
 const MAX_RL_RETRIES = 3;
@@ -28,6 +30,7 @@ const DEFAULT_DOMAINTOOLS_RPM = 30;
 const DEFAULT_DNSLYTICS_RPM = 60;
 const DEFAULT_INTEL471_RPM = 60;
 const DEFAULT_CYFIRMA_RPM = 30;
+const DEFAULT_THREATVISION_RPM = 30;
 
 /** Hostname from a URL indicator (for treating a URL's host as a domain). null if not parseable. */
 function hostFromUrl(u: string): string | null {
@@ -86,6 +89,13 @@ export async function* runEnrich(
   const cyfirmaEnabled = Boolean(env.cyfirmaApiKey) && req.options?.cyfirma !== false;
   const cyfirmaLimiter = cyfirmaEnabled
     ? new RateLimiter(clamp(env.cyfirmaRpm ?? DEFAULT_CYFIRMA_RPM, 1, 600))
+    : null;
+  // TeamT5 ThreatVision lookups (IP/domain detail = 1 AAP each; sample search = 0 AAP) under its own limiter.
+  const tvEnabled =
+    Boolean(env.threatvisionAccessToken || (env.threatvisionClientId && env.threatvisionClientSecret)) &&
+    req.options?.threatvision !== false;
+  const tvLimiter = tvEnabled
+    ? new RateLimiter(clamp(env.threatvisionRpm ?? DEFAULT_THREATVISION_RPM, 1, 600))
     : null;
   const queue = new AsyncQueue<EnrichEvent>();
   const tasks = [...req.indicators];
@@ -200,12 +210,30 @@ export async function* runEnrich(
     }
   }
 
+  /** TeamT5 ThreatVision lookup (IP / domain / hash). Never throws. */
+  async function enrichThreatVision(
+    value: string,
+    type: EnrichRequest['indicators'][number]['type'],
+    kind: ThreatVisionContext['kind'],
+  ): Promise<ThreatVisionContext | undefined> {
+    if (!tvLimiter) return undefined;
+    try {
+      await tvLimiter.acquire(signal);
+      return await threatvisionLookup(value, type, env, signal);
+    } catch (e) {
+      if ((e as Error).name === 'AbortError') return undefined;
+      return { found: false, kind, error: (e as Error).message };
+    }
+  }
+
   /** Attach all provider context to a normalized result, routing by IOC type. */
   async function attachContext(ind: EnrichRequest['indicators'][number], result: NormalizedResult): Promise<void> {
     const isIp = ind.type === 'ipv4' || ind.type === 'ipv6';
     // A URL's host is treated as a domain (unless it's an IP literal).
     const urlHost = ind.type === 'url' ? hostFromUrl(ind.value) : null;
     const domain = ind.type === 'domain' ? ind.value : urlHost && !isIpLiteral(urlHost) ? urlHost : null;
+
+    const isHash = ind.type === 'md5' || ind.type === 'sha1' || ind.type === 'sha256';
 
     // Intel 471 + CYFIRMA apply to every IOC type (IP / domain / URL / hash).
     if (i471Limiter) result.intel471 = await enrichIntel471(ind.value, ind.type);
@@ -216,10 +244,15 @@ export async function* runEnrich(
       // DNSLytics IPInfo is the verified per-IP endpoint (there is no per-domain "domaininfo" in v1).
       if (dnslLimiter) result.dnslytics = await enrichDnslytics('ip', ind.value);
       if (dtLimiter) result.domaintools = await enrichDomaintools('ip', ind.value);
+      if (tvLimiter) result.threatvision = await enrichThreatVision(ind.value, ind.type, 'ip');
     } else if (domain) {
       // Domains: DomainTools Iris Enrich (registration + infra + risk) + DNSLytics HostingHistory (DNS/IP history).
       if (dtLimiter) result.domaintools = await enrichDomaintools('domain', domain);
       if (dnslLimiter) result.dnslytics = await enrichDnslytics('domain', domain);
+      if (tvLimiter) result.threatvision = await enrichThreatVision(domain, 'domain', 'domain');
+    } else if (isHash) {
+      // Hashes: ThreatVision sample attribution (0 AAP — adversary + malware family) via search.
+      if (tvLimiter) result.threatvision = await enrichThreatVision(ind.value, ind.type, 'sample');
     }
   }
 

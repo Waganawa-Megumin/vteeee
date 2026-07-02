@@ -400,6 +400,65 @@ export interface CyfirmaSearch {
   error?: string;
 }
 
+/**
+ * TeamT5 ThreatVision context — APT-attribution-focused CTI. Per-IOC:
+ * - `kind: 'ip'` / `'domain'` — from the network detail endpoint (risk + adversaries + attributes).
+ * - `kind: 'sample'` — from the samples search (0 AAP; risk + adversary + malware-family attribution).
+ * `found: false` = not in ThreatVision / not yet analyzed (see `error`).
+ */
+export interface ThreatVisionContext {
+  found: boolean;
+  kind: 'ip' | 'domain' | 'sample';
+  /** high / medium / low. */
+  riskLevel?: string;
+  /** 0..100. */
+  riskScore?: number;
+  /** Risk type codes, e.g. ["ce"]. */
+  riskTypes?: string[];
+  /** Attributed APT / adversary groups (TeamT5's differentiator). */
+  adversaries?: string[];
+  /** Malware families (samples). */
+  malwareFamilies?: string[];
+  /** Behavioural attributes / sharing tags for IP·domain, e.g. "Malware C2", "Hosting". */
+  attributes?: string[];
+  // --- ip ---
+  country?: string;
+  city?: string;
+  region?: string;
+  // --- domain ---
+  registrar?: string;
+  // --- sample ---
+  md5?: string;
+  sha256?: string;
+  firstSeen?: string;
+  size?: number;
+  hasNetworkActivity?: boolean;
+  // --- summary counts (ip/domain) ---
+  relatedReports?: number;
+  relatedSamples?: number;
+  relatedAdversaries?: number;
+  dnsRecords?: number;
+  osint?: number;
+  /** ISO 8601 last-updated for the IP/domain record. */
+  lastUpdate?: string;
+  error?: string;
+  raw?: unknown;
+}
+
+/**
+ * TeamT5 ThreatVision adversary (APT group) profile — fetched on demand by clicking an adversary
+ * chip in the detail panel. Origin + targeting is the "attack-infra / target-side" pivot.
+ */
+export interface ThreatVisionAdversary {
+  name?: string;
+  aliases?: string[];
+  originCountries?: string[];
+  targetedCountries?: string[];
+  targetedIndustries?: string[];
+  overview?: string;
+  error?: string;
+}
+
 /** The single shape the results table & detail panel consume, for all IOC types. */
 export interface NormalizedResult {
   input: string;
@@ -439,6 +498,9 @@ export interface NormalizedResult {
 
   /** CYFIRMA DeCYFIR context (Risk Dossier + STIX 2.1 search) — all IOC types. */
   cyfirma?: CyfirmaContext;
+
+  /** TeamT5 ThreatVision context (IP/domain detail, or sample attribution) — all IOC types. */
+  threatvision?: ThreatVisionContext;
 
   ip?: {
     country?: string;
@@ -492,6 +554,8 @@ export interface EnrichOptions {
   intel471?: boolean;
   /** Request CYFIRMA DeCYFIR lookups. Ignored if the proxy has no CYFIRMA key. */
   cyfirma?: boolean;
+  /** Request TeamT5 ThreatVision lookups. Ignored if the proxy has no ThreatVision credentials. */
+  threatvision?: boolean;
 }
 
 /** What the proxy `GET /health` reports — which integrations are configured server-side. */
@@ -511,6 +575,8 @@ export interface ProxyHealth {
   intel471: boolean;
   /** CYFIRMA DeCYFIR key present (optional — risk dossier + STIX attribution). */
   cyfirma: boolean;
+  /** TeamT5 ThreatVision credentials present (optional — APT attribution CTI). */
+  threatvision: boolean;
 }
 
 export interface EnrichRequest {
@@ -572,6 +638,8 @@ export interface AppSettings {
   intel471?: boolean;
   /** Request CYFIRMA DeCYFIR enrichment (default true; only used if the proxy has a CYFIRMA key). */
   cyfirma?: boolean;
+  /** Request TeamT5 ThreatVision enrichment (default true; only used if the proxy has ThreatVision creds). */
+  threatvision?: boolean;
   /** Days to keep local search history (per browser). 0 = disabled. Default 30. */
   historyRetentionDays?: number;
   /** Documentation-only note shown in the admin UI. */

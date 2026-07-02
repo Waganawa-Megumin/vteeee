@@ -8,6 +8,7 @@ name: Deploy Proxy (Cloudflare)
 #      SHODAN_API_KEY (optional), DOMAINTOOLS_API_USERNAME + DOMAINTOOLS_API_KEY
 #      (optional), DNSLYTICS_API_KEY (optional), INTEL471_API_USER +
 #      INTEL471_API_KEY (optional), CYFIRMA_API_KEY (optional),
+#      THREATVISION_CLIENT_ID + THREATVISION_CLIENT_SECRET (optional),
 #      ACCESS_TOKEN, ADMIN_TOKEN, CLOUDFLARE_API_TOKEN, CLOUDFLARE_ACCOUNT_ID
 #   3) Set ALLOWED_ORIGINS in wrangler.toml to your *.github.io origin + localhost
 on:
@@ -58,4 +59,8 @@ jobs:
           fi
           if [ -n "${{ secrets.CYFIRMA_API_KEY }}" ]; then
             printf '%s' "${{ secrets.CYFIRMA_API_KEY }}" | pnpm exec wrangler secret put CYFIRMA_API_KEY
+          fi
+          if [ -n "${{ secrets.THREATVISION_CLIENT_ID }}" ] && [ -n "${{ secrets.THREATVISION_CLIENT_SECRET }}" ]; then
+            printf '%s' "${{ secrets.THREATVISION_CLIENT_ID }}" | pnpm exec wrangler secret put THREATVISION_CLIENT_ID
+            printf '%s' "${{ secrets.THREATVISION_CLIENT_SECRET }}" | pnpm exec wrangler secret put THREATVISION_CLIENT_SECRET
           fi

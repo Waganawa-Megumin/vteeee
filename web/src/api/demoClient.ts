@@ -8,6 +8,7 @@ import {
   type Intel471Search,
   type NormalizedResult,
   type ParsedIndicator,
+  type ThreatVisionAdversary,
 } from '@vteeee/shared';
 import { FIXTURE_MAP } from '../fixtures/samples';
 import { sleep, type EnrichClient, type EnrichHandlers } from './client';
@@ -45,6 +46,7 @@ export class DemoClient implements EnrichClient {
         if (fx.dnslytics) result.dnslytics = fx.dnslytics;
         if (fx.intel471) result.intel471 = fx.intel471;
         if (fx.cyfirma) result.cyfirma = fx.cyfirma;
+        if (fx.threatvision) result.threatvision = fx.threatvision;
       } else {
         result = normalizeVt({
           input: ind.input,
@@ -110,6 +112,20 @@ export class DemoClient implements EnrichClient {
       activeFrom: '2022-08-18T01:39:08.000Z',
       activeTill: '2026-06-29T18:22:27.000Z',
       portalUrl: `https://titan.intel471.com/malware/${uid || '6e6ca74063416138a3fbf03dd2e189a6'}`,
+    };
+  }
+
+  /** Sample ThreatVision adversary profile (demo). */
+  async threatvisionAdversary(name: string): Promise<ThreatVisionAdversary> {
+    await sleep(300);
+    return {
+      name: name || 'Amoeba',
+      aliases: ['Winnti', 'APT41', 'Barium', 'Wicked Panda', 'Earth Baku'],
+      originCountries: ['China'],
+      targetedCountries: ['Taiwan', 'Japan', 'South Korea', 'United States of America', 'Hong Kong'],
+      targetedIndustries: ['Government', 'Semiconductor', 'Telecommunication', 'Healthcare', 'Gaming'],
+      overview:
+        'A China-nexus adversary widely tracked as "Winnti," named after one of its most infamous RATs; assessed to have strong ties to China\'s MSS.',
     };
   }
 

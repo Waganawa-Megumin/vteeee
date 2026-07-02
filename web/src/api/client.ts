@@ -7,6 +7,7 @@ import type {
   Intel471Search,
   NormalizedResult,
   ParsedIndicator,
+  ThreatVisionAdversary,
 } from '@vteeee/shared';
 
 export interface EnrichHandlers {
@@ -29,6 +30,8 @@ export interface EnrichClient {
   intel471Malware(uid: string, family?: string): Promise<Intel471Malware>;
   /** On-demand CYFIRMA Threat-Actor deep-dive (broad search) by actor name. */
   cyfirmaSearch(name: string): Promise<CyfirmaSearch>;
+  /** On-demand TeamT5 ThreatVision adversary (APT group) profile by name. */
+  threatvisionAdversary(name: string): Promise<ThreatVisionAdversary>;
 }
 
 export function sleep(ms: number, signal?: AbortSignal): Promise<void> {

@@ -29,10 +29,13 @@ id = "64fde3553d4b4272a3afa346945a0ce0"
 # DNSLYTICS_RPM = "60"
 # INTEL471_RPM = "60"
 # CYFIRMA_RPM = "30"
+# THREATVISION_RPM = "30"   # IP/domain detail cost 1 AAP each; hashes (samples search) cost 0 AAP
 # Override only if your DNSLytics endpoint differs from the default:
 # DNSLYTICS_BASE_URL = "https://api.dnslytics.net/v1"
 # Override only if your DeCYFIR endpoint differs from the default:
 # CYFIRMA_BASE_URL = "https://decyfir.cyfirma.com/core/api-ua"
+# Override only if your ThreatVision endpoint differs from the default:
+# THREATVISION_BASE_URL = "https://api.threatvision.org"
 
 # Secrets are NOT stored here. Set them with:
 #   wrangler secret put VT_API_KEY
@@ -44,5 +47,7 @@ id = "64fde3553d4b4272a3afa346945a0ce0"
 #   wrangler secret put INTEL471_API_USER         # optional (Titan: API email)
 #   wrangler secret put INTEL471_API_KEY          # optional (Titan: API key)
 #   wrangler secret put CYFIRMA_API_KEY           # optional (DeCYFIR: risk dossier + attribution)
+#   wrangler secret put THREATVISION_CLIENT_ID    # optional (TeamT5 ThreatVision: OAuth client id)
+#   wrangler secret put THREATVISION_CLIENT_SECRET# optional (paired with the client id)
 #   wrangler secret put ACCESS_TOKEN              # required on /api/*
 #   wrangler secret put ADMIN_TOKEN               # required on /api/admin/*

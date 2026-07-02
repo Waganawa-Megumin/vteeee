@@ -8,6 +8,7 @@ import type {
   Intel471Search,
   ParsedIndicator,
   ParseResponse,
+  ThreatVisionAdversary,
 } from '@vteeee/shared';
 import type { EnrichClient, EnrichHandlers } from './client';
 
@@ -32,7 +33,8 @@ export class LiveClient implements EnrichClient {
       (settings.domaintools !== false ? 1 : 0) +
       (settings.dnslytics !== false ? 1 : 0) +
       (settings.intel471 !== false ? 2 : 0) + // Intel 471 = /indicators + /iocs (+on-demand /search)
-      (settings.cyfirma !== false ? 2 : 0); // CYFIRMA = /riskdossier + /threatioc search (+on-demand actor)
+      (settings.cyfirma !== false ? 2 : 0) + // CYFIRMA = /riskdossier + /threatioc search (+on-demand actor)
+      (settings.threatvision !== false ? 1 : 0); // ThreatVision = 1 detail/search call per IOC
     this.chunk = Math.max(3, Math.floor(40 / (providers + 1)));
   }
 
@@ -165,6 +167,14 @@ export class LiveClient implements EnrichClient {
     });
     if (!res.ok) return { error: `CYFIRMA search failed: ${res.status}` };
     return (await res.json()) as CyfirmaSearch;
+  }
+
+  async threatvisionAdversary(name: string): Promise<ThreatVisionAdversary> {
+    const res = await fetch(`${this.base}/api/threatvision/adversary?name=${encodeURIComponent(name)}`, {
+      headers: this.headers(false),
+    });
+    if (!res.ok) return { error: `ThreatVision adversary lookup failed: ${res.status}` };
+    return (await res.json()) as ThreatVisionAdversary;
   }
 
   async smartParse(text: string): Promise<ParsedIndicator[]> {

@@ -8,6 +8,7 @@ import {
   intel471GlobalSearch,
   intel471MalwareProfile,
   cyfirmaActorSearch,
+  threatvisionAdversary,
   getUsers,
   putUsers,
   getSettings,
@@ -54,6 +55,11 @@ const env: ProxyEnv = {
   cyfirmaApiKey: process.env.CYFIRMA_API_KEY || undefined,
   cyfirmaBaseUrl: process.env.CYFIRMA_BASE_URL || undefined,
   cyfirmaRpm: process.env.CYFIRMA_RPM ? Number(process.env.CYFIRMA_RPM) : undefined,
+  threatvisionClientId: process.env.THREATVISION_CLIENT_ID || undefined,
+  threatvisionClientSecret: process.env.THREATVISION_CLIENT_SECRET || undefined,
+  threatvisionAccessToken: process.env.THREATVISION_ACCESS_TOKEN || undefined,
+  threatvisionBaseUrl: process.env.THREATVISION_BASE_URL || undefined,
+  threatvisionRpm: process.env.THREATVISION_RPM ? Number(process.env.THREATVISION_RPM) : undefined,
   accessToken: process.env.ACCESS_TOKEN || undefined,
   adminToken: process.env.ADMIN_TOKEN || undefined,
   allowedOrigins,
@@ -128,6 +134,9 @@ app.get('/health', (_req, res) => {
     dnslytics: Boolean(env.dnslyticsApiKey),
     intel471: Boolean(env.intel471ApiUser && env.intel471ApiKey),
     cyfirma: Boolean(env.cyfirmaApiKey),
+    threatvision: Boolean(
+      env.threatvisionAccessToken || (env.threatvisionClientId && env.threatvisionClientSecret),
+    ),
   });
 });
 
@@ -173,6 +182,20 @@ app.get('/api/cyfirma/search', async (req, res) => {
     return;
   }
   res.json((await cyfirmaActorSearch(name, env)) ?? { error: 'unavailable' });
+});
+
+app.get('/api/threatvision/adversary', async (req, res) => {
+  if (!requireAccess(req, res)) return;
+  if (!(env.threatvisionAccessToken || (env.threatvisionClientId && env.threatvisionClientSecret))) {
+    res.status(400).json({ error: 'ThreatVision not configured' });
+    return;
+  }
+  const name = (req.query.name as string) || '';
+  if (!name) {
+    res.status(400).json({ error: 'name required' });
+    return;
+  }
+  res.json((await threatvisionAdversary(name, env)) ?? { error: 'unavailable' });
 });
 
 app.post('/api/enrich', async (req, res) => {
@@ -271,5 +294,5 @@ app.all('/api/history/:id', (req, res) => void handleHistory(req, res, req.param
 app.listen(PORT, () => {
   console.log(`vteeee proxy listening on :${PORT}`);
   console.log(`  allowed origins: ${allowedOrigins.join(', ')}`);
-  console.log(`  VT key: ${env.vtApiKey ? 'set' : 'MISSING'} · Claude: ${env.anthropicApiKey ? 'set' : 'off (regex fallback)'} · Shodan: ${env.shodanApiKey ? 'set' : 'off'} · DomainTools: ${env.domaintoolsApiUsername && env.domaintoolsApiKey ? 'set' : 'off'} · DNSLytics: ${env.dnslyticsApiKey ? 'set' : 'off'} · Intel471: ${env.intel471ApiUser && env.intel471ApiKey ? 'set' : 'off'} · CYFIRMA: ${env.cyfirmaApiKey ? 'set' : 'off'}`);
+  console.log(`  VT key: ${env.vtApiKey ? 'set' : 'MISSING'} · Claude: ${env.anthropicApiKey ? 'set' : 'off (regex fallback)'} · Shodan: ${env.shodanApiKey ? 'set' : 'off'} · DomainTools: ${env.domaintoolsApiUsername && env.domaintoolsApiKey ? 'set' : 'off'} · DNSLytics: ${env.dnslyticsApiKey ? 'set' : 'off'} · Intel471: ${env.intel471ApiUser && env.intel471ApiKey ? 'set' : 'off'} · CYFIRMA: ${env.cyfirmaApiKey ? 'set' : 'off'} · ThreatVision: ${env.threatvisionAccessToken || (env.threatvisionClientId && env.threatvisionClientSecret) ? 'set' : 'off'}`);
 });

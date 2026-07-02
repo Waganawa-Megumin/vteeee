@@ -29,6 +29,7 @@ export function resultsToCsv(results: NormalizedResult[]): string {
     'dnslytics',
     'intel471',
     'cyfirma',
+    'threatvision',
     'vt_link',
   ];
   const rows = results.map((r) => [
@@ -69,6 +70,15 @@ export function resultsToCsv(results: NormalizedResult[]): string {
           r.cyfirma.indicatorRiskScore != null ? `risk ${r.cyfirma.indicatorRiskScore}/10` : '',
           r.cyfirma.threatActors?.length ? r.cyfirma.threatActors.join('|') : '',
           r.cyfirma.relatedCount ? `${r.cyfirma.relatedCount} linked` : '',
+        ]
+          .filter(Boolean)
+          .join(' · ')
+      : '',
+    r.threatvision?.found
+      ? [
+          r.threatvision.riskLevel ?? '',
+          r.threatvision.adversaries?.length ? r.threatvision.adversaries.join('|') : '',
+          r.threatvision.malwareFamilies?.length ? r.threatvision.malwareFamilies.join('|') : '',
         ]
           .filter(Boolean)
           .join(' · ')

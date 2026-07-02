@@ -24,6 +24,14 @@ INTEL471_API_KEY=
 CYFIRMA_API_KEY=
 # CYFIRMA_BASE_URL=https://decyfir.cyfirma.com/core/api-ua
 # CYFIRMA_RPM=30
+# Optional — TeamT5 ThreatVision (APT attribution). OAuth2 client credentials (preferred)...
+THREATVISION_CLIENT_ID=
+THREATVISION_CLIENT_SECRET=
+# ...or a pre-obtained access token instead of client id/secret:
+# THREATVISION_ACCESS_TOKEN=
+# THREATVISION_BASE_URL=https://api.threatvision.org
+# NOTE: IP/domain detail cost 1 AAP each; hash lookups (samples search) cost 0 AAP.
+# THREATVISION_RPM=30
 # Shared token required on /api/* (set the same value in the web Settings dialog):
 ACCESS_TOKEN=
 # Token required to write users/settings via /api/admin/* :

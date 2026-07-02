@@ -6,6 +6,7 @@ import type {
   IocType,
   ResultStatus,
   ShodanContext,
+  ThreatVisionContext,
 } from '@vteeee/shared';
 
 export interface Fixture {
@@ -24,6 +25,8 @@ export interface Fixture {
   intel471?: Intel471Context;
   /** Sample CYFIRMA DeCYFIR context. */
   cyfirma?: CyfirmaContext;
+  /** Sample TeamT5 ThreatVision context. */
+  threatvision?: ThreatVisionContext;
 }
 
 const day = 86400;
@@ -199,6 +202,24 @@ export const FIXTURES: Fixture[] = [
         cves: ['CVE-2023-23397'],
       },
       relatedCount: 6,
+    },
+    threatvision: {
+      found: true,
+      kind: 'ip',
+      riskLevel: 'high',
+      riskScore: 85,
+      riskTypes: ['ce'],
+      adversaries: ['Amoeba'],
+      attributes: ['Malware C2', 'Hosting'],
+      country: 'Germany',
+      city: 'Frankfurt',
+      region: 'Hesse',
+      relatedReports: 6,
+      relatedSamples: 1,
+      relatedAdversaries: 1,
+      dnsRecords: 7,
+      osint: 2,
+      lastUpdate: new Date((now - 5 * day) * 1000).toISOString(),
     },
   },
   {

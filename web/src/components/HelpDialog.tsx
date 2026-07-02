@@ -159,6 +159,20 @@ export function HelpDialog({ onClose }: { onClose: () => void }) {
                 <span className="help-en">All IOC types. Risk Dossier (risk/external-threat scores, recommended action, ASN/org, correlated infrastructure = attack-infra side) + STIX 2.1 search (threat actors/campaigns/malware = attribution). Click a threat-actor chip to broad-search that actor's campaigns/malware/targeted CVEs on demand.</span>
               </IntegrationRow>
 
+              <IntegrationRow
+                name="TeamT5 ThreatVision"
+                env="THREATVISION_CLIENT_ID + _SECRET"
+                on={health?.threatvision ?? null}
+                live={live}
+              >
+                <span className="help-ja">
+                  <b>全種別</b>。<b>IP/ドメイン</b>：リスク・<b>攻撃グループ(APT)</b>・属性(Malware C2/Hosting)・地域/レジストラ・関連件数。
+                  <b>ハッシュ</b>：サンプル検索で攻撃グループ+マルウェアファミリ+リスク。詳細で<b>攻撃グループのチップ</b>を押すと、その APT の別名・出身国・標的国/業種・概説を取得。
+                  <b>⚠ IP/ドメイン詳細は 1件 1 AAP 消費</b>(ハッシュ検索は 0 AAP)。アップロード系は非対応。
+                </span>
+                <span className="help-en">All IOC types. IPs/domains: risk, adversary (APT) attribution, attributes (Malware C2/Hosting), geo/registrar, related counts. Hashes: adversary + malware family + risk via samples search. Click an adversary chip for that APT's aliases/origin/targets. ⚠ IP & domain detail cost 1 AAP each (hash search is 0 AAP). Upload endpoints intentionally not wired.</span>
+              </IntegrationRow>
+
               <IntegrationRow name="Claude (smart-parse)" env="ANTHROPIC_API_KEY" on={health?.claude ?? null} live={live}>
                 <span className="help-ja">
                   レポート本文などの雑多なテキストからIOCを抽出（「Smart parse (Claude)」ボタン）。無ければ正規表現で代替。
@@ -168,7 +182,7 @@ export function HelpDialog({ onClose }: { onClose: () => void }) {
             </div>
             <p className="help-ja" style={{ marginTop: 8 }}>
               <b>種別で引き分け</b>：ドメイン→VT＋DomainTools(Enrich)＋DNSLytics(HostingHistory) ／ IP→VT＋Shodan＋DNSLytics(IPInfo)＋DomainTools(逆引き)
-              ／ URL→ホスト名をドメイン扱い ／ ハッシュ→VTのみ。<b>Intel 471 と CYFIRMA は全種別</b>に付与。各連携は Settings で個別ON/OFF可。
+              ／ URL→ホスト名をドメイン扱い ／ ハッシュ→VT＋ThreatVision(サンプル帰属)。<b>Intel 471 と CYFIRMA は全種別</b>、<b>ThreatVision も全種別</b>(IP/ドメイン=1 AAP, ハッシュ=0 AAP)に付与。各連携は Settings で個別ON/OFF可。
             </p>
             <p className="help-en" style={{ marginTop: 8 }}>
               <b>Enable an optional service (3 steps):</b> ① add the env var above as a repo secret /

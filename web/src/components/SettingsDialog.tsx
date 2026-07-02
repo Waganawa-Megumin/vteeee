@@ -62,6 +62,11 @@ export function SettingsDialog({ onClose }: { onClose: () => void }) {
                 CYFIRMA{' '}
                 {health?.cyfirma ? (draft.cyfirma !== false ? 'on' : 'key set · off') : 'not configured'}
               </span>
+              <span className={`intg-chip ${health?.threatvision && draft.threatvision !== false ? 'on' : 'off'}`}>
+                <span className="intg-dot" />
+                ThreatVision{' '}
+                {health?.threatvision ? (draft.threatvision !== false ? 'on' : 'creds set · off') : 'not configured'}
+              </span>
               <span className={`intg-chip ${health?.claude ? 'on' : 'off'}`}>
                 <span className="intg-dot" />
                 Claude {health?.claude ? 'on' : 'not configured'}
@@ -211,6 +216,18 @@ export function SettingsDialog({ onClose }: { onClose: () => void }) {
             <InfoTip
               ja="全種別(IP/ドメイン/URL/ハッシュ)に CYFIRMA DeCYFIR を付与。Risk Dossier（リスク/外部脅威スコア・推奨アクション・ASN/組織・関連インフラ＝攻撃基盤側）＋STIX 2.1検索（関連する脅威アクター/キャンペーン/マルウェア＝アトリビューション）。詳細画面で脅威アクターのチップを押すと『広域サーチ』としてそのアクターのキャンペーン/マルウェア/標的CVEを追加取得。プロキシに CYFIRMA_API_KEY がある時のみ。"
               en="Enrich every IOC type (IP/domain/URL/hash) via CYFIRMA DeCYFIR: Risk Dossier (risk/external-threat scores, recommended action, ASN/org, correlated infrastructure = attack-infra side) + STIX 2.1 search (associated threat actors/campaigns/malware = attribution). In the detail panel, click a threat-actor chip to run a broad search for that actor's campaigns/malware/targeted CVEs. Only if the proxy has a CYFIRMA key."
+            />
+          </label>
+          <label className="chk">
+            <input
+              type="checkbox"
+              checked={draft.threatvision !== false}
+              onChange={(e) => up('threatvision', e.target.checked)}
+            />
+            🔭 TeamT5 ThreatVision (APT attribution)
+            <InfoTip
+              ja="全種別に TeamT5 ThreatVision を付与。IP/ドメインはリスク・攻撃グループ(APT)・属性(Malware C2/Hosting等)・地域/レジストラ・関連件数、ハッシュはサンプル検索で攻撃グループ+マルウェアファミリ+リスクを取得。詳細で攻撃グループのチップを押すと、その APT の別名・出身国・標的国/業種・概説を取得。⚠ IP/ドメインの詳細照会は 1件につき 1 AAP を消費します(ハッシュ検索は 0 AAP)。プロキシに THREATVISION_CLIENT_ID/SECRET(または ACCESS_TOKEN)がある時のみ。"
+              en="Enrich every IOC type via TeamT5 ThreatVision. IPs/domains get risk, adversary (APT) attribution, attributes (Malware C2/Hosting), geo/registrar and related counts; hashes get adversary + malware-family + risk via samples search. Click an adversary chip for that APT's aliases/origin/targets. ⚠ IP & domain detail cost 1 AAP each (hash search is 0 AAP). Only if the proxy has ThreatVision creds."
             />
           </label>
           <p className="hint shodan-hint">

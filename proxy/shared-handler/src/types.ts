@@ -30,6 +30,15 @@ export interface ProxyEnv {
   cyfirmaBaseUrl?: string;
   /** Per-minute cap on CYFIRMA lookups. Default 30. */
   cyfirmaRpm?: number;
+  /** TeamT5 ThreatVision OAuth2 client credentials (exchanged for an access token). */
+  threatvisionClientId?: string;
+  threatvisionClientSecret?: string;
+  /** Pre-obtained ThreatVision access token (alternative to client id/secret). */
+  threatvisionAccessToken?: string;
+  /** ThreatVision API base URL. Default https://api.threatvision.org. */
+  threatvisionBaseUrl?: string;
+  /** Per-minute cap on ThreatVision lookups. Default 30. NOTE: IP/domain detail cost 1 AAP each. */
+  threatvisionRpm?: number;
   /** Shared token required on /api/* (enrich, parse). */
   accessToken?: string;
   /** Token required to write users/settings via /api/admin/*. */
