@@ -10,8 +10,11 @@ import type {
   Intel471Malware,
   Intel471Search,
   Intel471SearchItem,
+  NormalizedResult,
   ShodanContext,
   ShodanService,
+  SocPrimeQueryResult,
+  SocPrimeRuleSearchResult,
   ThreatVisionAdversary,
   ThreatVisionContext,
 } from '@vteeee/shared';
@@ -19,6 +22,8 @@ import { useStore } from '../state/store';
 import { GtiBadge, VerdictBadge } from './Badges';
 import { detectionRatio } from '../lib/verdict';
 import { resultToText } from '../lib/detailText';
+import { RuleCard } from './RuleCard';
+import { SIEM_FORMATS } from '../lib/siemFormats';
 
 function Field({ k, v, mono }: { k: string; v?: string; mono?: boolean }) {
   if (!v) return null;
@@ -796,10 +801,108 @@ function ThreatVisionSection({ d }: { d: ThreatVisionContext }) {
   );
 }
 
+/**
+ * SOC Prime block — contextual detection content for this indicator. Pivots off the threat the
+ * *other* providers attributed (Intel 471 malware family, CYFIRMA/ThreatVision actor/malware) to
+ * find matching SOC Prime detection rules, and generates a hunting query for this single IOC.
+ */
+function SocPrimeSection({ r }: { r: NormalizedResult }) {
+  const searchRules = useStore((s) => s.socprimeRules);
+  const genQuery = useStore((s) => s.socprimeQuery);
+  const [siemType, setSiemType] = useState('splunk');
+  const [rules, setRules] = useState<{ loading: boolean; data?: SocPrimeRuleSearchResult } | null>(null);
+  const [query, setQuery] = useState<{ loading: boolean; data?: SocPrimeQueryResult } | null>(null);
+  const [copied, setCopied] = useState(false);
+
+  // Best available threat context from the other providers (malware family, then actor).
+  const tool = r.intel471?.malwareFamily ?? r.cyfirma?.malware?.[0] ?? r.threatvision?.malwareFamilies?.[0];
+  const actor = r.cyfirma?.threatActors?.[0] ?? r.threatvision?.adversaries?.[0];
+  const contextLabel = tool ?? actor;
+
+  async function findRules() {
+    setRules({ loading: true });
+    const params = tool || actor
+      ? { siemType, tool, actor, pageSize: 5 }
+      : { siemType, query: r.file?.threatLabel || r.value, pageSize: 5 };
+    setRules({ loading: false, data: await searchRules(params) });
+  }
+  async function runQuery() {
+    setQuery({ loading: true });
+    setQuery({ loading: false, data: await genQuery(r.value, { siemType }) });
+  }
+  const q = query?.data?.queries?.join('\n\n') ?? '';
+  async function copyQuery() {
+    if (!q) return;
+    try {
+      await navigator.clipboard.writeText(q);
+      setCopied(true);
+      setTimeout(() => setCopied(false), 1500);
+    } catch {
+      /* clipboard blocked */
+    }
+  }
+
+  const rulesList = rules?.data?.rules ?? [];
+
+  return (
+    <div className="shodan-block">
+      <div className="shodan-head">
+        <span className="shodan-logo" aria-hidden>
+          🛡
+        </span>
+        SOC Prime · TDM
+        <span className="shodan-when">detection content</span>
+      </div>
+
+      <div className="soc-controls">
+        <select className="soc-siem" value={siemType} onChange={(e) => setSiemType(e.target.value)}>
+          {SIEM_FORMATS.map((f) => (
+            <option key={f.value} value={f.value}>
+              {f.label}
+            </option>
+          ))}
+        </select>
+        <button className="btn btn-ghost btn-sm" onClick={findRules} disabled={rules?.loading}>
+          {rules?.loading ? 'Searching…' : contextLabel ? `Rules for “${contextLabel}”` : 'Find detection rules'}
+        </button>
+        <button className="btn btn-ghost btn-sm" onClick={runQuery} disabled={query?.loading}>
+          {query?.loading ? 'Generating…' : 'Hunting query for this IOC'}
+        </button>
+      </div>
+
+      {rules?.data?.error && <div className="detail-note">{rules.data.error}</div>}
+      {rules?.data && !rules.data.error && rulesList.length === 0 && (
+        <div className="detail-note">No detection rules matched{contextLabel ? ` “${contextLabel}”` : ''}.</div>
+      )}
+      {rulesList.length > 0 && (
+        <div className="rule-list">
+          {rulesList.map((rl, i) => (
+            <RuleCard key={rl.id ?? i} r={rl} />
+          ))}
+        </div>
+      )}
+
+      {query?.data?.error && <div className="detail-note">{query.data.error}</div>}
+      {q && (
+        <>
+          <div className="i471-actions">
+            <span className="fk">{siemType} query</span>
+            <button className="btn btn-sm btn-ghost" onClick={copyQuery}>
+              {copied ? '✓ Copied' : 'Copy'}
+            </button>
+          </div>
+          <textarea className="siem-output mono" readOnly rows={8} value={q} />
+        </>
+      )}
+    </div>
+  );
+}
+
 export function DetailPanel() {
   const selected = useStore((s) => s.selected);
   const results = useStore((s) => s.results);
   const select = useStore((s) => s.select);
+  const socprimeOn = useStore((s) => s.mode === 'demo' || Boolean(s.health?.socprime));
   const panelRef = useRef<HTMLElement>(null);
   const [copied, setCopied] = useState<'text' | 'image' | 'err' | null>(null);
   const [busy, setBusy] = useState(false);
@@ -995,6 +1098,7 @@ export function DetailPanel() {
         )}
         {r.cyfirma && <CyfirmaSection d={r.cyfirma} />}
         {r.threatvision && <ThreatVisionSection d={r.threatvision} />}
+        {socprimeOn && r.type !== 'unknown' && <SocPrimeSection r={r} />}
 
         {r.raw != null && (
           <details className="raw">

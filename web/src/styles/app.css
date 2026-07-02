@@ -993,6 +993,30 @@ a.i471-search-item:hover {
   border-color: rgba(134, 217, 143, 0.3);
   text-transform: uppercase;
 }
+/* SOC Prime detail-panel controls */
+.soc-controls {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+  align-items: center;
+}
+.soc-siem {
+  max-width: 240px;
+  font-size: 12px;
+  padding: 5px 8px;
+}
+/* results-table selection checkbox column */
+.results-table th.cb-col,
+.results-table td.cb-col {
+  width: 30px;
+  text-align: center;
+  padding-left: 8px;
+  padding-right: 4px;
+}
+.results-table .cb-col input {
+  cursor: pointer;
+  margin: 0;
+}
 .cyfirma-rel-row {
   display: flex;
   gap: 6px;

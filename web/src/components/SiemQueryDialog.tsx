@@ -7,7 +7,16 @@ import { SIEM_FORMATS } from '../lib/siemFormats';
  * SOC Prime Uncoder AI — turn the current IOC set into a ready-to-run SIEM hunting query.
  * `iocs` are the indicator values currently shown in the results table.
  */
-export function SiemQueryDialog({ iocs, onClose }: { iocs: string[]; onClose: () => void }) {
+export function SiemQueryDialog({
+  iocs,
+  selected,
+  onClose,
+}: {
+  iocs: string[];
+  /** True when `iocs` are the rows the analyst explicitly checked (vs. all shown). */
+  selected?: boolean;
+  onClose: () => void;
+}) {
   const run = useStore((s) => s.socprimeQuery);
   const [siemType, setSiemType] = useState('splunk');
   const [iocsPerQuery, setIocsPerQuery] = useState(25);
@@ -48,8 +57,10 @@ export function SiemQueryDialog({ iocs, onClose }: { iocs: string[]; onClose: ()
         </div>
         <div className="modal-body">
           <p className="hint">
-            Generate a hunting query for <strong>{iocs.length}</strong> indicator{iocs.length === 1 ? '' : 's'}{' '}
-            (the results currently shown) via SOC Prime Uncoder AI. Private/reserved IPs are dropped automatically.
+            Generate a hunting query for <strong>{iocs.length}</strong> {selected ? 'checked' : 'shown'} indicator
+            {iocs.length === 1 ? '' : 's'} via SOC Prime Uncoder AI.{' '}
+            {selected ? '' : 'Tip: tick specific rows first — bulk IOCs aren’t necessarily related. '}
+            Private/reserved IPs are dropped automatically.
           </p>
 
           <div className="fld-row">

@@ -30,6 +30,16 @@ export function ResultsTable() {
   const [asc, setAsc] = useState(false);
   const [filter, setFilter] = useState('');
   const [siemOpen, setSiemOpen] = useState(false);
+  const [checked, setChecked] = useState<Set<string>>(new Set());
+
+  function toggle(value: string) {
+    setChecked((prev) => {
+      const next = new Set(prev);
+      if (next.has(value)) next.delete(value);
+      else next.add(value);
+      return next;
+    });
+  }
 
   const rows = useMemo(() => {
     let list = order.map((v) => results[v]).filter(Boolean);
@@ -80,6 +90,17 @@ export function ResultsTable() {
     );
   }
 
+  const selectedIocs = rows.filter((r) => checked.has(r.value)).map((r) => r.value);
+  const allShownChecked = rows.length > 0 && rows.every((r) => checked.has(r.value));
+  function toggleAll() {
+    setChecked((prev) => {
+      const next = new Set(prev);
+      if (allShownChecked) rows.forEach((r) => next.delete(r.value));
+      else rows.forEach((r) => next.add(r.value));
+      return next;
+    });
+  }
+
   if (!order.length) return null;
 
   return (
@@ -96,8 +117,16 @@ export function ResultsTable() {
           onChange={(e) => setFilter(e.target.value)}
         />
         {socprimeOn && (
-          <button className="btn btn-sm" onClick={() => setSiemOpen(true)} title="Generate a SIEM hunting query from these IOCs (SOC Prime)">
-            SIEM query
+          <button
+            className="btn btn-sm"
+            onClick={() => setSiemOpen(true)}
+            title={
+              selectedIocs.length
+                ? `Generate a SIEM hunting query from the ${selectedIocs.length} checked IOC(s)`
+                : 'Tick the rows to include, then generate a SIEM hunting query (SOC Prime)'
+            }
+          >
+            SIEM query{selectedIocs.length ? ` (${selectedIocs.length})` : ''}
           </button>
         )}
         <button
@@ -107,11 +136,25 @@ export function ResultsTable() {
           Export CSV
         </button>
       </div>
-      {siemOpen && <SiemQueryDialog iocs={rows.map((r) => r.value)} onClose={() => setSiemOpen(false)} />}
+      {siemOpen && (
+        <SiemQueryDialog
+          iocs={selectedIocs.length ? selectedIocs : rows.map((r) => r.value)}
+          selected={selectedIocs.length > 0}
+          onClose={() => setSiemOpen(false)}
+        />
+      )}
       <div className="table-wrap">
         <table className="results-table">
           <thead>
             <tr>
+              <th className="cb-col">
+                <input
+                  type="checkbox"
+                  checked={allShownChecked}
+                  onChange={toggleAll}
+                  title={allShownChecked ? 'Deselect all shown' : 'Select all shown'}
+                />
+              </th>
               {header('value', 'Indicator')}
               {header('type', 'Type')}
               {header('verdict', 'Verdict')}
@@ -129,6 +172,14 @@ export function ResultsTable() {
                 className={`${selected === r.value ? 'sel ' : ''}row-${r.verdict}`}
                 onClick={() => select(r.value)}
               >
+                <td className="cb-col" onClick={(e) => e.stopPropagation()}>
+                  <input
+                    type="checkbox"
+                    checked={checked.has(r.value)}
+                    onChange={() => toggle(r.value)}
+                    aria-label={`Select ${r.value}`}
+                  />
+                </td>
                 <td className="mono ind" title={r.input !== r.value ? `raw: ${r.input}` : undefined}>
                   {r.value}
                 </td>
