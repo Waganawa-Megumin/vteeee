@@ -944,6 +944,14 @@ function SocPrimeSection({ r }: { r: NormalizedResult }) {
   );
 }
 
+type DetailSize = 'sm' | 'md' | 'lg' | 'xl';
+const SIZE_STEPS: { key: DetailSize; title: string }[] = [
+  { key: 'sm', title: '現在幅 · default' },
+  { key: 'md', title: '中 · medium' },
+  { key: 'lg', title: '中大 · large' },
+  { key: 'xl', title: '最大 · max (背景は残す)' },
+];
+
 export function DetailPanel() {
   const selected = useStore((s) => s.selected);
   const results = useStore((s) => s.results);
@@ -952,6 +960,18 @@ export function DetailPanel() {
   const panelRef = useRef<HTMLElement>(null);
   const [copied, setCopied] = useState<'text' | 'image' | 'err' | null>(null);
   const [busy, setBusy] = useState(false);
+  const [size, setSize] = useState<DetailSize>(() => {
+    const s = localStorage.getItem('vteeee.detailSize');
+    return s === 'md' || s === 'lg' || s === 'xl' ? s : 'sm';
+  });
+  function changeSize(s: DetailSize): void {
+    setSize(s);
+    try {
+      localStorage.setItem('vteeee.detailSize', s);
+    } catch {
+      /* ignore */
+    }
+  }
   const r = selected ? results[selected] : null;
 
   function flash(kind: 'text' | 'image' | 'err'): void {
@@ -999,7 +1019,7 @@ export function DetailPanel() {
 
   return (
     <div className="detail-overlay" onClick={() => select(null)}>
-      <aside className="detail-panel" ref={panelRef} onClick={(e) => e.stopPropagation()}>
+      <aside className="detail-panel" data-size={size} ref={panelRef} onClick={(e) => e.stopPropagation()}>
         <div className="detail-head">
           <div>
             <div className="detail-title mono">{r.value}</div>
@@ -1009,6 +1029,20 @@ export function DetailPanel() {
             </div>
           </div>
           <div className="detail-actions" data-noimage="true">
+            <div className="detail-resize" role="group" aria-label="Panel width">
+              {SIZE_STEPS.map((s, i) => (
+                <button
+                  key={s.key}
+                  className={`resize-btn${size === s.key ? ' active' : ''}`}
+                  onClick={() => changeSize(s.key)}
+                  title={`Panel width — ${s.title}`}
+                  aria-label={`width ${s.key}`}
+                  aria-pressed={size === s.key}
+                >
+                  <span className="resize-bar" style={{ width: `${5 + i * 4}px` }} />
+                </button>
+              ))}
+            </div>
             <button
               className="btn btn-sm btn-ghost"
               onClick={copyText}

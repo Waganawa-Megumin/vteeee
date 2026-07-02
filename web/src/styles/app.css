@@ -711,7 +711,66 @@ textarea:focus {
   gap: 6px;
   flex: none;
   flex-wrap: wrap;
+  align-items: center;
   justify-content: flex-end;
+}
+/* detail-panel width stepper (現在 → 中 → 中大 → 最大) */
+.detail-resize {
+  display: inline-flex;
+  gap: 3px;
+  align-items: center;
+  margin-right: 2px;
+}
+.resize-btn {
+  display: inline-flex;
+  align-items: center;
+  height: 26px;
+  padding: 0 5px;
+  border: 1px solid var(--line);
+  background: var(--bg3);
+  border-radius: 6px;
+  cursor: pointer;
+}
+.resize-btn:hover {
+  border-color: var(--muted);
+}
+.resize-btn.active {
+  border-color: var(--accent);
+  background: var(--bg2);
+}
+.resize-bar {
+  display: block;
+  height: 12px;
+  border-radius: 2px;
+  background: var(--muted);
+}
+.resize-btn.active .resize-bar {
+  background: var(--accent);
+}
+/* Width presets apply on desktop only; mobile keeps the full-width panel below. */
+@media (min-width: 721px) {
+  .detail-panel[data-size='sm'] {
+    width: 480px;
+  }
+  .detail-panel[data-size='md'] {
+    width: 660px;
+    max-width: 94vw;
+  }
+  .detail-panel[data-size='lg'] {
+    width: 900px;
+    max-width: 94vw;
+  }
+  .detail-panel[data-size='xl'] {
+    /* Capped below full width so the dimmed background stays visible + clickable to close. */
+    width: min(1280px, 85vw);
+  }
+  /* Two columns at the wider sizes to cut the panel's height. */
+  .detail-panel[data-size='lg'] .detail-grid,
+  .detail-panel[data-size='xl'] .detail-grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 8px 22px;
+  }
 }
 .detail-title {
   font-size: 15px;
@@ -1540,10 +1599,15 @@ a.i471-search-item:hover {
   .results-table td {
     padding: 6px 8px;
   }
-  .detail-panel {
+  .detail-panel,
+  .detail-panel[data-size] {
     width: 100vw;
     max-width: 100vw;
     padding: 14px;
+  }
+  /* Width stepper is meaningless when the panel is full-width on phones. */
+  .detail-resize {
+    display: none;
   }
   .modal-body {
     padding: 12px;
