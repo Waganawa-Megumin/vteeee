@@ -10,6 +10,7 @@ import { SettingsDialog } from './components/SettingsDialog';
 import { IntegrationStatus } from './components/IntegrationStatus';
 import { HelpDialog } from './components/HelpDialog';
 import { HistoryDialog } from './components/HistoryDialog';
+import { RuleSearchDialog } from './components/RuleSearchDialog';
 import { EmptyState } from './components/EmptyState';
 import { AdminPanel } from './admin/AdminPanel';
 
@@ -24,9 +25,12 @@ export default function App() {
   const logout = useStore((s) => s.logout);
   const error = useStore((s) => s.error);
   const hasResults = useStore((s) => s.order.length > 0);
+  // SOC Prime rule search is available anytime it's configured (or in demo mode via the sample).
+  const rulesAvailable = useStore((s) => s.mode === 'demo' || Boolean(s.health?.socprime));
   const [settingsOpen, setSettingsOpen] = useState(false);
   const [helpOpen, setHelpOpen] = useState(false);
   const [historyOpen, setHistoryOpen] = useState(false);
+  const [rulesOpen, setRulesOpen] = useState(false);
   const [theme, setTheme] = useState<Theme>(
     () => ((localStorage.getItem('vteeee.theme') as Theme) || 'chalk'),
   );
@@ -62,6 +66,11 @@ export default function App() {
         <button className="btn btn-sm" onClick={() => setHistoryOpen(true)}>
           History
         </button>
+        {rulesAvailable && (
+          <button className="btn btn-sm" onClick={() => setRulesOpen(true)} title="Search SOC Prime detection rules">
+            Rules
+          </button>
+        )}
         <button className="btn btn-sm" onClick={() => setHelpOpen(true)}>
           Docs
         </button>
@@ -101,6 +110,7 @@ export default function App() {
       {settingsOpen && <SettingsDialog onClose={() => setSettingsOpen(false)} />}
       {helpOpen && <HelpDialog onClose={() => setHelpOpen(false)} />}
       {historyOpen && <HistoryDialog onClose={() => setHistoryOpen(false)} />}
+      {rulesOpen && <RuleSearchDialog onClose={() => setRulesOpen(false)} />}
       <DetailPanel />
     </div>
   );

@@ -182,11 +182,11 @@ export function HelpDialog({ onClose }: { onClose: () => void }) {
 
               <IntegrationRow name="SOC Prime (TDM)" env="SOCPRIME_API_KEY" on={health?.socprime ?? null} live={live}>
                 <span className="help-ja">
-                  <b>エンリッチではなくクエリ生成</b>。Results の<b>「SIEM query」</b>ボタンから、表示中のIOCを SOC Prime Uncoder AI
-                  に渡して Splunk/Sentinel/QRadar/Elastic/CrowdStrike 等の<b>ハンティングクエリ</b>を生成（種別選択・IOC/クエリ件数指定可）。
-                  『トリアージ→ハンティング』の橋渡し。プライベート/予約IPは自動除外。
+                  <b>エンリッチではなく検知コンテンツ</b>。ヘッダーの<b>「Rules」</b>で SOC Prime の Sigma 検知ルールを
+                  キーワード/ATT&CKアクター/ツール/テクニックID/重大度で検索し、指定SIEM形式（Splunk/Sentinel/QRadar/Elastic/CrowdStrike…）へ翻訳表示（各ルールをコピー可）。
+                  加えて Results の<b>「SIEM query」</b>で表示中IOCから<b>ハンティングクエリ</b>を生成（Uncoder AI）。『トリアージ→ハンティング』の橋渡し。
                 </span>
-                <span className="help-en">Not enrichment — query generation. The Results “SIEM query” button sends the shown IOCs to SOC Prime Uncoder AI to build a hunting query for Splunk/Sentinel/QRadar/Elastic/CrowdStrike/etc. (pick the format + IOCs-per-query). Bridges triage → hunting; private/reserved IPs are dropped.</span>
+                <span className="help-en">Not enrichment — detection content. The header “Rules” button searches SOC Prime's Sigma detection rules by keyword / ATT&amp;CK actor / tool / technique ID / severity, translated into your SIEM (Splunk/Sentinel/QRadar/Elastic/CrowdStrike…), each copyable. Plus a Results “SIEM query” action that turns the shown IOCs into a hunting query (Uncoder AI). Bridges triage → hunting.</span>
               </IntegrationRow>
             </div>
             <p className="help-ja" style={{ marginTop: 8 }}>

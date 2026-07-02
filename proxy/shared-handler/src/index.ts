@@ -36,7 +36,7 @@ export {
   mapTvSample,
   mapTvAdversary,
 } from './threatvisionFetch';
-export { socprimeGenerateQuery, mapSocprimeQuery } from './socprimeFetch';
+export { socprimeGenerateQuery, mapSocprimeQuery, socprimeSearchRules, mapSocprimeRules } from './socprimeFetch';
 export { smartParse } from './parse';
 export { RateLimiter } from './rateLimiter';
 export { AsyncQueue, sleep, clamp, backoffMs } from './util';

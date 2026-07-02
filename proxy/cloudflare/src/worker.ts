@@ -7,6 +7,7 @@ import {
   cyfirmaActorSearch,
   threatvisionAdversary,
   socprimeGenerateQuery,
+  socprimeSearchRules,
   getUsers,
   putUsers,
   getSettings,
@@ -240,6 +241,40 @@ export default {
               iocsPerQuery: b.iocsPerQuery,
               includeSourceIp: b.includeSourceIp,
               includeIocTypes: b.includeIocTypes,
+            },
+            proxy,
+            request.signal,
+          )) ?? { error: 'unavailable' },
+        );
+      }
+
+      // On-demand SOC Prime detection-rule search (Sigma rules → chosen SIEM format).
+      if (url.pathname === '/api/socprime/rules' && request.method === 'POST') {
+        if (origin && !originAllowed(origin, allowed)) return json({ error: 'origin not allowed' }, 403);
+        if (!checkAccess(auth, proxy)) return json({ error: 'unauthorized' }, 401);
+        if (!proxy.socprimeApiKey) return json({ error: 'SOC Prime not configured' }, 400);
+        const p = (await request.json()) as {
+          siemType?: string;
+          query?: string;
+          actor?: string;
+          tool?: string;
+          techniqueId?: string;
+          sigmaLevel?: string;
+          pageSize?: number;
+          pageNumber?: number;
+        };
+        if (!p.siemType) return json({ error: 'siemType required' }, 400);
+        return json(
+          (await socprimeSearchRules(
+            {
+              siemType: p.siemType,
+              query: p.query,
+              actor: p.actor,
+              tool: p.tool,
+              techniqueId: p.techniqueId,
+              sigmaLevel: p.sigmaLevel,
+              pageSize: p.pageSize,
+              pageNumber: p.pageNumber,
             },
             proxy,
             request.signal,

@@ -11,7 +11,7 @@ import {
 } from '../intel471Fetch';
 import { mapRiskDossier, mapStixSearch, mapThreatActor } from '../cyfirmaFetch';
 import { mapTvIp, mapTvDomain, mapTvSample, mapTvAdversary } from '../threatvisionFetch';
-import { mapSocprimeQuery } from '../socprimeFetch';
+import { mapSocprimeQuery, mapSocprimeRules } from '../socprimeFetch';
 import { runEnrich } from '../enrich';
 import type { ProxyEnv } from '../types';
 
@@ -622,6 +622,38 @@ describe('SOC Prime Uncoder mapper', () => {
     const r = mapSocprimeQuery({ status: 'ok', unrelated: 1 });
     expect(r.queries).toBeUndefined();
     expect(r.raw).toEqual({ status: 'ok', unrelated: 1 });
+  });
+
+  it('mapSocprimeRules maps nested case/sigma/tags fields + techniques/tactics + total', () => {
+    const res = mapSocprimeRules({
+      total: 42,
+      rules: [
+        {
+          case: { id: 'abc123', name: 'Suspicious PowerShell Download' },
+          description: 'Detects a PowerShell download cradle.',
+          sigma: { level: 'high', status: 'stable', text: 'index=* powershell DownloadString' },
+          tags: {
+            author: ['SOC Prime Team'],
+            actor: ['APT28'],
+            technique: [{ id: 'T1059.001', name: 'PowerShell', tactics: ['Execution'] }],
+          },
+          translation: 'index=* Image="*powershell.exe" CommandLine="*DownloadString*"',
+        },
+      ],
+    });
+    expect(res.total).toBe(42);
+    const r = res.rules?.[0];
+    expect(r).toMatchObject({ id: 'abc123', name: 'Suspicious PowerShell Download', level: 'high', status: 'stable', author: 'SOC Prime Team' });
+    expect(r?.techniques).toEqual(['T1059.001']);
+    expect(r?.tactics).toEqual(['Execution']);
+    expect(r?.actors).toEqual(['APT28']);
+    expect(r?.translation).toContain('DownloadString');
+    expect(r?.url).toBe('https://tdm.socprime.com/tdm/info/abc123');
+  });
+  it('mapSocprimeRules accepts a bare array response', () => {
+    const res = mapSocprimeRules([{ case: { id: 'x', name: 'Rule X' }, sigma: { level: 'low' } }]);
+    expect(res.rules?.[0]).toMatchObject({ id: 'x', name: 'Rule X', level: 'low' });
+    expect(res.total).toBe(1);
   });
 });
 

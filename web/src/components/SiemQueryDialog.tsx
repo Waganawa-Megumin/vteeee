@@ -1,30 +1,7 @@
 import { useState } from 'react';
 import type { SocPrimeQueryResult } from '@vteeee/shared';
 import { useStore } from '../state/store';
-
-/** SIEM formats SOC Prime Uncoder AI supports for IOC → query generation. */
-const SIEM_FORMATS: { value: string; label: string }[] = [
-  { value: 'splunk', label: 'Splunk Query' },
-  { value: 'ala', label: 'Microsoft Sentinel Query' },
-  { value: 'mdatp', label: 'Microsoft Defender for Endpoint' },
-  { value: 'qradar', label: 'IBM QRadar Query' },
-  { value: 'elasticsearch', label: 'Elasticsearch Query' },
-  { value: 'humio', label: 'CrowdStrike NG SIEM / LogScale' },
-  { value: 'crowdstrike', label: 'CrowdStrike Endpoint Security' },
-  { value: 'chronicle-query', label: 'Google SecOps Query' },
-  { value: 'sumologic', label: 'Sumo Logic Query' },
-  { value: 'securonix', label: 'Securonix Query' },
-  { value: 's1-events', label: 'SentinelOne Events Query' },
-  { value: 'carbonblack', label: 'VMware Carbon Black Cloud' },
-  { value: 'carbonblack-edr', label: 'VMware Carbon Black EDR' },
-  { value: 'fireeye-helix', label: 'FireEye Helix Query' },
-  { value: 'rsa_netwitness', label: 'RSA NetWitness Query' },
-  { value: 'graylog', label: 'Graylog Query' },
-  { value: 'logpoint', label: 'LogPoint Query' },
-  { value: 'arcsight-keyword', label: 'ArcSight Query' },
-  { value: 'qualys', label: 'Qualys IOC Query' },
-  { value: 'snowflake', label: 'Snowflake Query' },
-];
+import { SIEM_FORMATS } from '../lib/siemFormats';
 
 /**
  * SOC Prime Uncoder AI — turn the current IOC set into a ready-to-run SIEM hunting query.

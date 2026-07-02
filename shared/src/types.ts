@@ -485,6 +485,59 @@ export interface SocPrimeQueryResult {
   raw?: unknown;
 }
 
+/** Filters for SOC Prime detection-rule search (`GET /v1/search-sigmas`). */
+export interface SocPrimeRuleSearchParams {
+  /** Target platform for the returned translation (client_siem_type), e.g. `splunk`, `ala`. */
+  siemType: string;
+  /** Free-text / Lucene query over rule name, description, body, tags (client_query_string). */
+  query?: string;
+  /** ATT&CK group / adversary name (client_tags_actor). */
+  actor?: string;
+  /** ATT&CK tool or malware name (client_tags_tool). */
+  tool?: string;
+  /** ATT&CK technique ID, e.g. T1055 (tags_technique_id). */
+  techniqueId?: string;
+  /** Severity: low / medium / high / critical (sigma_level). */
+  sigmaLevel?: string;
+  /** Results per page (max 50). */
+  pageSize?: number;
+  /** 1-based page number. */
+  pageNumber?: number;
+}
+
+/** One SOC Prime Sigma detection rule (from rule search), mapped defensively. */
+export interface SocPrimeRule {
+  id?: string;
+  name?: string;
+  description?: string;
+  /** sigma.level — low / medium / high / critical. */
+  level?: string;
+  /** sigma.status — stable / test / experimental. */
+  status?: string;
+  author?: string;
+  /** MITRE ATT&CK technique IDs/names. */
+  techniques?: string[];
+  /** MITRE ATT&CK tactics. */
+  tactics?: string[];
+  /** Attributed ATT&CK groups / adversaries. */
+  actors?: string[];
+  /** The rule translated into the requested SIEM format. */
+  translation?: string;
+  /** Deep link to the rule on the SOC Prime platform, when derivable. */
+  url?: string;
+}
+
+/**
+ * SOC Prime detection-rule search result (`GET /v1/search-sigmas`). Fetched on demand from the
+ * "Detection rules" dialog. Response shape is mapped defensively + `raw` is kept.
+ */
+export interface SocPrimeRuleSearchResult {
+  rules?: SocPrimeRule[];
+  total?: number;
+  error?: string;
+  raw?: unknown;
+}
+
 /** The single shape the results table & detail panel consume, for all IOC types. */
 export interface NormalizedResult {
   input: string;

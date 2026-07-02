@@ -1,4 +1,10 @@
-import type { SocPrimeQueryOptions, SocPrimeQueryResult } from '@vteeee/shared';
+import type {
+  SocPrimeQueryOptions,
+  SocPrimeQueryResult,
+  SocPrimeRule,
+  SocPrimeRuleSearchParams,
+  SocPrimeRuleSearchResult,
+} from '@vteeee/shared';
 import type { ProxyEnv } from './types';
 
 /* eslint-disable @typescript-eslint/no-explicit-any */
@@ -100,5 +106,131 @@ export async function socprimeGenerateQuery(
     return mapSocprimeQuery(JSON.parse(txt));
   } catch {
     return { queries: [txt] }; // some formats return a bare text/plain query
+  }
+}
+
+/** Collect a bounded list of non-empty strings from a value that may be a string, array, or nested. */
+function strList(v: unknown, limit = 12): string[] | undefined {
+  const out: string[] = [];
+  const push = (x: unknown): void => {
+    if (typeof x === 'string' && x.trim()) out.push(x.trim());
+    else if (x && typeof x === 'object') {
+      const n = (x as any).name ?? (x as any).id ?? (x as any).value;
+      if (typeof n === 'string' && n.trim()) out.push(n.trim());
+    }
+  };
+  if (Array.isArray(v)) v.forEach(push);
+  else if (v != null) push(v);
+  const uniq = Array.from(new Set(out)).slice(0, limit);
+  return uniq.length ? uniq : undefined;
+}
+
+/** Map one rule object from the (loosely-specified) search response into our shape. */
+function mapRule(o: any): SocPrimeRule | undefined {
+  if (!o || typeof o !== 'object') return undefined;
+  const tags = o.tags ?? {};
+  const sigma = o.sigma ?? {};
+  const caseObj = o.case ?? {};
+  const r: SocPrimeRule = {};
+  const id = caseObj.id ?? o.case_id ?? o.id ?? o.rule_id;
+  if (typeof id === 'string' && id) r.id = id;
+  const name = caseObj.name ?? o.case_name ?? o.name ?? o.title;
+  if (typeof name === 'string' && name) r.name = name;
+  if (typeof o.description === 'string' && o.description) r.description = o.description;
+  const level = sigma.level ?? o.level ?? o.severity;
+  if (typeof level === 'string' && level) r.level = level;
+  const status = sigma.status ?? o.status;
+  if (typeof status === 'string' && status) r.status = status;
+  const author = strList(tags.author ?? sigma.author ?? o.author, 4);
+  if (author) r.author = author.join(', ');
+  // MITRE techniques: tags.technique may be [{id,name,tactics}] or ids/names.
+  const techIds: string[] = [];
+  const tactics: string[] = [];
+  const techniqueRaw = tags.technique ?? o.technique ?? tags['technique.id'];
+  if (Array.isArray(techniqueRaw)) {
+    for (const t of techniqueRaw) {
+      if (typeof t === 'string') techIds.push(t);
+      else if (t && typeof t === 'object') {
+        const tid = t.id ?? t.name;
+        if (typeof tid === 'string') techIds.push(tid);
+        const tac = t.tactics ?? t.tactic;
+        if (Array.isArray(tac)) for (const x of tac) if (typeof x === 'string') tactics.push(x);
+        else if (typeof tac === 'string') tactics.push(tac);
+      }
+    }
+  } else if (typeof techniqueRaw === 'string') techIds.push(techniqueRaw);
+  const techniques = strList(techIds);
+  if (techniques) r.techniques = techniques;
+  const tac2 = strList(tactics.length ? tactics : (tags['technique.tactics'] ?? tags.tactic));
+  if (tac2) r.tactics = tac2;
+  const actors = strList(tags.actor ?? o.actor);
+  if (actors) r.actors = actors;
+  // Translated rule body for the requested SIEM format (field name varies).
+  const tr = o.translation ?? o.siem_text ?? o.text ?? sigma.text ?? o.rule ?? o.query;
+  if (typeof tr === 'string' && tr.trim()) r.translation = tr;
+  if (r.id) r.url = `https://tdm.socprime.com/tdm/info/${r.id}`;
+  return r;
+}
+
+/** Map a `/v1/search-sigmas` response (array or {rules|sigmas|results|data:[...]}) defensively. */
+export function mapSocprimeRules(json: any): SocPrimeRuleSearchResult {
+  const arr: any[] = Array.isArray(json)
+    ? json
+    : Array.isArray(json?.rules)
+      ? json.rules
+      : Array.isArray(json?.sigmas)
+        ? json.sigmas
+        : Array.isArray(json?.results)
+          ? json.results
+          : Array.isArray(json?.data)
+            ? json.data
+            : [];
+  const rules = arr.map(mapRule).filter((r): r is SocPrimeRule => Boolean(r));
+  const out: SocPrimeRuleSearchResult = { raw: json };
+  if (rules.length) out.rules = rules;
+  const total = json?.total ?? json?.total_count ?? json?.count;
+  out.total = typeof total === 'number' ? total : rules.length;
+  return out;
+}
+
+/**
+ * SOC Prime detection-rule search (`GET /v1/search-sigmas`). Filters are passed as request headers
+ * (per the API spec). On-demand only. Never throws.
+ */
+export async function socprimeSearchRules(
+  params: SocPrimeRuleSearchParams,
+  env: ProxyEnv,
+  signal?: AbortSignal,
+): Promise<SocPrimeRuleSearchResult | undefined> {
+  if (!env.socprimeApiKey) return undefined;
+  if (!params.siemType) return { error: 'siemType required' };
+  const headers: Record<string, string> = {
+    client_secret_id: env.socprimeApiKey,
+    client_siem_type: params.siemType,
+    accept: 'application/json',
+  };
+  if (params.query) headers.client_query_string = params.query;
+  if (params.actor) headers.client_tags_actor = params.actor;
+  if (params.tool) headers.client_tags_tool = params.tool;
+  if (params.techniqueId) headers.tags_technique_id = params.techniqueId;
+  if (params.sigmaLevel) headers.sigma_level = params.sigmaLevel;
+  headers.page_size = String(Math.min(Math.max(params.pageSize ?? 25, 1), 50));
+  if (params.pageNumber && params.pageNumber > 1) headers.page_number = String(params.pageNumber);
+
+  let res: Response;
+  try {
+    res = await fetch(`${baseUrl(env)}/v1/search-sigmas`, { headers, signal });
+  } catch (e) {
+    if ((e as Error).name === 'AbortError') return { error: 'aborted' };
+    return { error: `SOC Prime unreachable: ${(e as Error).message}` };
+  }
+  if (res.status === 401 || res.status === 403) return { error: `SOC Prime ${res.status} — check API key / permission` };
+  if (res.status === 429) return { error: 'SOC Prime: rate limited (30 req / 10s)' };
+  if (res.status === 404) return { rules: [], total: 0 };
+  if (!res.ok) return { error: `SOC Prime error ${res.status}` };
+  try {
+    return mapSocprimeRules(await res.json());
+  } catch {
+    return { error: 'SOC Prime: malformed response' };
   }
 }

@@ -9,6 +9,8 @@ import type {
   ParsedIndicator,
   SocPrimeQueryOptions,
   SocPrimeQueryResult,
+  SocPrimeRuleSearchParams,
+  SocPrimeRuleSearchResult,
   ThreatVisionAdversary,
 } from '@vteeee/shared';
 
@@ -36,6 +38,8 @@ export interface EnrichClient {
   threatvisionAdversary(name: string): Promise<ThreatVisionAdversary>;
   /** On-demand SOC Prime Uncoder AI — generate a SIEM hunting query from a block of IOCs. */
   socprimeQuery(text: string, opts: SocPrimeQueryOptions): Promise<SocPrimeQueryResult>;
+  /** On-demand SOC Prime detection-rule search (Sigma rules → chosen SIEM format). */
+  socprimeRules(params: SocPrimeRuleSearchParams): Promise<SocPrimeRuleSearchResult>;
 }
 
 export function sleep(ms: number, signal?: AbortSignal): Promise<void> {

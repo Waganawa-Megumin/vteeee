@@ -10,6 +10,8 @@ import type {
   ParseResponse,
   SocPrimeQueryOptions,
   SocPrimeQueryResult,
+  SocPrimeRuleSearchParams,
+  SocPrimeRuleSearchResult,
   ThreatVisionAdversary,
 } from '@vteeee/shared';
 import type { EnrichClient, EnrichHandlers } from './client';
@@ -193,6 +195,16 @@ export class LiveClient implements EnrichClient {
     });
     if (!res.ok) return { error: `SOC Prime query generation failed: ${res.status}` };
     return (await res.json()) as SocPrimeQueryResult;
+  }
+
+  async socprimeRules(params: SocPrimeRuleSearchParams): Promise<SocPrimeRuleSearchResult> {
+    const res = await fetch(`${this.base}/api/socprime/rules`, {
+      method: 'POST',
+      headers: this.headers(),
+      body: JSON.stringify(params),
+    });
+    if (!res.ok) return { error: `SOC Prime rule search failed: ${res.status}` };
+    return (await res.json()) as SocPrimeRuleSearchResult;
   }
 
   async smartParse(text: string): Promise<ParsedIndicator[]> {

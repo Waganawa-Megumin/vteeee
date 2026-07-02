@@ -15,6 +15,8 @@ import {
   type Session,
   type SocPrimeQueryOptions,
   type SocPrimeQueryResult,
+  type SocPrimeRuleSearchParams,
+  type SocPrimeRuleSearchResult,
   type ThreatVisionAdversary,
   type UserRecord,
 } from '@vteeee/shared';
@@ -76,6 +78,7 @@ interface State {
   cyfirmaSearch: (name: string) => Promise<CyfirmaSearch>;
   threatvisionAdversary: (name: string) => Promise<ThreatVisionAdversary>;
   socprimeQuery: (text: string, opts: SocPrimeQueryOptions) => Promise<SocPrimeQueryResult>;
+  socprimeRules: (params: SocPrimeRuleSearchParams) => Promise<SocPrimeRuleSearchResult>;
 }
 
 function defaultIncludes(parsed: ParsedIndicator[]): Record<string, boolean> {
@@ -367,6 +370,15 @@ export const useStore = create<State>((set, get) => ({
     try {
       const client = await makeClient(get().settings);
       return await client.socprimeQuery(text, opts);
+    } catch (e) {
+      return { error: (e as Error).message };
+    }
+  },
+
+  async socprimeRules(params) {
+    try {
+      const client = await makeClient(get().settings);
+      return await client.socprimeRules(params);
     } catch (e) {
       return { error: (e as Error).message };
     }

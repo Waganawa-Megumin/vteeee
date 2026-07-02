@@ -10,6 +10,7 @@ import {
   cyfirmaActorSearch,
   threatvisionAdversary,
   socprimeGenerateQuery,
+  socprimeSearchRules,
   getUsers,
   putUsers,
   getSettings,
@@ -222,6 +223,34 @@ app.post('/api/socprime/ioc-query', async (req, res) => {
         iocsPerQuery: req.body?.iocsPerQuery,
         includeSourceIp: req.body?.includeSourceIp,
         includeIocTypes: req.body?.includeIocTypes,
+      },
+      env,
+    )) ?? { error: 'unavailable' },
+  );
+});
+
+app.post('/api/socprime/rules', async (req, res) => {
+  if (!requireAccess(req, res)) return;
+  if (!env.socprimeApiKey) {
+    res.status(400).json({ error: 'SOC Prime not configured' });
+    return;
+  }
+  const siemType = (req.body?.siemType as string) || '';
+  if (!siemType) {
+    res.status(400).json({ error: 'siemType required' });
+    return;
+  }
+  res.json(
+    (await socprimeSearchRules(
+      {
+        siemType,
+        query: req.body?.query,
+        actor: req.body?.actor,
+        tool: req.body?.tool,
+        techniqueId: req.body?.techniqueId,
+        sigmaLevel: req.body?.sigmaLevel,
+        pageSize: req.body?.pageSize,
+        pageNumber: req.body?.pageNumber,
       },
       env,
     )) ?? { error: 'unavailable' },

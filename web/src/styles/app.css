@@ -923,6 +923,76 @@ a.i471-search-item:hover {
   white-space: pre;
   overflow: auto;
 }
+
+/* SOC Prime — detection-rule search */
+.modal.modal-wide {
+  max-width: 820px;
+  width: 92vw;
+}
+.rule-list {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  margin-top: 10px;
+  max-height: 52vh;
+  overflow: auto;
+}
+.rule-card {
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  padding: 10px 12px;
+  background: var(--bg2);
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+.rule-card-head {
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+}
+.rule-name {
+  font-weight: 600;
+  font-size: 13px;
+}
+.rule-desc {
+  font-size: 12px;
+  color: var(--muted);
+  line-height: 1.45;
+}
+.rule-meta {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px 12px;
+  font-size: 11px;
+  color: var(--muted);
+}
+.rule-actions {
+  display: flex;
+  gap: 6px;
+  flex-wrap: wrap;
+  align-items: center;
+}
+.chip.level-critical,
+.chip.level-high {
+  background: rgba(255, 111, 134, 0.16);
+  color: var(--mal);
+  border-color: rgba(255, 111, 134, 0.34);
+  font-weight: 600;
+  text-transform: uppercase;
+}
+.chip.level-medium {
+  background: rgba(240, 187, 96, 0.16);
+  color: var(--sus);
+  border-color: rgba(240, 187, 96, 0.34);
+  text-transform: uppercase;
+}
+.chip.level-low {
+  background: rgba(134, 217, 143, 0.14);
+  color: var(--harm);
+  border-color: rgba(134, 217, 143, 0.3);
+  text-transform: uppercase;
+}
 .cyfirma-rel-row {
   display: flex;
   gap: 6px;

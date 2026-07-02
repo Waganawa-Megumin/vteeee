@@ -10,6 +10,8 @@ import {
   type ParsedIndicator,
   type SocPrimeQueryOptions,
   type SocPrimeQueryResult,
+  type SocPrimeRuleSearchParams,
+  type SocPrimeRuleSearchResult,
   type ThreatVisionAdversary,
 } from '@vteeee/shared';
 import { FIXTURE_MAP } from '../fixtures/samples';
@@ -146,6 +148,48 @@ export class DemoClient implements EnrichClient {
     else if (opts.siemType === 'qradar') q = `SELECT * FROM events WHERE destinationip IN (${quoted}) LAST 7 DAYS`;
     else q = `search (${iocs.map((i) => `dest="${i}" OR url="${i}"`).join(' OR ')})`;
     return { queries: [q], iocCount: iocs.length, raw: { demo: true } };
+  }
+
+  /** Sample SOC Prime detection-rule search (demo). */
+  async socprimeRules(params: SocPrimeRuleSearchParams): Promise<SocPrimeRuleSearchResult> {
+    await sleep(400);
+    const who = params.actor || params.tool || params.query || 'suspicious activity';
+    return {
+      total: 2,
+      rules: [
+        {
+          id: 'demo-rule-1',
+          name: `Possible ${who} — Suspicious PowerShell Download Cradle`,
+          description: `Detects behavior associated with ${who}: PowerShell downloading and executing a remote payload.`,
+          level: 'high',
+          status: 'stable',
+          author: 'SOC Prime Team',
+          techniques: ['T1059.001', 'T1105'],
+          tactics: ['Execution', 'Command and Control'],
+          actors: params.actor ? [params.actor] : [],
+          translation:
+            params.siemType === 'ala'
+              ? 'DeviceProcessEvents\n| where FileName =~ "powershell.exe"\n| where ProcessCommandLine has_any ("DownloadString","IEX")'
+              : 'index=* source="WinEventLog:*" (Image="*\\\\powershell.exe" AND (CommandLine="*DownloadString*" OR CommandLine="*IEX*"))',
+          url: 'https://tdm.socprime.com/tdm/info/demo-rule-1',
+        },
+        {
+          id: 'demo-rule-2',
+          name: `${who} — Rundll32 Executing from Temp`,
+          description: 'Detects rundll32 launching a DLL from a temporary directory.',
+          level: 'medium',
+          status: 'test',
+          author: 'Threat Bounty',
+          techniques: ['T1218.011'],
+          tactics: ['Defense Evasion'],
+          translation:
+            params.siemType === 'ala'
+              ? 'DeviceProcessEvents | where FileName =~ "rundll32.exe" and ProcessCommandLine has "\\\\Temp\\\\"'
+              : 'index=* Image="*\\\\rundll32.exe" CommandLine="*\\\\Temp\\\\*"',
+          url: 'https://tdm.socprime.com/tdm/info/demo-rule-2',
+        },
+      ],
+    };
   }
 
   /** Sample CYFIRMA Threat-Actor deep-dive (demo). */
