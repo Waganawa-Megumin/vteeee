@@ -112,6 +112,15 @@ export function IntegrationStatus({ onManage }: { onManage: () => void }) {
             }
           />
           <Chip
+            label="SOC Prime"
+            on={Boolean(health?.socprime)}
+            title={
+              health?.socprime
+                ? 'SOC Prime (TDM) active — generate SIEM hunting queries from IOCs (Results → SIEM query)'
+                : 'Optional — no SOCPRIME_API_KEY on the proxy'
+            }
+          />
+          <Chip
             label="Claude"
             on={Boolean(health?.claude)}
             title={health?.claude ? 'Claude smart-parse available' : 'Optional — no ANTHROPIC_API_KEY on the proxy'}

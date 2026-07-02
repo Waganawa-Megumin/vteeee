@@ -9,6 +9,7 @@ import {
   intel471MalwareProfile,
   cyfirmaActorSearch,
   threatvisionAdversary,
+  socprimeGenerateQuery,
   getUsers,
   putUsers,
   getSettings,
@@ -60,6 +61,8 @@ const env: ProxyEnv = {
   threatvisionAccessToken: process.env.THREATVISION_ACCESS_TOKEN || undefined,
   threatvisionBaseUrl: process.env.THREATVISION_BASE_URL || undefined,
   threatvisionRpm: process.env.THREATVISION_RPM ? Number(process.env.THREATVISION_RPM) : undefined,
+  socprimeApiKey: process.env.SOCPRIME_API_KEY || undefined,
+  socprimeBaseUrl: process.env.SOCPRIME_BASE_URL || undefined,
   accessToken: process.env.ACCESS_TOKEN || undefined,
   adminToken: process.env.ADMIN_TOKEN || undefined,
   allowedOrigins,
@@ -137,6 +140,7 @@ app.get('/health', (_req, res) => {
     threatvision: Boolean(
       env.threatvisionAccessToken || (env.threatvisionClientId && env.threatvisionClientSecret),
     ),
+    socprime: Boolean(env.socprimeApiKey),
   });
 });
 
@@ -196,6 +200,32 @@ app.get('/api/threatvision/adversary', async (req, res) => {
     return;
   }
   res.json((await threatvisionAdversary(name, env)) ?? { error: 'unavailable' });
+});
+
+app.post('/api/socprime/ioc-query', async (req, res) => {
+  if (!requireAccess(req, res)) return;
+  if (!env.socprimeApiKey) {
+    res.status(400).json({ error: 'SOC Prime not configured' });
+    return;
+  }
+  const text = (req.body?.text as string) || '';
+  const siemType = (req.body?.siemType as string) || '';
+  if (!text || !siemType) {
+    res.status(400).json({ error: 'text and siemType required' });
+    return;
+  }
+  res.json(
+    (await socprimeGenerateQuery(
+      text,
+      {
+        siemType,
+        iocsPerQuery: req.body?.iocsPerQuery,
+        includeSourceIp: req.body?.includeSourceIp,
+        includeIocTypes: req.body?.includeIocTypes,
+      },
+      env,
+    )) ?? { error: 'unavailable' },
+  );
 });
 
 app.post('/api/enrich', async (req, res) => {
@@ -294,5 +324,5 @@ app.all('/api/history/:id', (req, res) => void handleHistory(req, res, req.param
 app.listen(PORT, () => {
   console.log(`vteeee proxy listening on :${PORT}`);
   console.log(`  allowed origins: ${allowedOrigins.join(', ')}`);
-  console.log(`  VT key: ${env.vtApiKey ? 'set' : 'MISSING'} · Claude: ${env.anthropicApiKey ? 'set' : 'off (regex fallback)'} · Shodan: ${env.shodanApiKey ? 'set' : 'off'} · DomainTools: ${env.domaintoolsApiUsername && env.domaintoolsApiKey ? 'set' : 'off'} · DNSLytics: ${env.dnslyticsApiKey ? 'set' : 'off'} · Intel471: ${env.intel471ApiUser && env.intel471ApiKey ? 'set' : 'off'} · CYFIRMA: ${env.cyfirmaApiKey ? 'set' : 'off'} · ThreatVision: ${env.threatvisionAccessToken || (env.threatvisionClientId && env.threatvisionClientSecret) ? 'set' : 'off'}`);
+  console.log(`  VT key: ${env.vtApiKey ? 'set' : 'MISSING'} · Claude: ${env.anthropicApiKey ? 'set' : 'off (regex fallback)'} · Shodan: ${env.shodanApiKey ? 'set' : 'off'} · DomainTools: ${env.domaintoolsApiUsername && env.domaintoolsApiKey ? 'set' : 'off'} · DNSLytics: ${env.dnslyticsApiKey ? 'set' : 'off'} · Intel471: ${env.intel471ApiUser && env.intel471ApiKey ? 'set' : 'off'} · CYFIRMA: ${env.cyfirmaApiKey ? 'set' : 'off'} · ThreatVision: ${env.threatvisionAccessToken || (env.threatvisionClientId && env.threatvisionClientSecret) ? 'set' : 'off'} · SOCPrime: ${env.socprimeApiKey ? 'set' : 'off'}`);
 });

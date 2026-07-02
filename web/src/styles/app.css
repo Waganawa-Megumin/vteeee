@@ -902,6 +902,27 @@ a.i471-search-item:hover {
   color: var(--accent);
   text-decoration: underline;
 }
+
+/* SOC Prime — SIEM query dialog */
+.siem-actions {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+  margin: 12px 0 8px;
+}
+.siem-output {
+  width: 100%;
+  resize: vertical;
+  background: var(--bg);
+  color: var(--text);
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  padding: 10px;
+  font-size: 12px;
+  line-height: 1.5;
+  white-space: pre;
+  overflow: auto;
+}
 .cyfirma-rel-row {
   display: flex;
   gap: 6px;

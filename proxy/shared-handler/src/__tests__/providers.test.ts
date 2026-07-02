@@ -11,6 +11,7 @@ import {
 } from '../intel471Fetch';
 import { mapRiskDossier, mapStixSearch, mapThreatActor } from '../cyfirmaFetch';
 import { mapTvIp, mapTvDomain, mapTvSample, mapTvAdversary } from '../threatvisionFetch';
+import { mapSocprimeQuery } from '../socprimeFetch';
 import { runEnrich } from '../enrich';
 import type { ProxyEnv } from '../types';
 
@@ -602,6 +603,25 @@ describe('ThreatVision mappers', () => {
     expect(a.targetedCountries).toEqual(['South Korea', 'Japan', 'Taiwan']); // null filtered out
     expect(a.targetedIndustries).toEqual(['Media', 'Government']);
     expect(a.overview).toContain('Polaris');
+  });
+});
+
+describe('SOC Prime Uncoder mapper', () => {
+  it('mapSocprimeQuery reads {queries:[{query,iocs_count}]}', () => {
+    const r = mapSocprimeQuery({ queries: [{ query: 'index=* dst IN (1.1.1.1)', iocs_count: 3 }], iocs_count: 3 });
+    expect(r.queries).toEqual(['index=* dst IN (1.1.1.1)']);
+    expect(r.iocCount).toBe(3);
+    expect(r.raw).toBeDefined();
+  });
+  it('mapSocprimeQuery accepts a bare string, an array of strings, and {result}', () => {
+    expect(mapSocprimeQuery('search dst=1.1.1.1').queries).toEqual(['search dst=1.1.1.1']);
+    expect(mapSocprimeQuery(['q1', 'q2']).queries).toEqual(['q1', 'q2']);
+    expect(mapSocprimeQuery({ result: 'q3' }).queries).toEqual(['q3']);
+  });
+  it('mapSocprimeQuery returns no queries (but keeps raw) for an unrecognized shape', () => {
+    const r = mapSocprimeQuery({ status: 'ok', unrelated: 1 });
+    expect(r.queries).toBeUndefined();
+    expect(r.raw).toEqual({ status: 'ok', unrelated: 1 });
   });
 });
 

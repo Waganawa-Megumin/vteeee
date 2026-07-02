@@ -67,6 +67,10 @@ export function SettingsDialog({ onClose }: { onClose: () => void }) {
                 ThreatVision{' '}
                 {health?.threatvision ? (draft.threatvision !== false ? 'on' : 'creds set · off') : 'not configured'}
               </span>
+              <span className={`intg-chip ${health?.socprime ? 'on' : 'off'}`}>
+                <span className="intg-dot" />
+                SOC Prime {health?.socprime ? 'on' : 'not configured'}
+              </span>
               <span className={`intg-chip ${health?.claude ? 'on' : 'off'}`}>
                 <span className="intg-dot" />
                 Claude {health?.claude ? 'on' : 'not configured'}

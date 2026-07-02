@@ -4,6 +4,7 @@ import { useStore } from '../state/store';
 import { GtiBadge, ShodanChips, VerdictBadge } from './Badges';
 import { detectionRatio, verdictRank } from '../lib/verdict';
 import { downloadCsv, resultsToCsv } from '../lib/csv-export';
+import { SiemQueryDialog } from './SiemQueryDialog';
 
 type SortKey = 'value' | 'type' | 'verdict' | 'detections' | 'reputation';
 
@@ -23,9 +24,12 @@ export function ResultsTable() {
   const results = useStore((s) => s.results);
   const select = useStore((s) => s.select);
   const selected = useStore((s) => s.selected);
+  // Live: only when SOC Prime is configured on the proxy. Demo: always (uses the sample stub).
+  const socprimeOn = useStore((s) => s.mode === 'demo' || Boolean(s.health?.socprime));
   const [sortKey, setSortKey] = useState<SortKey>('verdict');
   const [asc, setAsc] = useState(false);
   const [filter, setFilter] = useState('');
+  const [siemOpen, setSiemOpen] = useState(false);
 
   const rows = useMemo(() => {
     let list = order.map((v) => results[v]).filter(Boolean);
@@ -91,6 +95,11 @@ export function ResultsTable() {
           value={filter}
           onChange={(e) => setFilter(e.target.value)}
         />
+        {socprimeOn && (
+          <button className="btn btn-sm" onClick={() => setSiemOpen(true)} title="Generate a SIEM hunting query from these IOCs (SOC Prime)">
+            SIEM query
+          </button>
+        )}
         <button
           className="btn btn-sm"
           onClick={() => downloadCsv('vteeee-results.csv', resultsToCsv(rows))}
@@ -98,6 +107,7 @@ export function ResultsTable() {
           Export CSV
         </button>
       </div>
+      {siemOpen && <SiemQueryDialog iocs={rows.map((r) => r.value)} onClose={() => setSiemOpen(false)} />}
       <div className="table-wrap">
         <table className="results-table">
           <thead>

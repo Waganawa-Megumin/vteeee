@@ -13,6 +13,8 @@ import {
   type ParsedIndicator,
   type ProxyHealth,
   type Session,
+  type SocPrimeQueryOptions,
+  type SocPrimeQueryResult,
   type ThreatVisionAdversary,
   type UserRecord,
 } from '@vteeee/shared';
@@ -73,6 +75,7 @@ interface State {
   intel471Malware: (uid: string, family?: string) => Promise<Intel471Malware>;
   cyfirmaSearch: (name: string) => Promise<CyfirmaSearch>;
   threatvisionAdversary: (name: string) => Promise<ThreatVisionAdversary>;
+  socprimeQuery: (text: string, opts: SocPrimeQueryOptions) => Promise<SocPrimeQueryResult>;
 }
 
 function defaultIncludes(parsed: ParsedIndicator[]): Record<string, boolean> {
@@ -301,7 +304,7 @@ export const useStore = create<State>((set, get) => ({
     try {
       const res = await fetch(`${base}/health`, { cache: 'no-store' });
       if (!res.ok) {
-        set({ health: { ok: false, vtKey: false, claude: false, shodan: false, domaintools: false, dnslytics: false, intel471: false, cyfirma: false, threatvision: false } });
+        set({ health: { ok: false, vtKey: false, claude: false, shodan: false, domaintools: false, dnslytics: false, intel471: false, cyfirma: false, threatvision: false, socprime: false } });
         return;
       }
       const h = (await res.json()) as Partial<ProxyHealth>;
@@ -316,10 +319,11 @@ export const useStore = create<State>((set, get) => ({
           intel471: Boolean(h.intel471),
           cyfirma: Boolean(h.cyfirma),
           threatvision: Boolean(h.threatvision),
+          socprime: Boolean(h.socprime),
         },
       });
     } catch {
-      set({ health: { ok: false, vtKey: false, claude: false, shodan: false, domaintools: false, dnslytics: false, intel471: false, cyfirma: false, threatvision: false } });
+      set({ health: { ok: false, vtKey: false, claude: false, shodan: false, domaintools: false, dnslytics: false, intel471: false, cyfirma: false, threatvision: false, socprime: false } });
     }
   },
 
@@ -354,6 +358,15 @@ export const useStore = create<State>((set, get) => ({
     try {
       const client = await makeClient(get().settings);
       return await client.threatvisionAdversary(name);
+    } catch (e) {
+      return { error: (e as Error).message };
+    }
+  },
+
+  async socprimeQuery(text, opts) {
+    try {
+      const client = await makeClient(get().settings);
+      return await client.socprimeQuery(text, opts);
     } catch (e) {
       return { error: (e as Error).message };
     }

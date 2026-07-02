@@ -32,6 +32,9 @@ THREATVISION_CLIENT_SECRET=
 # THREATVISION_BASE_URL=https://api.threatvision.org
 # NOTE: IP/domain detail cost 1 AAP each; hash lookups (samples search) cost 0 AAP.
 # THREATVISION_RPM=30
+# Optional — SOC Prime (TDM): personal API key for Uncoder AI IOC → SIEM query generation:
+SOCPRIME_API_KEY=
+# SOCPRIME_BASE_URL=https://api.tdm.socprime.com
 # Shared token required on /api/* (set the same value in the web Settings dialog):
 ACCESS_TOKEN=
 # Token required to write users/settings via /api/admin/* :

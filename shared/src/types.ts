@@ -459,6 +459,32 @@ export interface ThreatVisionAdversary {
   error?: string;
 }
 
+/** Options for SOC Prime Uncoder AI IOC → SIEM query generation. */
+export interface SocPrimeQueryOptions {
+  /** Target SIEM/query format (Uncoder `siem_type`), e.g. `splunk`, `ala`, `qradar`. */
+  siemType: string;
+  /** IOCs per generated query (25–300). Default 25. */
+  iocsPerQuery?: number;
+  /** Also match source IPs (in addition to destination). */
+  includeSourceIp?: boolean;
+  /** Restrict to these IOC types: domain / url / hash / ip. */
+  includeIocTypes?: string[];
+}
+
+/**
+ * Result of SOC Prime Uncoder AI IOC → query generation (`POST /v1/uncoder/ioc/generate-query`).
+ * Generated hunting query(ies) for the requested SIEM format. Fetched on demand (a results-toolbar
+ * action), not during enrichment. Response shape is mapped defensively + `raw` is kept.
+ */
+export interface SocPrimeQueryResult {
+  /** One or more generated query strings (usually one; more if IOCs exceed `iocsPerQuery`). */
+  queries?: string[];
+  /** Total IOCs SOC Prime used to build the query, when reported. */
+  iocCount?: number;
+  error?: string;
+  raw?: unknown;
+}
+
 /** The single shape the results table & detail panel consume, for all IOC types. */
 export interface NormalizedResult {
   input: string;
@@ -577,6 +603,8 @@ export interface ProxyHealth {
   cyfirma: boolean;
   /** TeamT5 ThreatVision credentials present (optional — APT attribution CTI). */
   threatvision: boolean;
+  /** SOC Prime (TDM) API key present (optional — Uncoder AI IOC → SIEM query generation). */
+  socprime: boolean;
 }
 
 export interface EnrichRequest {

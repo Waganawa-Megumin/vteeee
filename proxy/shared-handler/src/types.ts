@@ -39,6 +39,10 @@ export interface ProxyEnv {
   threatvisionBaseUrl?: string;
   /** Per-minute cap on ThreatVision lookups. Default 30. NOTE: IP/domain detail cost 1 AAP each. */
   threatvisionRpm?: number;
+  /** SOC Prime (TDM) personal API key — sent as the `client_secret_id` header. Powers on-demand IOC → SIEM query generation. */
+  socprimeApiKey?: string;
+  /** SOC Prime API base URL. Default https://api.tdm.socprime.com. */
+  socprimeBaseUrl?: string;
   /** Shared token required on /api/* (enrich, parse). */
   accessToken?: string;
   /** Token required to write users/settings via /api/admin/*. */

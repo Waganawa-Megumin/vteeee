@@ -36,6 +36,8 @@ id = "64fde3553d4b4272a3afa346945a0ce0"
 # CYFIRMA_BASE_URL = "https://decyfir.cyfirma.com/core/api-ua"
 # Override only if your ThreatVision endpoint differs from the default:
 # THREATVISION_BASE_URL = "https://api.threatvision.org"
+# Override only if your SOC Prime endpoint differs from the default:
+# SOCPRIME_BASE_URL = "https://api.tdm.socprime.com"
 
 # Secrets are NOT stored here. Set them with:
 #   wrangler secret put VT_API_KEY
@@ -49,5 +51,6 @@ id = "64fde3553d4b4272a3afa346945a0ce0"
 #   wrangler secret put CYFIRMA_API_KEY           # optional (DeCYFIR: risk dossier + attribution)
 #   wrangler secret put THREATVISION_CLIENT_ID    # optional (TeamT5 ThreatVision: OAuth client id)
 #   wrangler secret put THREATVISION_CLIENT_SECRET# optional (paired with the client id)
+#   wrangler secret put SOCPRIME_API_KEY          # optional (SOC Prime: Uncoder IOC→SIEM query)
 #   wrangler secret put ACCESS_TOKEN              # required on /api/*
 #   wrangler secret put ADMIN_TOKEN               # required on /api/admin/*

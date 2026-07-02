@@ -7,6 +7,8 @@ import type {
   Intel471Search,
   NormalizedResult,
   ParsedIndicator,
+  SocPrimeQueryOptions,
+  SocPrimeQueryResult,
   ThreatVisionAdversary,
 } from '@vteeee/shared';
 
@@ -32,6 +34,8 @@ export interface EnrichClient {
   cyfirmaSearch(name: string): Promise<CyfirmaSearch>;
   /** On-demand TeamT5 ThreatVision adversary (APT group) profile by name. */
   threatvisionAdversary(name: string): Promise<ThreatVisionAdversary>;
+  /** On-demand SOC Prime Uncoder AI — generate a SIEM hunting query from a block of IOCs. */
+  socprimeQuery(text: string, opts: SocPrimeQueryOptions): Promise<SocPrimeQueryResult>;
 }
 
 export function sleep(ms: number, signal?: AbortSignal): Promise<void> {

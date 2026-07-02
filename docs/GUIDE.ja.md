@@ -39,6 +39,7 @@ APIキーはすべて**プロキシ側のみ**が保持します。**VirusTotal 
 | **CYFIRMA (DeCYFIR)** | CTI・全種別 | 任意 | `CYFIRMA_API_KEY` | 全種別に **Risk Dossier**（リスク/外部脅威スコア・推奨アクション・ASN/組織/国・**関連インフラ＝攻撃基盤側**）＋**STIX 2.1検索**（脅威アクター/キャンペーン/マルウェア＝アトリビューション）を付与。詳細で脅威アクターのチップを押すと「広域サーチ」でそのアクターのキャンペーン/マルウェア/標的CVEをオンデマンド取得 |
 | **TeamT5 ThreatVision** | CTI・全種別 | 任意 | `THREATVISION_CLIENT_ID`＋`THREATVISION_CLIENT_SECRET` | APT帰属CTI。**IP/ドメイン**：リスク・**攻撃グループ(APT)**・属性(Malware C2/Hosting)・地域/レジストラ・関連件数(**各1 AAP**)。**ハッシュ**：サンプル検索で攻撃グループ+マルウェアファミリ+リスク(**0 AAP**)。詳細で攻撃グループのチップを押すとAPTの別名/出身国/標的を取得。アップロード系は非対応 |
 | **Claude (Anthropic)** | スマートパース | 任意 | `ANTHROPIC_API_KEY` | レポート本文からIOC抽出 |
+| **SOC Prime (TDM)** | クエリ生成 | 任意 | `SOCPRIME_API_KEY` | エンリッチではなく<b>クエリ生成</b>。Resultsの「SIEM query」ボタンで表示中IOCから Splunk/Sentinel/QRadar/Elastic/CrowdStrike 等の<b>ハンティングクエリ</b>を生成（Uncoder AI）。トリアージ→ハンティングの橋渡し |
 
 **IOC種別で引き分け**：ドメイン→VT＋DomainTools(Enrich)＋DNSLytics(HostingHistory) ／ IP→VT＋Shodan＋DNSLytics(IPInfo)＋DomainTools(逆引き) ／ URL→ホスト名をドメイン扱い ／ ハッシュ→VT＋ThreatVision(サンプル帰属)。**Intel 471・CYFIRMA・ThreatVision は全種別**に付与。各連携は Settings で個別ON/OFF可。DomainToolsは従量課金・Investigateは低レート制限のため、`DOMAINTOOLS_RPM`(既定30)/`DNSLYTICS_RPM`(既定60)/`INTEL471_RPM`(既定60)/`CYFIRMA_RPM`(既定30)/`THREATVISION_RPM`(既定30)で調整、`DNSLYTICS_BASE_URL`・`CYFIRMA_BASE_URL`・`THREATVISION_BASE_URL`でエンドポイント変更可。**ThreatVision の IP/ドメイン詳細は 1件 1 AAP 消費**（AAPは有限のため注意）。
 
@@ -70,6 +71,7 @@ APIキーはすべて**プロキシ側のみ**が保持します。**VirusTotal 
 | `INTEL471_API_USER`＋`INTEL471_API_KEY` | 任意 | **Intel 471 (Titan)**。BasicAuth＝APIメール＋APIキー。全種別IOC照合 | proxy-deploy |
 | `CYFIRMA_API_KEY` | 任意 | **CYFIRMA (DeCYFIR)**。`key=`クエリ認証。全種別に Risk Dossier＋STIX 2.1検索（攻撃基盤/アトリビューション） | proxy-deploy |
 | `THREATVISION_CLIENT_ID`＋`THREATVISION_CLIENT_SECRET` | 任意 | **TeamT5 ThreatVision**。OAuth2クライアント認証。全種別にAPT帰属CTI（IP/ドメイン=各1 AAP, ハッシュ=0 AAP） | proxy-deploy |
+| `SOCPRIME_API_KEY` | 任意 | **SOC Prime (TDM)**。`client_secret_id`ヘッダ認証。Uncoder AIでIOC→SIEMハンティングクエリ生成（Results「SIEM query」ボタン） | proxy-deploy |
 | `CLOUDFLARE_API_TOKEN` | Cloudflare使用時のみ | Worker デプロイ認証 | proxy-deploy |
 | `CLOUDFLARE_ACCOUNT_ID` | Cloudflare使用時のみ | Cloudflare アカウントID | proxy-deploy |
 
@@ -210,6 +212,7 @@ pnpm exec wrangler kv namespace create VTEEEE_KV
   printf '%s' "<CYFIRMAキー>"    | pnpm exec wrangler secret put CYFIRMA_API_KEY           # 任意
   printf '%s' "<TVクライアントID>"  | pnpm exec wrangler secret put THREATVISION_CLIENT_ID    # 任意
   printf '%s' "<TVシークレット>"   | pnpm exec wrangler secret put THREATVISION_CLIENT_SECRET # 任意
+  printf '%s' "<SOC Primeキー>"   | pnpm exec wrangler secret put SOCPRIME_API_KEY          # 任意
   ```
 - 注意: Workerのレート制限カウンタはisolate間で共有されません。厳密な全体ペースが要るなら Node版を推奨。
 
@@ -253,6 +256,7 @@ pnpm exec wrangler kv namespace create VTEEEE_KV
 | `INTEL471_API_USER` / `INTEL471_API_KEY` | プロキシ | △ | Intel 471 (Titan)。BasicAuth＝APIメール＋APIキー。全種別IOC照合 |
 | `CYFIRMA_API_KEY` / `CYFIRMA_BASE_URL` | プロキシ | △ | CYFIRMA (DeCYFIR)。`key=`クエリ認証。全種別に Risk Dossier＋STIX検索。BASE_URLは既定 decyfir.cyfirma.com/core/api-ua |
 | `THREATVISION_CLIENT_ID` / `THREATVISION_CLIENT_SECRET` / `THREATVISION_ACCESS_TOKEN` / `THREATVISION_BASE_URL` | プロキシ | △ | TeamT5 ThreatVision。OAuth2(client id/secret)または access token。IP/ドメイン=1 AAP, ハッシュ=0 AAP。BASE_URLは既定 api.threatvision.org |
+| `SOCPRIME_API_KEY` / `SOCPRIME_BASE_URL` | プロキシ | △ | SOC Prime (TDM)。`client_secret_id`認証。Uncoder AIでIOC→SIEMクエリ生成。BASE_URLは既定 api.tdm.socprime.com |
 | `ALLOWED_ORIGINS` | プロキシ(wrangler.toml / env) | ○ | 許可オリジン(カンマ区切り) |
 | `VT_RPM` / `VT_MAX_RPM` / `VT_DAILY` | プロキシ | △ | レート/日次上限 |
 | `SHODAN_RPM` / `DOMAINTOOLS_RPM` / `DNSLYTICS_RPM` / `INTEL471_RPM` / `CYFIRMA_RPM` / `THREATVISION_RPM` | プロキシ | △ | 各連携の毎分上限(既定 60/30/60/60/30/30) |

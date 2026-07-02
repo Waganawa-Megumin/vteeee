@@ -8,6 +8,8 @@ import type {
   Intel471Search,
   ParsedIndicator,
   ParseResponse,
+  SocPrimeQueryOptions,
+  SocPrimeQueryResult,
   ThreatVisionAdversary,
 } from '@vteeee/shared';
 import type { EnrichClient, EnrichHandlers } from './client';
@@ -175,6 +177,22 @@ export class LiveClient implements EnrichClient {
     });
     if (!res.ok) return { error: `ThreatVision adversary lookup failed: ${res.status}` };
     return (await res.json()) as ThreatVisionAdversary;
+  }
+
+  async socprimeQuery(text: string, opts: SocPrimeQueryOptions): Promise<SocPrimeQueryResult> {
+    const res = await fetch(`${this.base}/api/socprime/ioc-query`, {
+      method: 'POST',
+      headers: this.headers(),
+      body: JSON.stringify({
+        text,
+        siemType: opts.siemType,
+        iocsPerQuery: opts.iocsPerQuery,
+        includeSourceIp: opts.includeSourceIp,
+        includeIocTypes: opts.includeIocTypes,
+      }),
+    });
+    if (!res.ok) return { error: `SOC Prime query generation failed: ${res.status}` };
+    return (await res.json()) as SocPrimeQueryResult;
   }
 
   async smartParse(text: string): Promise<ParsedIndicator[]> {

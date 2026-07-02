@@ -8,6 +8,8 @@ import {
   type Intel471Search,
   type NormalizedResult,
   type ParsedIndicator,
+  type SocPrimeQueryOptions,
+  type SocPrimeQueryResult,
   type ThreatVisionAdversary,
 } from '@vteeee/shared';
 import { FIXTURE_MAP } from '../fixtures/samples';
@@ -127,6 +129,23 @@ export class DemoClient implements EnrichClient {
       overview:
         'A China-nexus adversary widely tracked as "Winnti," named after one of its most infamous RATs; assessed to have strong ties to China\'s MSS.',
     };
+  }
+
+  /** Sample SOC Prime Uncoder AI IOC → SIEM query (demo). */
+  async socprimeQuery(text: string, opts: SocPrimeQueryOptions): Promise<SocPrimeQueryResult> {
+    await sleep(400);
+    const iocs = text
+      .split(/[\s,]+/)
+      .map((s) => s.trim())
+      .filter(Boolean)
+      .slice(0, 6);
+    const quoted = iocs.map((i) => `"${i}"`).join(', ');
+    let q: string;
+    if (opts.siemType.startsWith('ala'))
+      q = `union *\n| where DestinationIp in (${quoted}) or RemoteUrl has_any (${quoted})`;
+    else if (opts.siemType === 'qradar') q = `SELECT * FROM events WHERE destinationip IN (${quoted}) LAST 7 DAYS`;
+    else q = `search (${iocs.map((i) => `dest="${i}" OR url="${i}"`).join(' OR ')})`;
+    return { queries: [q], iocCount: iocs.length, raw: { demo: true } };
   }
 
   /** Sample CYFIRMA Threat-Actor deep-dive (demo). */

@@ -6,6 +6,7 @@ import {
   intel471MalwareProfile,
   cyfirmaActorSearch,
   threatvisionAdversary,
+  socprimeGenerateQuery,
   getUsers,
   putUsers,
   getSettings,
@@ -44,6 +45,8 @@ interface Env {
   THREATVISION_ACCESS_TOKEN?: string;
   THREATVISION_BASE_URL?: string;
   THREATVISION_RPM?: string;
+  SOCPRIME_API_KEY?: string;
+  SOCPRIME_BASE_URL?: string;
   ACCESS_TOKEN?: string;
   ADMIN_TOKEN?: string;
   ALLOWED_ORIGINS?: string;
@@ -89,6 +92,8 @@ function build(env: Env): { proxy: ProxyEnv; allowed: string[]; store: Storage }
     threatvisionAccessToken: env.THREATVISION_ACCESS_TOKEN,
     threatvisionBaseUrl: env.THREATVISION_BASE_URL,
     threatvisionRpm: env.THREATVISION_RPM ? Number(env.THREATVISION_RPM) : undefined,
+    socprimeApiKey: env.SOCPRIME_API_KEY,
+    socprimeBaseUrl: env.SOCPRIME_BASE_URL,
     accessToken: env.ACCESS_TOKEN,
     adminToken: env.ADMIN_TOKEN,
     allowedOrigins: allowed,
@@ -135,6 +140,7 @@ export default {
           threatvision: Boolean(
             proxy.threatvisionAccessToken || (proxy.threatvisionClientId && proxy.threatvisionClientSecret),
           ),
+          socprime: Boolean(proxy.socprimeApiKey),
         });
 
       if (url.pathname === '/api/enrich' && request.method === 'POST') {
@@ -211,6 +217,34 @@ export default {
         const name = url.searchParams.get('name') ?? '';
         if (!name) return json({ error: 'name required' }, 400);
         return json((await threatvisionAdversary(name, proxy, request.signal)) ?? { error: 'unavailable' });
+      }
+
+      // On-demand SOC Prime Uncoder AI — generate a SIEM hunting query from a block of IOCs.
+      if (url.pathname === '/api/socprime/ioc-query' && request.method === 'POST') {
+        if (origin && !originAllowed(origin, allowed)) return json({ error: 'origin not allowed' }, 403);
+        if (!checkAccess(auth, proxy)) return json({ error: 'unauthorized' }, 401);
+        if (!proxy.socprimeApiKey) return json({ error: 'SOC Prime not configured' }, 400);
+        const b = (await request.json()) as {
+          text?: string;
+          siemType?: string;
+          iocsPerQuery?: number;
+          includeSourceIp?: boolean;
+          includeIocTypes?: string[];
+        };
+        if (!b.text || !b.siemType) return json({ error: 'text and siemType required' }, 400);
+        return json(
+          (await socprimeGenerateQuery(
+            b.text,
+            {
+              siemType: b.siemType,
+              iocsPerQuery: b.iocsPerQuery,
+              includeSourceIp: b.includeSourceIp,
+              includeIocTypes: b.includeIocTypes,
+            },
+            proxy,
+            request.signal,
+          )) ?? { error: 'unavailable' },
+        );
       }
 
       if (url.pathname === '/api/admin/users') {

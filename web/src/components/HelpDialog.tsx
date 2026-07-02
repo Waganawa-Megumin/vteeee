@@ -179,6 +179,15 @@ export function HelpDialog({ onClose }: { onClose: () => void }) {
                 </span>
                 <span className="help-en">Pull IOCs out of free-form report prose (the “Smart parse” button). Falls back to regex if absent.</span>
               </IntegrationRow>
+
+              <IntegrationRow name="SOC Prime (TDM)" env="SOCPRIME_API_KEY" on={health?.socprime ?? null} live={live}>
+                <span className="help-ja">
+                  <b>エンリッチではなくクエリ生成</b>。Results の<b>「SIEM query」</b>ボタンから、表示中のIOCを SOC Prime Uncoder AI
+                  に渡して Splunk/Sentinel/QRadar/Elastic/CrowdStrike 等の<b>ハンティングクエリ</b>を生成（種別選択・IOC/クエリ件数指定可）。
+                  『トリアージ→ハンティング』の橋渡し。プライベート/予約IPは自動除外。
+                </span>
+                <span className="help-en">Not enrichment — query generation. The Results “SIEM query” button sends the shown IOCs to SOC Prime Uncoder AI to build a hunting query for Splunk/Sentinel/QRadar/Elastic/CrowdStrike/etc. (pick the format + IOCs-per-query). Bridges triage → hunting; private/reserved IPs are dropped.</span>
+              </IntegrationRow>
             </div>
             <p className="help-ja" style={{ marginTop: 8 }}>
               <b>種別で引き分け</b>：ドメイン→VT＋DomainTools(Enrich)＋DNSLytics(HostingHistory) ／ IP→VT＋Shodan＋DNSLytics(IPInfo)＋DomainTools(逆引き)
