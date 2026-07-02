@@ -1,4 +1,4 @@
-import { useRef, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import type {
   CyfirmaContext,
   CyfirmaRelated,
@@ -802,30 +802,45 @@ function ThreatVisionSection({ d }: { d: ThreatVisionContext }) {
 }
 
 /**
- * SOC Prime block — contextual detection content for this indicator. Pivots off the threat the
- * *other* providers attributed (Intel 471 malware family, CYFIRMA/ThreatVision actor/malware) to
- * find matching SOC Prime detection rules, and generates a hunting query for this single IOC.
+ * SOC Prime block — checks the Threat Detection Marketplace for existing/related detections for this
+ * indicator. On open it auto-searches by the threat the *other* providers attributed (Intel 471
+ * malware family, CYFIRMA/ThreatVision actor/malware); you can also check for rules referencing this
+ * exact IOC, or generate a fresh hunting query. The header shows how many rules exist in the Marketplace.
  */
 function SocPrimeSection({ r }: { r: NormalizedResult }) {
   const searchRules = useStore((s) => s.socprimeRules);
   const genQuery = useStore((s) => s.socprimeQuery);
   const [siemType, setSiemType] = useState('splunk');
-  const [rules, setRules] = useState<{ loading: boolean; data?: SocPrimeRuleSearchResult } | null>(null);
+  const [rules, setRules] = useState<{
+    loading: boolean;
+    mode: 'threat' | 'ioc';
+    basis: string;
+    data?: SocPrimeRuleSearchResult;
+  } | null>(null);
   const [query, setQuery] = useState<{ loading: boolean; data?: SocPrimeQueryResult } | null>(null);
   const [copied, setCopied] = useState(false);
 
   // Best available threat context from the other providers (malware family, then actor).
   const tool = r.intel471?.malwareFamily ?? r.cyfirma?.malware?.[0] ?? r.threatvision?.malwareFamilies?.[0];
   const actor = r.cyfirma?.threatActors?.[0] ?? r.threatvision?.adversaries?.[0];
-  const contextLabel = tool ?? actor;
+  const threat = tool ?? actor ?? r.file?.threatLabel;
 
-  async function findRules() {
-    setRules({ loading: true });
-    const params = tool || actor
-      ? { siemType, tool, actor, pageSize: 5 }
-      : { siemType, query: r.file?.threatLabel || r.value, pageSize: 5 };
-    setRules({ loading: false, data: await searchRules(params) });
+  async function searchBy(mode: 'threat' | 'ioc', siem = siemType) {
+    const basis = mode === 'ioc' ? r.value : (threat ?? r.value);
+    setRules({ loading: true, mode, basis });
+    const params =
+      mode === 'threat' && (tool || actor)
+        ? { siemType: siem, tool, actor, pageSize: 5 }
+        : { siemType: siem, query: `"${basis}"`, pageSize: 5 };
+    setRules({ loading: false, mode, basis, data: await searchRules(params) });
   }
+
+  // Proactively check the Marketplace when opening a notable indicator.
+  useEffect(() => {
+    if (r.verdict === 'malicious' || r.verdict === 'suspicious') void searchBy('threat');
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [r.value]);
+
   async function runQuery() {
     setQuery({ loading: true });
     setQuery({ loading: false, data: await genQuery(r.value, { siemType }) });
@@ -842,7 +857,8 @@ function SocPrimeSection({ r }: { r: NormalizedResult }) {
     }
   }
 
-  const rulesList = rules?.data?.rules ?? [];
+  const list = rules?.data?.rules ?? [];
+  const total = rules?.data && !rules.data.error ? (rules.data.total ?? list.length) : undefined;
 
   return (
     <div className="shodan-block">
@@ -851,42 +867,69 @@ function SocPrimeSection({ r }: { r: NormalizedResult }) {
           🛡
         </span>
         SOC Prime · TDM
-        <span className="shodan-when">detection content</span>
+        {rules?.loading ? (
+          <span className="shodan-when">checking Marketplace…</span>
+        ) : total != null ? (
+          <span className="shodan-when">{total.toLocaleString()} in Marketplace</span>
+        ) : (
+          <span className="shodan-when">detection content</span>
+        )}
       </div>
 
       <div className="soc-controls">
-        <select className="soc-siem" value={siemType} onChange={(e) => setSiemType(e.target.value)}>
+        <select
+          className="soc-siem"
+          value={siemType}
+          onChange={(e) => {
+            setSiemType(e.target.value);
+            if (rules) void searchBy(rules.mode, e.target.value); // re-translate to the new format
+          }}
+        >
           {SIEM_FORMATS.map((f) => (
             <option key={f.value} value={f.value}>
               {f.label}
             </option>
           ))}
         </select>
-        <button className="btn btn-ghost btn-sm" onClick={findRules} disabled={rules?.loading}>
-          {rules?.loading ? 'Searching…' : contextLabel ? `Rules for “${contextLabel}”` : 'Find detection rules'}
+        <button className="btn btn-ghost btn-sm" onClick={() => searchBy('threat')} disabled={rules?.loading}>
+          {threat ? `Related to “${threat}”` : 'Related detections'}
+        </button>
+        <button className="btn btn-ghost btn-sm" onClick={() => searchBy('ioc')} disabled={rules?.loading}>
+          This exact IOC
         </button>
         <button className="btn btn-ghost btn-sm" onClick={runQuery} disabled={query?.loading}>
-          {query?.loading ? 'Generating…' : 'Hunting query for this IOC'}
+          {query?.loading ? 'Generating…' : 'Create hunting query'}
         </button>
       </div>
 
       {rules?.data?.error && <div className="detail-note">{rules.data.error}</div>}
-      {rules?.data && !rules.data.error && rulesList.length === 0 && (
-        <div className="detail-note">No detection rules matched{contextLabel ? ` “${contextLabel}”` : ''}.</div>
-      )}
-      {rulesList.length > 0 && (
-        <div className="rule-list">
-          {rulesList.map((rl, i) => (
-            <RuleCard key={rl.id ?? i} r={rl} />
-          ))}
+      {rules?.data && !rules.data.error && list.length === 0 && (
+        <div className="detail-note">
+          {rules.mode === 'ioc'
+            ? 'No existing Marketplace rule references this exact IOC.'
+            : `No related detections in the Marketplace for “${rules.basis}”.`}
         </div>
+      )}
+      {list.length > 0 && (
+        <>
+          <div className="hint">
+            {rules?.mode === 'ioc'
+              ? 'Existing Marketplace rules referencing this IOC:'
+              : `Related detections in the SOC Prime Marketplace for “${rules?.basis}”:`}
+          </div>
+          <div className="rule-list">
+            {list.map((rl, i) => (
+              <RuleCard key={rl.id ?? i} r={rl} />
+            ))}
+          </div>
+        </>
       )}
 
       {query?.data?.error && <div className="detail-note">{query.data.error}</div>}
       {q && (
         <>
           <div className="i471-actions">
-            <span className="fk">{siemType} query</span>
+            <span className="fk">{siemType} query (generated)</span>
             <button className="btn btn-sm btn-ghost" onClick={copyQuery}>
               {copied ? '✓ Copied' : 'Copy'}
             </button>
@@ -1098,7 +1141,7 @@ export function DetailPanel() {
         )}
         {r.cyfirma && <CyfirmaSection d={r.cyfirma} />}
         {r.threatvision && <ThreatVisionSection d={r.threatvision} />}
-        {socprimeOn && r.type !== 'unknown' && <SocPrimeSection r={r} />}
+        {socprimeOn && r.type !== 'unknown' && <SocPrimeSection key={r.value} r={r} />}
 
         {r.raw != null && (
           <details className="raw">

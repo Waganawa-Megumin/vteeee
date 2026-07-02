@@ -182,11 +182,11 @@ export function HelpDialog({ onClose }: { onClose: () => void }) {
 
               <IntegrationRow name="SOC Prime (TDM)" env="SOCPRIME_API_KEY" on={health?.socprime ?? null} live={live}>
                 <span className="help-ja">
-                  <b>エンリッチではなく検知コンテンツ</b>。ヘッダーの<b>「Rules」</b>で SOC Prime の Sigma 検知ルールを
-                  キーワード/ATT&CKアクター/ツール/テクニックID/重大度で検索し、指定SIEM形式（Splunk/Sentinel/QRadar/Elastic/CrowdStrike…）へ翻訳表示（各ルールをコピー可）。
-                  加えて Results の<b>「SIEM query」</b>で表示中IOCから<b>ハンティングクエリ</b>を生成（Uncoder AI）。『トリアージ→ハンティング』の橋渡し。
+                  <b>エンリッチではなく検知コンテンツ</b>。①<b>詳細パネル</b>：悪性IOCを開くと、他プロバイダが特定した脅威（マルウェアファミリ/アクター）で
+                  Marketplace を<b>自動調査</b>し「N件 in Marketplace」と既存の関連検知ルールを表示（「This exact IOC」でそのIOC自体の既存ルールも確認）。②ヘッダー<b>「Rules」</b>：
+                  キーワード/ATT&CKアクター/ツール/テクニックID/重大度で横断検索。③Results<b>「SIEM query」</b>：選択IOCから<b>ハンティングクエリ生成</b>（Uncoder AI）。全て指定SIEM形式へ翻訳。
                 </span>
-                <span className="help-en">Not enrichment — detection content. The header “Rules” button searches SOC Prime's Sigma detection rules by keyword / ATT&amp;CK actor / tool / technique ID / severity, translated into your SIEM (Splunk/Sentinel/QRadar/Elastic/CrowdStrike…), each copyable. Plus a Results “SIEM query” action that turns the shown IOCs into a hunting query (Uncoder AI). Bridges triage → hunting.</span>
+                <span className="help-en">Not enrichment — detection content. (1) Detail panel: opening a malicious IOC auto-checks the Marketplace for related detections by the attributed threat (malware family / actor) and shows “N in Marketplace” + the rules (“This exact IOC” checks for rules referencing the IOC itself). (2) Header “Rules”: search by keyword / ATT&amp;CK actor / tool / technique ID / severity. (3) Results “SIEM query”: generate a hunting query from the selected IOCs (Uncoder AI). All translated to your SIEM.</span>
               </IntegrationRow>
             </div>
             <p className="help-ja" style={{ marginTop: 8 }}>
