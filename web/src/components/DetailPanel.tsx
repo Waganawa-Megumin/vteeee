@@ -220,6 +220,9 @@ function MaxmindMap({ lat, lon, radiusKm }: { lat: number; lon: number; radiusKm
         L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
           maxZoom: 19,
           attribution: '© OpenStreetMap contributors',
+          // Load tiles cross-origin (OSM sends Access-Control-Allow-Origin) so the copy-image pass
+          // can rasterize them instead of tainting the canvas.
+          crossOrigin: true,
         }).addTo(map);
         // The accuracy-radius area, shaded — the whole point is "this is an area, not an address".
         if (radiusKm && radiusKm > 0) {
@@ -259,7 +262,9 @@ function MaxmindMap({ lat, lon, radiusKm }: { lat: number; lon: number; radiusKm
       map?.remove();
     };
   }, [lat, lon, radiusKm]);
-  return <div className="maxmind-map" data-noimage="true" ref={ref} />;
+  // No data-noimage: the map IS included in the copy-image (tiles load cross-origin so they
+  // rasterize; copyImage still falls back to dropping the map if a tile ever taints the canvas).
+  return <div className="maxmind-map" ref={ref} />;
 }
 
 /**
@@ -1171,29 +1176,39 @@ function SocPrimeSection({ r }: { r: NormalizedResult }) {
       </div>
 
       <div className="soc-controls">
-        <select
-          className="soc-siem"
-          value={siemType}
-          onChange={(e) => {
-            setSiemType(e.target.value);
-            if (rules) void searchBy(rules.mode, e.target.value); // re-translate to the new format
-          }}
-        >
-          {SIEM_FORMATS.map((f) => (
-            <option key={f.value} value={f.value}>
-              {f.label}
-            </option>
-          ))}
-        </select>
-        <button className="btn btn-ghost btn-sm" onClick={() => searchBy('threat')} disabled={rules?.loading}>
-          {threat ? `Related to “${threat}”` : 'Related detections'}
-        </button>
-        <button className="btn btn-ghost btn-sm" onClick={() => searchBy('ioc')} disabled={rules?.loading}>
-          This exact IOC
-        </button>
-        <button className="btn btn-ghost btn-sm" onClick={runQuery} disabled={query?.loading}>
-          {query?.loading ? 'Generating…' : 'Create hunting query'}
-        </button>
+        {/* Group 1 — coverage/match: format-agnostic ("is this IOC / threat already covered?"). */}
+        <div className="soc-group">
+          <span className="soc-group-label">Covered?</span>
+          <button className="btn btn-ghost btn-sm" onClick={() => searchBy('threat')} disabled={rules?.loading}>
+            {threat ? `Related to “${threat}”` : 'Related detections'}
+          </button>
+          <button className="btn btn-ghost btn-sm" onClick={() => searchBy('ioc')} disabled={rules?.loading}>
+            This exact IOC
+          </button>
+        </div>
+        {/* Group 2 — hunting query: the SIEM/EDR is the OUTPUT format for the generated query
+            (and for how matched rules above are translated). It's not a filter on matching. */}
+        <div className="soc-group">
+          <span className="soc-group-label">Hunting query</span>
+          <select
+            className="soc-siem"
+            value={siemType}
+            title="Target SIEM/EDR format for the generated query (and for how matched rules are shown). It does not affect whether an IOC matches."
+            onChange={(e) => {
+              setSiemType(e.target.value);
+              if (rules) void searchBy(rules.mode, e.target.value); // re-translate shown rules to the new format
+            }}
+          >
+            {SIEM_FORMATS.map((f) => (
+              <option key={f.value} value={f.value}>
+                {f.label}
+              </option>
+            ))}
+          </select>
+          <button className="btn btn-ghost btn-sm" onClick={runQuery} disabled={query?.loading}>
+            {query?.loading ? 'Generating…' : 'Create'}
+          </button>
+        </div>
       </div>
 
       {rules?.data?.error && <div className="detail-note">{rules.data.error}</div>}
@@ -1219,6 +1234,7 @@ function SocPrimeSection({ r }: { r: NormalizedResult }) {
         </>
       )}
 
+      {query?.loading && <div className="detail-note">Generating a {siemType} query…</div>}
       {query?.data?.error && <div className="detail-note">{query.data.error}</div>}
       {q && (
         <>
@@ -1230,6 +1246,14 @@ function SocPrimeSection({ r }: { r: NormalizedResult }) {
           </div>
           <textarea className="siem-output mono" readOnly rows={8} value={q} />
         </>
+      )}
+      {/* Never leave the button looking dead: if SOC Prime answered but we mapped no query
+          (and no error), say so and expose the raw response so the shape is visible. */}
+      {query?.data && !query.data.error && !q && (
+        <details className="raw">
+          <summary>SOC Prime returned no query for “{r.value}” — show raw response</summary>
+          <pre>{JSON.stringify(query.data.raw ?? query.data, null, 2)}</pre>
+        </details>
       )}
     </div>
   );
@@ -1287,15 +1311,31 @@ export function DetailPanel() {
     try {
       const { toBlob } = await import('html-to-image');
       const bg = getComputedStyle(node).backgroundColor || '#2b3f37';
-      const blob = await toBlob(node, {
-        backgroundColor: bg,
-        pixelRatio: 2,
-        // Capture the full scroll height, not just the visible viewport of the panel.
-        height: node.scrollHeight,
-        style: { maxHeight: 'none', overflow: 'visible' },
-        // Skip the action buttons (and anything else opted out) in the image.
-        filter: (el) => !(el instanceof HTMLElement && el.dataset.noimage === 'true'),
-      });
+      const capture = (excludeMap: boolean): Promise<Blob | null> =>
+        toBlob(node, {
+          backgroundColor: bg,
+          pixelRatio: 2,
+          // Capture the panel at its current (possibly widened) size — full width and full
+          // scroll height, not just the visible viewport.
+          width: node.offsetWidth,
+          height: node.scrollHeight,
+          style: { maxHeight: 'none', overflow: 'visible' },
+          filter: (el) => {
+            if (el instanceof HTMLElement) {
+              if (el.dataset.noimage === 'true') return false; // action buttons etc.
+              if (excludeMap && el.classList.contains('maxmind-map')) return false;
+            }
+            return true;
+          },
+        });
+      // Include the map first (OSM tiles are CORS-enabled). If a tile ever taints the canvas,
+      // toBlob throws — retry once with the map dropped so the rest of the capture still works.
+      let blob: Blob | null;
+      try {
+        blob = await capture(false);
+      } catch {
+        blob = await capture(true);
+      }
       if (!blob) throw new Error('no blob');
       await navigator.clipboard.write([new ClipboardItem({ 'image/png': blob })]);
       flash('image');
@@ -1455,6 +1495,15 @@ export function DetailPanel() {
           {r.links.apiId && <Field k="VT URL id (base64)" v={r.links.apiId} mono />}
         </div>
 
+        {/* Raw VT payload sits with the VirusTotal data (collapsed), just above the VT link —
+            not at the very bottom under every enrichment section. */}
+        {r.raw != null && (
+          <details className="raw">
+            <summary>Raw VT attributes</summary>
+            <pre>{JSON.stringify(r.raw, null, 2)}</pre>
+          </details>
+        )}
+
         {/* VT call-to-action stays with the VirusTotal data at the top — the enrichment
             sections below can grow long, so the button must not sink to the bottom. */}
         <a className="btn btn-primary detail-vt" href={r.links.gui} target="_blank" rel="noreferrer">
@@ -1471,13 +1520,6 @@ export function DetailPanel() {
         {r.cyfirma && <CyfirmaSection d={r.cyfirma} />}
         {r.threatvision && <ThreatVisionSection d={r.threatvision} />}
         {socprimeOn && r.type !== 'unknown' && <SocPrimeSection key={r.value} r={r} />}
-
-        {r.raw != null && (
-          <details className="raw">
-            <summary>Raw VT attributes</summary>
-            <pre>{JSON.stringify(r.raw, null, 2)}</pre>
-          </details>
-        )}
       </aside>
     </div>
   );

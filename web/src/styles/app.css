@@ -1098,9 +1098,22 @@ a.i471-search-item:hover {
 /* SOC Prime detail-panel controls */
 .soc-controls {
   display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+/* Two conceptual groups: "Covered?" (format-agnostic match) and "Hunting query" (output format
+   + create). Each wraps on narrow screens; the label makes the grouping explicit. */
+.soc-group {
+  display: flex;
   gap: 8px;
   flex-wrap: wrap;
   align-items: center;
+}
+.soc-group-label {
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--muted);
+  min-width: 84px;
 }
 .soc-siem {
   max-width: 240px;
