@@ -161,13 +161,11 @@ function zoomForRadius(rk: number): number {
 // @types/leaflet under a dynamic import, and keeps Leaflet fully lazy-loaded (only when a map shows).
 interface LMapLike {
   setView(c: [number, number], z: number): LMapLike;
-  fitBounds(b: unknown, o?: Record<string, unknown>): LMapLike;
   invalidateSize(): void;
   remove(): void;
 }
 interface LLayerLike {
   addTo(m: LMapLike): LLayerLike;
-  getBounds(): unknown;
 }
 interface LeafletApi {
   map(el: HTMLElement, opts?: Record<string, unknown>): LMapLike;
@@ -176,7 +174,25 @@ interface LeafletApi {
   circleMarker(c: [number, number], opts?: Record<string, unknown>): LLayerLike;
 }
 
-const MAXMIND_ACCENT = '#f0bb60'; // amber — matches the "approximate area" disclaimer
+// Saturated violet for the accuracy overlay. The amber ring washed out on OpenStreetMap's warm beige
+// tiles; violet has strong contrast against ALL OSM base features (beige land, green parks, blue water,
+// grey/orange roads) and doesn't collide with the app's verdict palette (red/amber/green) or teal accent.
+const MAP_RING = '#6d28d9';
+const MAP_FILL = '#8b5cf6';
+const MAP_HEIGHT_PX = 240; // must match the .maxmind-map height in app.css
+
+/**
+ * Largest integer Web-Mercator zoom at which a circle of `radiusKm` (at `lat`) still fits inside the
+ * map's fixed height, with margin. Deterministic — depends only on the radius, latitude and the known
+ * 240px map height, NOT on the container width or on fitBounds/layout timing (fitBounds was racing the
+ * detail panel's slide-in and leaving the map zoomed in with the circle off-screen).
+ */
+function zoomToFitRadius(lat: number, radiusKm: number): number {
+  const C = 156543.03392 * Math.cos((lat * Math.PI) / 180); // metres/pixel at zoom 0
+  const diameterM = radiusKm * 1000 * 2 * 1.25; // circle diameter + 25% margin
+  const z = Math.log2((C * MAP_HEIGHT_PX) / diameterM);
+  return Math.max(2, Math.min(16, Math.floor(z)));
+}
 
 /**
  * Interactive OpenStreetMap (Leaflet) centred on the IP's coordinates, with a semi-transparent
@@ -185,11 +201,13 @@ const MAXMIND_ACCENT = '#f0bb60'; // amber — matches the "approximate area" di
  * Tiles come from openstreetmap.org (keyless). Cross-origin tiles can't be captured by the copy-image
  * pass, so the container is marked data-noimage.
  */
-function MaxmindMap({ lat, lon, radiusKm, zoom }: { lat: number; lon: number; radiusKm: number | null; zoom: number }) {
+function MaxmindMap({ lat, lon, radiusKm }: { lat: number; lon: number; radiusKm: number | null }) {
   const ref = useRef<HTMLDivElement>(null);
   useEffect(() => {
     let map: LMapLike | null = null;
     let cancelled = false;
+    // Pick the zoom up front so the whole accuracy circle is framed regardless of layout timing.
+    const zoom = zoomToFitRadius(lat, radiusKm && radiusKm > 0 ? radiusKm : 25);
     void (async () => {
       const el = ref.current;
       if (!el) return;
@@ -204,30 +222,34 @@ function MaxmindMap({ lat, lon, radiusKm, zoom }: { lat: number; lon: number; ra
           attribution: '© OpenStreetMap contributors',
         }).addTo(map);
         // The accuracy-radius area, shaded — the whole point is "this is an area, not an address".
-        let circle: LLayerLike | null = null;
         if (radiusKm && radiusKm > 0) {
-          circle = L.circle([lat, lon], {
+          L.circle([lat, lon], {
             radius: radiusKm * 1000,
-            color: MAXMIND_ACCENT,
-            weight: 1,
-            fillColor: MAXMIND_ACCENT,
-            fillOpacity: 0.15,
+            color: MAP_RING,
+            weight: 2.5,
+            opacity: 0.95,
+            fillColor: MAP_FILL,
+            fillOpacity: 0.22,
           }).addTo(map);
         }
-        // Centre marker as a plain SVG dot (no default PNG icon → no broken-image path under bundlers).
+        // Centre marker as a plain SVG dot with a white halo (no default PNG icon → no broken-image
+        // path under bundlers; the halo keeps the dot visible over any map feature).
         L.circleMarker([lat, lon], {
-          radius: 5,
-          color: MAXMIND_ACCENT,
+          radius: 6,
+          color: '#ffffff',
           weight: 2,
-          fillColor: MAXMIND_ACCENT,
-          fillOpacity: 0.9,
+          fillColor: MAP_RING,
+          fillOpacity: 1,
         }).addTo(map);
-        // Frame the whole accuracy circle when we have one; else keep the radius-derived zoom.
-        if (circle) map.fitBounds(circle.getBounds(), { padding: [16, 16], maxZoom: 13 });
-        // The panel animates in; make sure Leaflet measures the final size.
-        setTimeout(() => {
-          if (!cancelled) map?.invalidateSize();
-        }, 60);
+        // The detail panel slides in; re-measure the container and re-assert the framing once it has
+        // settled so the tiles fill the box and the zoom (which frames the whole circle) is kept.
+        const settle = () => {
+          if (cancelled || !map) return;
+          map.invalidateSize();
+          map.setView([lat, lon], zoom);
+        };
+        setTimeout(settle, 80);
+        setTimeout(settle, 400);
       } catch {
         /* offline / Leaflet failed to load — the coordinates + disclaimer text still convey the area */
       }
@@ -236,7 +258,7 @@ function MaxmindMap({ lat, lon, radiusKm, zoom }: { lat: number; lon: number; ra
       cancelled = true;
       map?.remove();
     };
-  }, [lat, lon, radiusKm, zoom]);
+  }, [lat, lon, radiusKm]);
   return <div className="maxmind-map" data-noimage="true" ref={ref} />;
 }
 
@@ -388,7 +410,7 @@ function MaxmindSection({ m }: { m: MaxmindContext }) {
                 {m.accuracyRadius != null ? ` ~${m.accuracyRadius} km` : ' estimated'} accuracy radius; the dot marks
                 its centre (typically ISP / city level), <strong>not a precise address or household</strong>.
               </div>
-              <MaxmindMap lat={lat} lon={lon} radiusKm={m.accuracyRadius ?? null} zoom={zoomForRadius(rk)} />
+              <MaxmindMap lat={lat} lon={lon} radiusKm={m.accuracyRadius ?? null} />
               <a className="btn btn-ghost shodan-link" href={largeUrl} target="_blank" rel="noreferrer">
                 View larger map (OpenStreetMap) ↗
               </a>
