@@ -819,6 +819,9 @@ export interface UsersConfig {
   users: UserRecord[];
 }
 
+/** Traffic Light Protocol level (FIRST TLP 2.0), used to mark exported reports. */
+export type TlpLevel = 'CLEAR' | 'GREEN' | 'AMBER' | 'AMBER+STRICT' | 'RED';
+
 export interface AppSettings {
   /** When set, the app runs in Live mode against this proxy. */
   proxyBaseUrl: string | null;
@@ -842,6 +845,8 @@ export interface AppSettings {
   threatvision?: boolean;
   /** Days to keep local search history (per browser). 0 = disabled. Default 30. */
   historyRetentionDays?: number;
+  /** Traffic Light Protocol marking stamped on exported PDFs. Default AMBER. */
+  tlp?: TlpLevel;
   /** Documentation-only note shown in the admin UI. */
   allowedOriginsNote?: string;
   /**

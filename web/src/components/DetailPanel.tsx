@@ -1318,6 +1318,7 @@ export function DetailPanel() {
   const results = useStore((s) => s.results);
   const select = useStore((s) => s.select);
   const socprimeOn = useStore((s) => s.mode === 'demo' || Boolean(s.health?.socprime));
+  const tlp = useStore((s) => s.settings.tlp);
   const panelRef = useRef<HTMLElement>(null);
   const [copied, setCopied] = useState<'text' | 'image' | 'pdf' | 'err' | null>(null);
   const [busy, setBusy] = useState(false);
@@ -1417,7 +1418,7 @@ export function DetailPanel() {
           /* a cross-origin tile tainted the canvas → export the report without the map image */
         }
       }
-      await exportResultPdf(r, map);
+      await exportResultPdf(r, { map, tlp });
       flash('pdf');
     } catch {
       flash('err');

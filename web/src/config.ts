@@ -20,6 +20,7 @@ export const DEFAULT_SETTINGS: AppSettings = {
   cyfirma: true,
   threatvision: true,
   historyRetentionDays: 30,
+  tlp: 'AMBER',
 };
 
 async function fetchJson<T>(path: string): Promise<T | null> {

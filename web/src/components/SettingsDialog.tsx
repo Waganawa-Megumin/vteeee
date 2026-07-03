@@ -272,6 +272,26 @@ export function SettingsDialog({ onClose }: { onClose: () => void }) {
             />
           </label>
 
+          <label className="fld">
+            <span className="fld-label">
+              PDF export TLP marking
+              <InfoTip
+                ja="詳細バーの「Export PDF」に刻印する TLP（Traffic Light Protocol）区分。各ページの右上とフッターに表示されます。既定は AMBER。共有範囲に応じて選択してください（CLEAR=制限なし / GREEN=コミュニティ内 / AMBER=組織内・限定 / AMBER+STRICT=組織内のみ / RED=個人宛のみ）。"
+                en="Traffic Light Protocol marking stamped on the detail panel's “Export PDF” (top-right + footer of every page). Default AMBER. Pick per your sharing scope (CLEAR / GREEN / AMBER / AMBER+STRICT / RED)."
+              />
+            </span>
+            <select
+              value={draft.tlp ?? 'AMBER'}
+              onChange={(e) => up('tlp', e.target.value as AppSettings['tlp'])}
+            >
+              <option value="CLEAR">TLP:CLEAR</option>
+              <option value="GREEN">TLP:GREEN</option>
+              <option value="AMBER">TLP:AMBER (default)</option>
+              <option value="AMBER+STRICT">TLP:AMBER+STRICT</option>
+              <option value="RED">TLP:RED</option>
+            </select>
+          </label>
+
           <p className="hint">
             Free VT tier ≈ 4 req/min, 500/day — keep rpm low to avoid 429s. The access token is stored
             only in this browser (now backed by persistent storage + IndexedDB so it survives much

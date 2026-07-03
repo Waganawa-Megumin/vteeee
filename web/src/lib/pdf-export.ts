@@ -1,11 +1,12 @@
-import type { NormalizedResult } from '@vteeee/shared';
+import type { NormalizedResult, TlpLevel } from '@vteeee/shared';
 import { resultToText } from './detailText';
 
 /**
  * Build a real-text (selectable / searchable) PDF report for one indicator — NOT a screenshot.
  * The body is rendered from the same report as "Copy text" (so they stay in sync), laid out as
  * headings + key/value fields with page breaks; the MaxMind map is embedded as an image (a map is
- * inherently visual) right after its section. Every page carries a vteeee + copyright footer.
+ * inherently visual) right after its section. Every page carries a TLP marking (top) and a
+ * vteeee + copyright footer (bottom).
  */
 
 const MARGIN = 40;
@@ -16,6 +17,15 @@ const MUTED: RGB = [112, 116, 106];
 const ACCENT: RGB = [31, 138, 115];
 const LINE: RGB = [208, 206, 194];
 
+/** TLP label colours (FIRST TLP 2.0), tuned for legibility on a white page. */
+const TLP_COLOR: Record<TlpLevel, RGB> = {
+  CLEAR: [70, 70, 70],
+  GREEN: [18, 138, 18],
+  AMBER: [224, 168, 0],
+  'AMBER+STRICT': [224, 168, 0],
+  RED: [204, 0, 0],
+};
+
 /** A rasterized map to embed (captured from the detail panel), with its source CSS size. */
 export interface PdfMapImage {
   dataUrl: string;
@@ -23,11 +33,18 @@ export interface PdfMapImage {
   h: number;
 }
 
+export interface PdfOptions {
+  map?: PdfMapImage;
+  tlp?: TlpLevel;
+}
+
 /** Labels whose values read better in a monospace font (IDs, addresses, coordinates). */
 const MONO_LABEL =
   /^(MD5|SHA-1|SHA-256|Network|IPs?|Coordinates|Open ports|Name servers|Mail servers|Reverse DNS|SPF|Related (IPs|domains|hashes))$/;
 
-export async function exportResultPdf(r: NormalizedResult, map?: PdfMapImage): Promise<void> {
+export async function exportResultPdf(r: NormalizedResult, opts: PdfOptions = {}): Promise<void> {
+  const { map } = opts;
+  const tlp: TlpLevel = opts.tlp && TLP_COLOR[opts.tlp] ? opts.tlp : 'AMBER';
   const { jsPDF } = await import('jspdf');
   const doc = new jsPDF({ unit: 'pt', format: 'a4' });
   const pageW = doc.internal.pageSize.getWidth();
@@ -77,6 +94,22 @@ export async function exportResultPdf(r: NormalizedResult, map?: PdfMapImage): P
       y += lineH;
     }
     y += 3;
+  };
+
+  // Clickable "Open in VirusTotal" with an underline for affordance (no ↗ — jsPDF's standard
+  // font can't encode it, so it rendered as garbage).
+  const vtLink = () => {
+    const text = 'Open in VirusTotal';
+    ensure(22);
+    y += 4;
+    doc.setFont('helvetica', 'bold');
+    doc.setFontSize(10);
+    color(ACCENT);
+    const tw = doc.getTextWidth(text);
+    doc.textWithLink(text, MARGIN, y + 9, { url: r.links.gui });
+    doc.setDrawColor(ACCENT[0], ACCENT[1], ACCENT[2]);
+    doc.line(MARGIN, y + 11, MARGIN + tw, y + 11);
+    y += 18;
   };
 
   const placeMap = () => {
@@ -137,30 +170,22 @@ export async function exportResultPdf(r: NormalizedResult, map?: PdfMapImage): P
   heading('VirusTotal / GTI');
   let section = 'VirusTotal';
   let mapPlaced = false;
+  let vtLinkDone = false;
   for (const line of resultToText(r).split('\n')) {
     if (line.startsWith('# ')) continue; // title already rendered above
+    if (line.startsWith('VirusTotal: ')) continue; // link is rendered in the VT section instead
     if (line.startsWith('## ')) {
+      // Leaving the VirusTotal section → put its "Open in VirusTotal" link here (with the VT data).
+      if (!vtLinkDone) {
+        vtLink();
+        vtLinkDone = true;
+      }
       if (section === 'MaxMind GeoIP' && map && !mapPlaced) {
         placeMap();
         mapPlaced = true;
       }
       section = line.slice(3).trim();
       heading(section);
-      continue;
-    }
-    if (line.startsWith('VirusTotal: ')) {
-      if (section === 'MaxMind GeoIP' && map && !mapPlaced) {
-        placeMap();
-        mapPlaced = true;
-      }
-      const url = line.slice('VirusTotal: '.length).trim();
-      ensure(20);
-      y += 4;
-      doc.setFont('helvetica', 'bold');
-      doc.setFontSize(10);
-      color(ACCENT);
-      doc.textWithLink('Open in VirusTotal ↗', MARGIN, y + 9, { url });
-      y += 18;
       continue;
     }
     if (line.trim() === '') {
@@ -174,13 +199,26 @@ export async function exportResultPdf(r: NormalizedResult, map?: PdfMapImage): P
       field('', line, false);
     }
   }
+  if (!vtLinkDone) vtLink(); // no other sections at all → link at the end of the VT section
   if (section === 'MaxMind GeoIP' && map && !mapPlaced) placeMap();
 
-  // --- Footer on every page: vteeee + copyright + page number ---
+  // --- Per-page markings: TLP (top-right) + vteeee/copyright footer (bottom) ---
   const pages = doc.getNumberOfPages();
   const year = now.getFullYear();
+  const tlpLabel = `TLP:${tlp}`;
+  const tlpColor = TLP_COLOR[tlp];
   for (let i = 1; i <= pages; i++) {
     doc.setPage(i);
+    // TLP marking, top-right: colored label on a black chip.
+    doc.setFont('helvetica', 'bold');
+    doc.setFontSize(9);
+    const bw = doc.getTextWidth(tlpLabel) + 12;
+    const bx = pageW - MARGIN - bw;
+    doc.setFillColor(0, 0, 0);
+    doc.rect(bx, 18, bw, 15, 'F');
+    doc.setTextColor(tlpColor[0], tlpColor[1], tlpColor[2]);
+    doc.text(tlpLabel, bx + 6, 29);
+    // Footer.
     const fy = pageH - MARGIN + 8;
     doc.setDrawColor(LINE[0], LINE[1], LINE[2]);
     doc.line(MARGIN, fy - 13, pageW - MARGIN, fy - 13);
@@ -188,9 +226,7 @@ export async function exportResultPdf(r: NormalizedResult, map?: PdfMapImage): P
     doc.setFontSize(8);
     color(MUTED);
     doc.text('vteeee — bulk IOC enrichment', MARGIN, fy);
-    doc.text(`© ${year} vteeee · for authorised analyst use`, pageW / 2, fy, {
-      align: 'center',
-    });
+    doc.text(`${tlpLabel} · © ${year} vteeee`, pageW / 2, fy, { align: 'center' });
     doc.text(`${i} / ${pages}`, pageW - MARGIN, fy, { align: 'right' });
   }
 
