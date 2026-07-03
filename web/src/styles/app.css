@@ -1605,6 +1605,12 @@ a.i471-search-item:hover {
   .app {
     height: auto;
     min-height: 100%;
+    /* Clip any horizontal overflow (a long unbroken hash, a wide table) so the document never
+       gets wider than the screen. A wider-than-screen page was throwing off vw units and the
+       centering of fixed overlays, so Settings drifted off to the side and looked "PC-like".
+       `clip` (not hidden) avoids turning .app into a scroll container, and does not clip the
+       position:fixed modal overlay (which stays relative to the viewport). */
+    overflow-x: clip;
   }
   .col-left {
     overflow-y: visible;
@@ -1617,6 +1623,56 @@ a.i471-search-item:hover {
   .preview-list {
     max-height: none;
     overflow: visible;
+  }
+  .layout {
+    max-width: 100%;
+  }
+  /* Parsed-indicator rows: let long domains/URLs/hashes wrap and read IN FULL instead of being
+     clipped with an ellipsis. The row wraps so the badge/flags drop to the next line rather than
+     squashing the value. Applied at the single-column breakpoint (not just phones) so tablets and
+     large phones in the 721–900px range get it too. */
+  .preview-row {
+    flex-wrap: wrap;
+    row-gap: 3px;
+    padding: 7px 6px;
+  }
+  .pv-value {
+    flex: 1 1 auto;
+    min-width: 0;
+    white-space: normal;
+    overflow-wrap: anywhere;
+  }
+  .pv-raw {
+    flex-basis: 100%;
+  }
+  /* Bigger tap target for the include checkbox on touch. */
+  .preview-row input[type='checkbox'] {
+    width: 18px;
+    height: 18px;
+  }
+  /* Single-column = narrow/mobile: modals become full-screen sheets instead of a small centered
+     dialog. This is the "端に出てパソコンみたい" fix — a proper mobile settings page with the
+     Save/Cancel footer pinned and the body scrolling, immune to any centering/overflow quirk. */
+  .modal-overlay {
+    place-items: stretch;
+  }
+  .modal,
+  .modal.modal-wide,
+  .modal.help-modal {
+    width: 100%;
+    max-width: 100%;
+    height: 100%;
+    max-height: 100%;
+    border-radius: 0;
+    display: flex;
+    flex-direction: column;
+  }
+  .modal-body,
+  .help-body {
+    flex: 1;
+    overflow-y: auto;
+    max-height: none;
+    padding: 14px;
   }
 }
 @media (max-width: 720px) {
@@ -1672,33 +1728,8 @@ a.i471-search-item:hover {
   .detail-resize {
     display: none;
   }
-  .modal-body {
-    padding: 12px;
-  }
   .ind {
     max-width: 200px;
-  }
-  /* Parsed-indicator rows: let long domains/URLs wrap and read in full instead of being
-     clipped with an ellipsis on a narrow screen. The row itself wraps so the badge/flags
-     drop to the next line rather than squashing the value. */
-  .preview-row {
-    flex-wrap: wrap;
-    row-gap: 3px;
-    padding: 7px 6px;
-  }
-  .pv-value {
-    flex: 1 1 auto;
-    min-width: 0;
-    white-space: normal;
-    overflow-wrap: anywhere;
-  }
-  .pv-raw {
-    flex-basis: 100%;
-  }
-  /* Bigger tap target for the include checkbox on touch. */
-  .preview-row input[type='checkbox'] {
-    width: 18px;
-    height: 18px;
   }
 }
 @media (max-width: 560px) {
