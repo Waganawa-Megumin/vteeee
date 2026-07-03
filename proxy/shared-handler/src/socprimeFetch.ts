@@ -95,7 +95,7 @@ export async function socprimeGenerateQuery(
   if (res.status === 403)
     return {
       error:
-        'SOC Prime 403 — the key lacks the “Uncoder AI” product-API scope, or its Allowed-IPs list excludes the proxy. Fix the key on Platform Settings → API.',
+        'SOC Prime 403 — on Platform → Settings → API, enable the “Uncoder AI” scope on the key and Save. Leave “Allowed IPs” EMPTY: a Cloudflare Worker has no fixed egress IP, so any allow-list will block it (only a Node proxy has a static IP to allow-list).',
     };
   if (res.status === 429) return { error: 'SOC Prime: rate limited (30 req / 10s)' };
   if (!res.ok) return { error: `SOC Prime error ${res.status}` };
@@ -233,7 +233,7 @@ export async function socprimeSearchRules(
   if (res.status === 403)
     return {
       error:
-        'SOC Prime 403 — the key lacks the “Threat Detection Marketplace” product-API scope, or its Allowed-IPs list excludes the proxy. Fix the key on Platform Settings → API.',
+        'SOC Prime 403 — on Platform → Settings → API, enable the “Threat Detection Marketplace” scope on the key and Save. Leave “Allowed IPs” EMPTY: a Cloudflare Worker has no fixed egress IP, so any allow-list will block it (only a Node proxy has a static IP to allow-list).',
     };
   if (res.status === 429) return { error: 'SOC Prime: rate limited (30 req / 10s)' };
   if (res.status === 404) return { rules: [], total: 0 };
