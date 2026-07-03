@@ -10,6 +10,9 @@ import type { ProxyEnv } from './types';
 /* eslint-disable @typescript-eslint/no-explicit-any */
 
 const DEFAULT_BASE = 'https://api.tdm.socprime.com';
+// Cloudflare Workers send a default outbound User-Agent that some WAFs block; a direct curl (which
+// works from a normal IP) sends its own. Set an explicit UA so a UA-based filter isn't the blocker.
+const USER_AGENT = 'curl/8.7.1';
 
 function baseUrl(env: ProxyEnv): string {
   return (env.socprimeBaseUrl || DEFAULT_BASE).replace(/\/$/, '');
@@ -107,6 +110,7 @@ export async function socprimeGenerateQuery(
         client_secret_id: env.socprimeApiKey,
         'content-type': 'application/json',
         accept: 'application/json',
+        'user-agent': USER_AGENT,
       },
       body: JSON.stringify(body),
       signal,
@@ -230,6 +234,7 @@ export async function socprimeSearchRules(
     client_secret_id: env.socprimeApiKey,
     client_siem_type: params.siemType,
     accept: 'application/json',
+    'user-agent': USER_AGENT,
   };
   if (params.query) headers.client_query_string = params.query;
   if (params.actor) headers.client_tags_actor = params.actor;
