@@ -1318,7 +1318,7 @@ export function DetailPanel() {
   const select = useStore((s) => s.select);
   const socprimeOn = useStore((s) => s.mode === 'demo' || Boolean(s.health?.socprime));
   const panelRef = useRef<HTMLElement>(null);
-  const [copied, setCopied] = useState<'text' | 'image' | 'err' | null>(null);
+  const [copied, setCopied] = useState<'text' | 'image' | 'pdf' | 'err' | null>(null);
   const [busy, setBusy] = useState(false);
   const [size, setSize] = useState<DetailSize>(() => {
     const s = localStorage.getItem('vteeee.detailSize');
@@ -1334,7 +1334,7 @@ export function DetailPanel() {
   }
   const r = selected ? results[selected] : null;
 
-  function flash(kind: 'text' | 'image' | 'err'): void {
+  function flash(kind: 'text' | 'image' | 'pdf' | 'err'): void {
     setCopied(kind);
     setTimeout(() => setCopied((c) => (c === kind ? null : c)), 1600);
   }
@@ -1349,41 +1349,85 @@ export function DetailPanel() {
     }
   }
 
-  async function copyImage(): Promise<void> {
+  /** pixelRatio used for both copy-image and PDF export. */
+  const CAPTURE_SCALE = 2;
+
+  /**
+   * Rasterize the whole panel to a PNG blob at its current (possibly widened) size, including the
+   * MaxMind map. OSM tiles are CORS-enabled so they rasterize; if a tile ever taints the canvas the
+   * capture is retried once with the map dropped. Shared by copy-image and export-PDF.
+   */
+  async function renderPanelBlob(): Promise<Blob | null> {
     const node = panelRef.current;
-    if (!node || busy) return;
+    if (!node) return null;
+    const { toBlob } = await import('html-to-image');
+    const bg = getComputedStyle(node).backgroundColor || '#2b3f37';
+    const capture = (excludeMap: boolean): Promise<Blob | null> =>
+      toBlob(node, {
+        backgroundColor: bg,
+        pixelRatio: CAPTURE_SCALE,
+        width: node.offsetWidth,
+        height: node.scrollHeight,
+        style: { maxHeight: 'none', overflow: 'visible' },
+        filter: (el) => {
+          if (el instanceof HTMLElement) {
+            if (el.dataset.noimage === 'true') return false; // action buttons etc.
+            if (excludeMap && el.classList.contains('maxmind-map')) return false;
+          }
+          return true;
+        },
+      });
+    try {
+      return await capture(false);
+    } catch {
+      return await capture(true);
+    }
+  }
+
+  async function copyImage(): Promise<void> {
+    if (!panelRef.current || busy) return;
     setBusy(true);
     try {
-      const { toBlob } = await import('html-to-image');
-      const bg = getComputedStyle(node).backgroundColor || '#2b3f37';
-      const capture = (excludeMap: boolean): Promise<Blob | null> =>
-        toBlob(node, {
-          backgroundColor: bg,
-          pixelRatio: 2,
-          // Capture the panel at its current (possibly widened) size — full width and full
-          // scroll height, not just the visible viewport.
-          width: node.offsetWidth,
-          height: node.scrollHeight,
-          style: { maxHeight: 'none', overflow: 'visible' },
-          filter: (el) => {
-            if (el instanceof HTMLElement) {
-              if (el.dataset.noimage === 'true') return false; // action buttons etc.
-              if (excludeMap && el.classList.contains('maxmind-map')) return false;
-            }
-            return true;
-          },
-        });
-      // Include the map first (OSM tiles are CORS-enabled). If a tile ever taints the canvas,
-      // toBlob throws — retry once with the map dropped so the rest of the capture still works.
-      let blob: Blob | null;
-      try {
-        blob = await capture(false);
-      } catch {
-        blob = await capture(true);
-      }
+      const blob = await renderPanelBlob();
       if (!blob) throw new Error('no blob');
       await navigator.clipboard.write([new ClipboardItem({ 'image/png': blob })]);
       flash('image');
+    } catch {
+      flash('err');
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  async function exportPdf(): Promise<void> {
+    if (!panelRef.current || busy || !r) return;
+    setBusy(true);
+    try {
+      const blob = await renderPanelBlob();
+      if (!blob) throw new Error('no blob');
+      const dataUrl = await new Promise<string>((resolve, reject) => {
+        const fr = new FileReader();
+        fr.onload = () => resolve(fr.result as string);
+        fr.onerror = () => reject(fr.error);
+        fr.readAsDataURL(blob);
+      });
+      const img = new Image();
+      img.src = dataUrl;
+      await img.decode();
+      // The blob is CAPTURE_SCALE× the CSS size; make the PDF page the CSS size in points
+      // (css px → pt at 96dpi) so the embedded image stays high-resolution.
+      const wPt = (img.naturalWidth / CAPTURE_SCALE) * 0.75;
+      const hPt = (img.naturalHeight / CAPTURE_SCALE) * 0.75;
+      const { jsPDF } = await import('jspdf');
+      const pdf = new jsPDF({
+        orientation: wPt >= hPt ? 'landscape' : 'portrait',
+        unit: 'pt',
+        format: [wPt, hPt],
+      });
+      pdf.addImage(dataUrl, 'PNG', 0, 0, wPt, hPt);
+      const name = r.value.replace(/[^a-z0-9._-]+/gi, '_').slice(0, 60) || 'indicator';
+      pdf.save(`vteeee-${name}.pdf`);
+      flash('pdf');
     } catch {
       flash('err');
     } finally {
@@ -1433,6 +1477,14 @@ export function DetailPanel() {
               title="Copy the whole detail as an image"
             >
               {busy ? '…' : copied === 'image' ? '✓ Copied' : 'Copy image'}
+            </button>
+            <button
+              className="btn btn-sm btn-ghost"
+              onClick={exportPdf}
+              disabled={busy}
+              title="Export the whole detail (incl. the map) as a PDF"
+            >
+              {busy ? '…' : copied === 'pdf' ? '✓ Saved' : 'Export PDF'}
             </button>
             <button className="btn btn-ghost" onClick={() => select(null)} title="Close">
               ✕
