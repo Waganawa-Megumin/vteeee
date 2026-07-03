@@ -24,6 +24,7 @@ import { GtiBadge, VerdictBadge } from './Badges';
 import { InfoTip } from './InfoTip';
 import { detectionRatio } from '../lib/verdict';
 import { resultToText } from '../lib/detailText';
+import { exportResultPdf, type PdfMapImage } from '../lib/pdf-export';
 import { RuleCard } from './RuleCard';
 import { SIEM_FORMATS } from '../lib/siemFormats';
 
@@ -1403,30 +1404,20 @@ export function DetailPanel() {
     if (!panelRef.current || busy || !r) return;
     setBusy(true);
     try {
-      const blob = await renderPanelBlob();
-      if (!blob) throw new Error('no blob');
-      const dataUrl = await new Promise<string>((resolve, reject) => {
-        const fr = new FileReader();
-        fr.onload = () => resolve(fr.result as string);
-        fr.onerror = () => reject(fr.error);
-        fr.readAsDataURL(blob);
-      });
-      const img = new Image();
-      img.src = dataUrl;
-      await img.decode();
-      // The blob is CAPTURE_SCALE× the CSS size; make the PDF page the CSS size in points
-      // (css px → pt at 96dpi) so the embedded image stays high-resolution.
-      const wPt = (img.naturalWidth / CAPTURE_SCALE) * 0.75;
-      const hPt = (img.naturalHeight / CAPTURE_SCALE) * 0.75;
-      const { jsPDF } = await import('jspdf');
-      const pdf = new jsPDF({
-        orientation: wPt >= hPt ? 'landscape' : 'portrait',
-        unit: 'pt',
-        format: [wPt, hPt],
-      });
-      pdf.addImage(dataUrl, 'PNG', 0, 0, wPt, hPt);
-      const name = r.value.replace(/[^a-z0-9._-]+/gi, '_').slice(0, 60) || 'indicator';
-      pdf.save(`vteeee-${name}.pdf`);
+      // Real-text document (not a screenshot). Capture ONLY the MaxMind map (if shown) as an
+      // image and embed it next to the selectable text.
+      let map: PdfMapImage | undefined;
+      const mapEl = panelRef.current.querySelector('.maxmind-map');
+      if (mapEl instanceof HTMLElement && mapEl.offsetWidth > 0) {
+        try {
+          const { toPng } = await import('html-to-image');
+          const dataUrl = await toPng(mapEl, { pixelRatio: 2, cacheBust: true });
+          map = { dataUrl, w: mapEl.offsetWidth, h: mapEl.offsetHeight };
+        } catch {
+          /* a cross-origin tile tainted the canvas → export the report without the map image */
+        }
+      }
+      await exportResultPdf(r, map);
       flash('pdf');
     } catch {
       flash('err');
