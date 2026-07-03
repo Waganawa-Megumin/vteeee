@@ -157,6 +157,89 @@ function zoomForRadius(rk: number): number {
   return 4;
 }
 
+// Minimal surface of the Leaflet API we use — avoids the CJS default/namespace interop friction of
+// @types/leaflet under a dynamic import, and keeps Leaflet fully lazy-loaded (only when a map shows).
+interface LMapLike {
+  setView(c: [number, number], z: number): LMapLike;
+  fitBounds(b: unknown, o?: Record<string, unknown>): LMapLike;
+  invalidateSize(): void;
+  remove(): void;
+}
+interface LLayerLike {
+  addTo(m: LMapLike): LLayerLike;
+  getBounds(): unknown;
+}
+interface LeafletApi {
+  map(el: HTMLElement, opts?: Record<string, unknown>): LMapLike;
+  tileLayer(url: string, opts?: Record<string, unknown>): LLayerLike;
+  circle(c: [number, number], opts?: Record<string, unknown>): LLayerLike;
+  circleMarker(c: [number, number], opts?: Record<string, unknown>): LLayerLike;
+}
+
+const MAXMIND_ACCENT = '#f0bb60'; // amber — matches the "approximate area" disclaimer
+
+/**
+ * Interactive OpenStreetMap (Leaflet) centred on the IP's coordinates, with a semi-transparent
+ * circle drawn at the MaxMind accuracy radius so the "approximate area, not a point" nature is
+ * visually obvious (reinforces the ToS disclaimer). Leaflet + its CSS load lazily on first render.
+ * Tiles come from openstreetmap.org (keyless). Cross-origin tiles can't be captured by the copy-image
+ * pass, so the container is marked data-noimage.
+ */
+function MaxmindMap({ lat, lon, radiusKm, zoom }: { lat: number; lon: number; radiusKm: number | null; zoom: number }) {
+  const ref = useRef<HTMLDivElement>(null);
+  useEffect(() => {
+    let map: LMapLike | null = null;
+    let cancelled = false;
+    void (async () => {
+      const el = ref.current;
+      if (!el) return;
+      try {
+        await import('leaflet/dist/leaflet.css');
+        const mod = await import('leaflet');
+        const L = ((mod as { default?: unknown }).default ?? mod) as unknown as LeafletApi;
+        if (cancelled || !ref.current) return;
+        map = L.map(el, { scrollWheelZoom: false, attributionControl: true }).setView([lat, lon], zoom);
+        L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+          maxZoom: 19,
+          attribution: '© OpenStreetMap contributors',
+        }).addTo(map);
+        // The accuracy-radius area, shaded — the whole point is "this is an area, not an address".
+        let circle: LLayerLike | null = null;
+        if (radiusKm && radiusKm > 0) {
+          circle = L.circle([lat, lon], {
+            radius: radiusKm * 1000,
+            color: MAXMIND_ACCENT,
+            weight: 1,
+            fillColor: MAXMIND_ACCENT,
+            fillOpacity: 0.15,
+          }).addTo(map);
+        }
+        // Centre marker as a plain SVG dot (no default PNG icon → no broken-image path under bundlers).
+        L.circleMarker([lat, lon], {
+          radius: 5,
+          color: MAXMIND_ACCENT,
+          weight: 2,
+          fillColor: MAXMIND_ACCENT,
+          fillOpacity: 0.9,
+        }).addTo(map);
+        // Frame the whole accuracy circle when we have one; else keep the radius-derived zoom.
+        if (circle) map.fitBounds(circle.getBounds(), { padding: [16, 16], maxZoom: 13 });
+        // The panel animates in; make sure Leaflet measures the final size.
+        setTimeout(() => {
+          if (!cancelled) map?.invalidateSize();
+        }, 60);
+      } catch {
+        /* offline / Leaflet failed to load — the coordinates + disclaimer text still convey the area */
+      }
+    })();
+    return () => {
+      cancelled = true;
+      map?.remove();
+    };
+  }, [lat, lon, radiusKm, zoom]);
+  return <div className="maxmind-map" data-noimage="true" ref={ref} />;
+}
+
 /**
  * MaxMind GeoIP geolocation block (IPs). Shows the full GeoIP2/Insights field set — place names
  * with confidence, network/ASN/ISP/domain, connection type, anonymizer (VPN/Tor/proxy) signals,
@@ -169,12 +252,6 @@ function MaxmindSection({ m }: { m: MaxmindContext }) {
   const lat = m.latitude ?? 0;
   const lon = m.longitude ?? 0;
   const rk = m.accuracyRadius && m.accuracyRadius > 0 ? m.accuracyRadius : 50;
-  const dLat = (rk / 111) * 1.8;
-  const dLon = dLat / Math.max(Math.cos((lat * Math.PI) / 180), 0.2);
-  const bbox = `${lon - dLon},${lat - dLat},${lon + dLon},${lat + dLat}`;
-  const embedUrl = `https://www.openstreetmap.org/export/embed.html?bbox=${encodeURIComponent(
-    bbox,
-  )}&layer=mapnik&marker=${lat},${lon}`;
   const largeUrl = `https://www.openstreetmap.org/?mlat=${lat}&mlon=${lon}#map=${zoomForRadius(rk)}/${lat}/${lon}`;
 
   const asn =
@@ -307,18 +384,11 @@ function MaxmindSection({ m }: { m: MaxmindContext }) {
               </div>
               {/* MaxMind ToS: the coordinates refer to an area, not a precise location. */}
               <div className="maxmind-approx">
-                ⚠ Approximate area — these coordinates mark the centre of a
-                {m.accuracyRadius != null ? ` ~${m.accuracyRadius} km-radius` : 'n approximate'} area (typically
-                ISP / city level), <strong>not a precise address or household</strong>.
+                ⚠ Approximate area — the shaded circle is the
+                {m.accuracyRadius != null ? ` ~${m.accuracyRadius} km` : ' estimated'} accuracy radius; the dot marks
+                its centre (typically ISP / city level), <strong>not a precise address or household</strong>.
               </div>
-              <div className="maxmind-map" data-noimage="true">
-                <iframe
-                  title={`Approximate location of this IP (±${m.accuracyRadius ?? '?'} km)`}
-                  src={embedUrl}
-                  loading="lazy"
-                  referrerPolicy="no-referrer"
-                />
-              </div>
+              <MaxmindMap lat={lat} lon={lon} radiusKm={m.accuracyRadius ?? null} zoom={zoomForRadius(rk)} />
               <a className="btn btn-ghost shodan-link" href={largeUrl} target="_blank" rel="noreferrer">
                 View larger map (OpenStreetMap) ↗
               </a>

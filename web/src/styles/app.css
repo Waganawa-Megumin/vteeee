@@ -922,16 +922,21 @@ a.chip.shodan-vuln:hover {
   font-weight: 600;
 }
 .maxmind-map {
+  height: 240px;
   border: 1px solid var(--line);
   border-radius: 8px;
   overflow: hidden;
   background: var(--bg3);
 }
-.maxmind-map iframe {
-  display: block;
+/* Leaflet fills its container; keep tiles/controls inside the rounded frame. */
+.maxmind-map .leaflet-container {
   width: 100%;
-  height: 240px;
-  border: 0;
+  height: 100%;
+  background: var(--bg3);
+  font: inherit;
+}
+.maxmind-map .leaflet-control-attribution {
+  font-size: 10px;
 }
 .i471-actions {
   display: flex;
