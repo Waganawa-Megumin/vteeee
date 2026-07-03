@@ -16,6 +16,30 @@ function baseUrl(env: ProxyEnv): string {
 }
 
 /**
+ * Build an error string that includes SOC Prime's ACTUAL response body — turns a guessed 401/403
+ * hint into the platform's real reason (scope not saved vs. a subscription plan that doesn't include
+ * API access vs. IP allow-list). Reads the body once (only call on a non-ok, non-404/429 response).
+ */
+async function socprimeErr(res: Response, scope: string): Promise<string> {
+  let detail = '';
+  try {
+    detail = (await res.text()).replace(/\s+/g, ' ').trim().slice(0, 400);
+  } catch {
+    /* body unreadable */
+  }
+  const tail = detail ? ` — SOC Prime says: ${detail}` : ' (no response body)';
+  if (res.status === 401) return `SOC Prime 401 — invalid/expired API key.${tail}`;
+  if (res.status === 403)
+    return (
+      `SOC Prime 403 — the key authenticated but is not authorized. Confirm the “${scope}” product-API ` +
+      `scope is enabled AND saved on the key, and that your subscription plan includes API access ` +
+      `(the UI checkbox can be on while the plan still blocks the API). Allowed IPs must be empty for a ` +
+      `Cloudflare Worker.${tail}`
+    );
+  return `SOC Prime error ${res.status}${tail}`;
+}
+
+/**
  * Pull generated query string(s) out of the (loosely-specified) Uncoder response. Handles the
  * likely shapes — a bare string, `{queries:[...]}`, an array of `{query}` objects, `{result}` —
  * and falls back to a pretty-printed blob so nothing is silently lost.
@@ -91,14 +115,8 @@ export async function socprimeGenerateQuery(
     if ((e as Error).name === 'AbortError') return { error: 'aborted' };
     return { error: `SOC Prime unreachable: ${(e as Error).message}` };
   }
-  if (res.status === 401) return { error: 'SOC Prime 401 — invalid/expired API key' };
-  if (res.status === 403)
-    return {
-      error:
-        'SOC Prime 403 — on Platform → Settings → API, enable the “Uncoder AI” scope on the key and Save. Leave “Allowed IPs” EMPTY: a Cloudflare Worker has no fixed egress IP, so any allow-list will block it (only a Node proxy has a static IP to allow-list).',
-    };
   if (res.status === 429) return { error: 'SOC Prime: rate limited (30 req / 10s)' };
-  if (!res.ok) return { error: `SOC Prime error ${res.status}` };
+  if (!res.ok) return { error: await socprimeErr(res, 'Uncoder AI') };
   let txt: string;
   try {
     txt = await res.text();
@@ -229,15 +247,9 @@ export async function socprimeSearchRules(
     if ((e as Error).name === 'AbortError') return { error: 'aborted' };
     return { error: `SOC Prime unreachable: ${(e as Error).message}` };
   }
-  if (res.status === 401) return { error: 'SOC Prime 401 — invalid/expired API key' };
-  if (res.status === 403)
-    return {
-      error:
-        'SOC Prime 403 — on Platform → Settings → API, enable the “Threat Detection Marketplace” scope on the key and Save. Leave “Allowed IPs” EMPTY: a Cloudflare Worker has no fixed egress IP, so any allow-list will block it (only a Node proxy has a static IP to allow-list).',
-    };
-  if (res.status === 429) return { error: 'SOC Prime: rate limited (30 req / 10s)' };
   if (res.status === 404) return { rules: [], total: 0 };
-  if (!res.ok) return { error: `SOC Prime error ${res.status}` };
+  if (res.status === 429) return { error: 'SOC Prime: rate limited (30 req / 10s)' };
+  if (!res.ok) return { error: await socprimeErr(res, 'Threat Detection Marketplace') };
   try {
     return mapSocprimeRules(await res.json());
   } catch {
