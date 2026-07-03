@@ -21,6 +21,7 @@ import type {
 } from '@vteeee/shared';
 import { useStore } from '../state/store';
 import { GtiBadge, VerdictBadge } from './Badges';
+import { InfoTip } from './InfoTip';
 import { detectionRatio } from '../lib/verdict';
 import { resultToText } from '../lib/detailText';
 import { RuleCard } from './RuleCard';
@@ -1178,7 +1179,33 @@ function SocPrimeSection({ r }: { r: NormalizedResult }) {
       <div className="soc-controls">
         {/* Group 1 — coverage/match: format-agnostic ("is this IOC / threat already covered?"). */}
         <div className="soc-group">
-          <span className="soc-group-label">Covered?</span>
+          <span className="soc-group-label">
+            Covered?
+            <InfoTip
+              ja={
+                <>
+                  Marketplace に既存の検知ルールがあるか調べます。
+                  <br />
+                  <b>「Related to …」</b>＝このIOCに他プロバイダ(Intel471/CYFIRMA/ThreatVision)が紐付けた
+                  <b>脅威名（マルウェアファミリ／攻撃グループ）</b>で検索。「この“脅威”に対する検知はあるか？」＝<b>広め</b>。
+                  <br />
+                  <b>「This exact IOC」</b>＝<b>この値そのもの</b>（IP/ドメイン/ハッシュ等）がルール本文に含まれるかを検索。
+                  「この“IOC自体”を参照する既存ルールはあるか？」＝<b>厳密</b>。
+                </>
+              }
+              en={
+                <>
+                  Checks the Marketplace for existing detection rules.
+                  <br />
+                  <b>“Related to …”</b> searches by the <b>threat</b> other providers attributed to this IOC
+                  (malware family / actor) — “is this threat covered?” (broad).
+                  <br />
+                  <b>“This exact IOC”</b> searches for rules whose body references <b>this exact value</b>
+                  (IP/domain/hash) — “is this specific IOC already in a rule?” (narrow).
+                </>
+              }
+            />
+          </span>
           <button className="btn btn-ghost btn-sm" onClick={() => searchBy('threat')} disabled={rules?.loading}>
             {threat ? `Related to “${threat}”` : 'Related detections'}
           </button>
@@ -1189,7 +1216,25 @@ function SocPrimeSection({ r }: { r: NormalizedResult }) {
         {/* Group 2 — hunting query: the SIEM/EDR is the OUTPUT format for the generated query
             (and for how matched rules above are translated). It's not a filter on matching. */}
         <div className="soc-group">
-          <span className="soc-group-label">Hunting query</span>
+          <span className="soc-group-label">
+            Hunting query
+            <InfoTip
+              ja={
+                <>
+                  このIOCから<b>ハンティングクエリを生成</b>します（Uncoder AI）。左の<b>SIEM/EDR</b>は
+                  <b>出力フォーマット</b>（Splunk/Sentinel/CrowdStrike等）で、生成クエリと、上の一致ルールの
+                  翻訳表示に使われます。<b>IOCが一致するかどうかとは無関係</b>です。
+                </>
+              }
+              en={
+                <>
+                  <b>Generates a hunting query</b> from this IOC (Uncoder AI). The <b>SIEM/EDR</b> on the left is
+                  the <b>output format</b> (Splunk/Sentinel/CrowdStrike/…) for the generated query and for how the
+                  matched rules above are translated. It does <b>not</b> affect whether an IOC matches.
+                </>
+              }
+            />
+          </span>
           <select
             className="soc-siem"
             value={siemType}
