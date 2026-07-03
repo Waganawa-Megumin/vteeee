@@ -91,8 +91,12 @@ export async function socprimeGenerateQuery(
     if ((e as Error).name === 'AbortError') return { error: 'aborted' };
     return { error: `SOC Prime unreachable: ${(e as Error).message}` };
   }
-  if (res.status === 401 || res.status === 403)
-    return { error: `SOC Prime ${res.status} — check API key / Uncoder AI permission` };
+  if (res.status === 401) return { error: 'SOC Prime 401 — invalid/expired API key' };
+  if (res.status === 403)
+    return {
+      error:
+        'SOC Prime 403 — the key lacks the “Uncoder AI” product-API scope, or its Allowed-IPs list excludes the proxy. Fix the key on Platform Settings → API.',
+    };
   if (res.status === 429) return { error: 'SOC Prime: rate limited (30 req / 10s)' };
   if (!res.ok) return { error: `SOC Prime error ${res.status}` };
   let txt: string;
@@ -225,7 +229,12 @@ export async function socprimeSearchRules(
     if ((e as Error).name === 'AbortError') return { error: 'aborted' };
     return { error: `SOC Prime unreachable: ${(e as Error).message}` };
   }
-  if (res.status === 401 || res.status === 403) return { error: `SOC Prime ${res.status} — check API key / permission` };
+  if (res.status === 401) return { error: 'SOC Prime 401 — invalid/expired API key' };
+  if (res.status === 403)
+    return {
+      error:
+        'SOC Prime 403 — the key lacks the “Threat Detection Marketplace” product-API scope, or its Allowed-IPs list excludes the proxy. Fix the key on Platform Settings → API.',
+    };
   if (res.status === 429) return { error: 'SOC Prime: rate limited (30 req / 10s)' };
   if (res.status === 404) return { rules: [], total: 0 };
   if (!res.ok) return { error: `SOC Prime error ${res.status}` };
