@@ -46,6 +46,7 @@ export class DemoClient implements EnrichClient {
           includeRaw: true,
         });
         if (fx.shodan) result.shodan = fx.shodan;
+        if (fx.maxmind) result.maxmind = fx.maxmind;
         if (fx.domaintools) result.domaintools = fx.domaintools;
         if (fx.dnslytics) result.dnslytics = fx.dnslytics;
         if (fx.intel471) result.intel471 = fx.intel471;

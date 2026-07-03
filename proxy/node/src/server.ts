@@ -46,6 +46,11 @@ const env: ProxyEnv = {
   vtApiKey: process.env.VT_API_KEY ?? '',
   anthropicApiKey: process.env.ANTHROPIC_API_KEY || undefined,
   shodanApiKey: process.env.SHODAN_API_KEY || undefined,
+  maxmindAccountId: process.env.MAXMIND_ACCOUNT_ID || undefined,
+  maxmindLicenseKey: process.env.MAXMIND_LICENSE_KEY || undefined,
+  maxmindBaseUrl: process.env.MAXMIND_BASE_URL || undefined,
+  maxmindEdition: process.env.MAXMIND_EDITION || undefined,
+  maxmindRpm: process.env.MAXMIND_RPM ? Number(process.env.MAXMIND_RPM) : undefined,
   domaintoolsApiUsername: process.env.DOMAINTOOLS_API_USERNAME || undefined,
   domaintoolsApiKey: process.env.DOMAINTOOLS_API_KEY || undefined,
   dnslyticsApiKey: process.env.DNSLYTICS_API_KEY || undefined,
@@ -134,6 +139,7 @@ app.get('/health', (_req, res) => {
     vtKey: Boolean(env.vtApiKey),
     claude: Boolean(env.anthropicApiKey),
     shodan: Boolean(env.shodanApiKey),
+    maxmind: Boolean(env.maxmindAccountId && env.maxmindLicenseKey),
     domaintools: Boolean(env.domaintoolsApiUsername && env.domaintoolsApiKey),
     dnslytics: Boolean(env.dnslyticsApiKey),
     intel471: Boolean(env.intel471ApiUser && env.intel471ApiKey),
@@ -354,5 +360,5 @@ app.all('/api/history/:id', (req, res) => void handleHistory(req, res, req.param
 app.listen(PORT, () => {
   console.log(`vteeee proxy listening on :${PORT}`);
   console.log(`  allowed origins: ${allowedOrigins.join(', ')}`);
-  console.log(`  VT key: ${env.vtApiKey ? 'set' : 'MISSING'} · Claude: ${env.anthropicApiKey ? 'set' : 'off (regex fallback)'} · Shodan: ${env.shodanApiKey ? 'set' : 'off'} · DomainTools: ${env.domaintoolsApiUsername && env.domaintoolsApiKey ? 'set' : 'off'} · DNSLytics: ${env.dnslyticsApiKey ? 'set' : 'off'} · Intel471: ${env.intel471ApiUser && env.intel471ApiKey ? 'set' : 'off'} · CYFIRMA: ${env.cyfirmaApiKey ? 'set' : 'off'} · ThreatVision: ${env.threatvisionAccessToken || (env.threatvisionClientId && env.threatvisionClientSecret) ? 'set' : 'off'} · SOCPrime: ${env.socprimeApiKey ? 'set' : 'off'}`);
+  console.log(`  VT key: ${env.vtApiKey ? 'set' : 'MISSING'} · Claude: ${env.anthropicApiKey ? 'set' : 'off (regex fallback)'} · Shodan: ${env.shodanApiKey ? 'set' : 'off'} · MaxMind: ${env.maxmindAccountId && env.maxmindLicenseKey ? 'set' : 'off'} · DomainTools: ${env.domaintoolsApiUsername && env.domaintoolsApiKey ? 'set' : 'off'} · DNSLytics: ${env.dnslyticsApiKey ? 'set' : 'off'} · Intel471: ${env.intel471ApiUser && env.intel471ApiKey ? 'set' : 'off'} · CYFIRMA: ${env.cyfirmaApiKey ? 'set' : 'off'} · ThreatVision: ${env.threatvisionAccessToken || (env.threatvisionClientId && env.threatvisionClientSecret) ? 'set' : 'off'} · SOCPrime: ${env.socprimeApiKey ? 'set' : 'off'}`);
 });

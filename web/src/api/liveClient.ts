@@ -27,13 +27,14 @@ export class LiveClient implements EnrichClient {
   constructor(settings: AppSettings) {
     this.base = settings.proxyBaseUrl!.replace(/\/$/, '');
     this.accessToken = settings.accessToken;
-    // Each indicator issues ~1 subrequest per active provider (VT + Shodan + DomainTools +
+    // Each indicator issues ~1 subrequest per active provider (VT + Shodan + MaxMind + DomainTools +
     // DNSLytics + Intel 471 + CYFIRMA). Cloudflare's free plan allows only 50 subrequests per
     // Worker invocation, so we split the batch into chunks — each POST is a fresh invocation with
     // its own budget. Target ≤ ~40/invocation to leave headroom for VT 429 retries.
     const providers =
       1 + // VirusTotal
       (settings.shodan !== false ? 1 : 0) +
+      (settings.maxmind !== false ? 1 : 0) +
       (settings.domaintools !== false ? 1 : 0) +
       (settings.dnslytics !== false ? 1 : 0) +
       (settings.intel471 !== false ? 2 : 0) + // Intel 471 = /indicators + /iocs (+on-demand /search)

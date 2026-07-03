@@ -104,6 +104,114 @@ export interface ShodanContext {
   error?: string;
 }
 
+/** One MaxMind Insights confidence factor (traits.confidence_factors, when returned). */
+export interface MaxmindConfidenceFactor {
+  /** Factor name, e.g. "country", "city", "postal". */
+  factor: string;
+  /** Confidence / influence 0–100, when present. */
+  influence?: number;
+}
+
+/**
+ * MaxMind GeoIP geolocation context (IP indicators only). From the GeoIP2 web service
+ * (City / Country / **Insights**). Insights returns the richest set — confidence scores,
+ * anonymizer/VPN signals, ISP/ASN/domain, static-IP score, user counts, US demographics.
+ * `found: false` = reserved/not-found IP or lookup unavailable (see `error`).
+ * lat/lon drive an embedded map in the detail panel; per MaxMind's ToS the accuracy radius
+ * is always shown alongside coordinates (they refer to an area, not a precise location).
+ */
+export interface MaxmindContext {
+  found: boolean;
+
+  // --- Place names ---
+  continent?: string;
+  continentCode?: string;
+  country?: string;
+  countryCode?: string;
+  /** country.confidence (Insights, 0–100). */
+  countryConfidence?: number;
+  /** country.is_in_european_union. */
+  countryInEu?: boolean;
+  /** registered_country — where the ISP registered the network. */
+  registeredCountry?: string;
+  registeredCountryCode?: string;
+  registeredCountryInEu?: boolean;
+  /** represented_country — e.g. the home country a military base represents. */
+  representedCountry?: string;
+  representedCountryCode?: string;
+  /** Region / state — the most specific subdivision. */
+  subdivision?: string;
+  subdivisionCode?: string;
+  /** All subdivisions, broad → specific (e.g. ["England", "Greater London"]). */
+  subdivisions?: string[];
+  city?: string;
+  /** city.confidence (Insights, 0–100). */
+  cityConfidence?: number;
+  postal?: string;
+  /** postal.confidence (Insights, 0–100). */
+  postalConfidence?: number;
+
+  // --- Coordinates (approximate — always paired with accuracyRadius) ---
+  latitude?: number;
+  longitude?: number;
+  /** Accuracy radius in km — coordinates refer to this area, not a precise point (ToS: always show). */
+  accuracyRadius?: number;
+  timeZone?: string;
+  /** location.average_income (US only, USD). */
+  averageIncome?: number;
+  /** location.population_density (US only, people per km²). */
+  populationDensity?: number;
+
+  // --- Network / operator ---
+  /** traits.network, e.g. "1.2.3.0/24". */
+  network?: string;
+  /** traits.connection_type: Cellular / Cable-DSL / Corporate / Dialup / … */
+  connectionType?: string;
+  /** traits.mobile_country_code (MCC). */
+  mobileCountryCode?: string;
+  /** traits.mobile_network_code (MNC). */
+  mobileNetworkCode?: string;
+  isp?: string;
+  organization?: string;
+  /** traits.autonomous_system_number. */
+  asn?: number;
+  /** traits.autonomous_system_organization. */
+  asnOrganization?: string;
+  /** traits.domain — second-level domain of the network. */
+  domain?: string;
+
+  // --- Anonymizer / VPN (GeoIP Anonymous Plus, folded into Insights) ---
+  /** Human labels derived from the is_* flags, e.g. ["VPN", "Hosting"]. */
+  anonymizerType?: string[];
+  isAnonymous?: boolean;
+  isAnonymousVpn?: boolean;
+  isHostingProvider?: boolean;
+  isPublicProxy?: boolean;
+  isResidentialProxy?: boolean;
+  isTorExitNode?: boolean;
+  /** traits.anonymizer_confidence (0–100) — Anonymous Plus. */
+  anonymizerConfidence?: number;
+  /** traits.provider_name — the VPN/anonymizer provider, when identified. */
+  providerName?: string;
+  /** traits.network_last_seen — ISO date the anonymizer network was last observed. */
+  networkLastSeen?: string;
+
+  // --- Risk / usage signals (Insights) ---
+  /** traits.static_ip_score (0–99.99) — likelihood the IP is static. */
+  staticIpScore?: number;
+  /** traits.ip_risk / user risk (0–100) when present. */
+  ipRisk?: number;
+  /** traits.user_count — estimated users sharing the IP. */
+  userCount?: number;
+  /** traits.user_type — residential / hosting / business / cellular / … */
+  userType?: string;
+  /** traits.confidence_factors, when returned. */
+  confidenceFactors?: MaxmindConfidenceFactor[];
+
+  error?: string;
+  raw?: unknown;
+}
+
 /** One component of a DomainTools risk score (e.g. proximity, phishing, malware, spam). */
 export interface DomainToolsRiskComponent {
   name: string;
@@ -568,6 +676,9 @@ export interface NormalizedResult {
   /** Shodan OSINT context (IP indicators only; present in live mode when a Shodan key is configured). */
   shodan?: ShodanContext;
 
+  /** MaxMind GeoIP geolocation context (IP indicators only). */
+  maxmind?: MaxmindContext;
+
   /** DomainTools Iris context (domains via Enrich; IPs via Investigate reverse lookup). */
   domaintools?: DomainToolsContext;
 
@@ -627,6 +738,8 @@ export interface EnrichOptions {
   submitUnknown?: boolean;
   /** Request Shodan OSINT on IPs (default true). Ignored if the proxy has no Shodan key. */
   shodan?: boolean;
+  /** Request MaxMind GeoIP geolocation on IPs (default true). Ignored if the proxy has no MaxMind creds. */
+  maxmind?: boolean;
   /** Request DomainTools Iris (domains + reverse-IP). Ignored if the proxy has no DomainTools key. */
   domaintools?: boolean;
   /** Request DNSLytics (IP + domain). Ignored if the proxy has no DNSLytics key. */
@@ -660,6 +773,8 @@ export interface ProxyHealth {
   threatvision: boolean;
   /** SOC Prime (TDM) API key present (optional — Uncoder AI IOC → SIEM query generation). */
   socprime: boolean;
+  /** MaxMind GeoIP credentials present (optional — IP geolocation + map). */
+  maxmind: boolean;
 }
 
 export interface EnrichRequest {
@@ -713,6 +828,8 @@ export interface AppSettings {
   submitUnknown: boolean;
   /** Request Shodan OSINT enrichment for IPs (default true; only used if the proxy has a Shodan key). */
   shodan?: boolean;
+  /** Request MaxMind GeoIP geolocation for IPs (default true; only used if the proxy has MaxMind creds). */
+  maxmind?: boolean;
   /** Request DomainTools Iris enrichment (default true; only used if the proxy has DomainTools creds). */
   domaintools?: boolean;
   /** Request DNSLytics enrichment (default true; only used if the proxy has a DNSLytics key). */

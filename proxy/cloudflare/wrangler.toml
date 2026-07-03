@@ -25,6 +25,9 @@ id = "64fde3553d4b4272a3afa346945a0ce0"
 
 # Optional: per-minute caps for the optional enrichers.
 # SHODAN_RPM = "60"
+# MAXMIND_RPM = "60"
+# MAXMIND_EDITION = "insights"   # insights (default — richest) / city / country
+# GeoLite2 (free): MAXMIND_BASE_URL = "https://geolite.info" (+ MAXMIND_EDITION = "city")
 # DOMAINTOOLS_RPM = "30"
 # DNSLYTICS_RPM = "60"
 # INTEL471_RPM = "60"
@@ -43,6 +46,8 @@ id = "64fde3553d4b4272a3afa346945a0ce0"
 #   wrangler secret put VT_API_KEY
 #   wrangler secret put ANTHROPIC_API_KEY         # optional (Claude smart-parse)
 #   wrangler secret put SHODAN_API_KEY            # optional (Shodan OSINT on IP rows)
+#   wrangler secret put MAXMIND_ACCOUNT_ID        # optional (MaxMind GeoIP: account ID)
+#   wrangler secret put MAXMIND_LICENSE_KEY       # optional (paired with the account ID)
 #   wrangler secret put DOMAINTOOLS_API_USERNAME  # optional (Iris: domains + IP reverse)
 #   wrangler secret put DOMAINTOOLS_API_KEY       # optional (paired with the username)
 #   wrangler secret put DNSLYTICS_API_KEY         # optional (IP + domain intel)

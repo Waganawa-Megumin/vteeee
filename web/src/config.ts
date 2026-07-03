@@ -13,6 +13,7 @@ export const DEFAULT_SETTINGS: AppSettings = {
   gti: false,
   submitUnknown: false,
   shodan: true,
+  maxmind: true,
   domaintools: true,
   dnslytics: true,
   intel471: true,

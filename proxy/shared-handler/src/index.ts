@@ -2,6 +2,7 @@ export * from './types';
 export { runEnrich, ndjson } from './enrich';
 export { vtLookup, type VtLookup } from './vtFetch';
 export { shodanHostLookup, mapShodanHost } from './shodanFetch';
+export { maxmindLookup, mapMaxmind } from './maxmindFetch';
 export { domaintoolsEnrichDomain, domaintoolsReverseIp, mapIrisEnrich, mapIrisInvestigateReverseIp } from './domaintoolsFetch';
 export { dnslyticsIpInfo, dnslyticsHostingHistory, mapDnslyticsIp, mapDnslyticsHostingHistory } from './dnslyticsFetch';
 export {

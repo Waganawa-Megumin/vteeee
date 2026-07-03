@@ -79,6 +79,33 @@ export function resultToText(r: NormalizedResult): string {
     push('CVEs', r.shodan.vulns);
     push('Tags', r.shodan.tags);
   }
+  if (r.maxmind?.found) {
+    const m = r.maxmind;
+    L.push('', '## MaxMind GeoIP');
+    push('Country', [m.country, m.countryCode ? `(${m.countryCode})` : ''].filter(Boolean).join(' '));
+    push('Region', m.subdivisions?.length ? m.subdivisions.join(' > ') : m.subdivision);
+    push('City', m.city);
+    push('Postal', m.postal);
+    push('Time zone', m.timeZone);
+    if (m.latitude != null && m.longitude != null) {
+      // MaxMind ToS: coordinates are an approximate area — always paired with the accuracy radius.
+      push(
+        'Coordinates',
+        `${m.latitude}, ${m.longitude}${m.accuracyRadius != null ? ` (approx — accuracy radius ±${m.accuracyRadius} km, not a precise address)` : ' (approximate area, not a precise address)'}`,
+      );
+    }
+    push('Network', m.network);
+    push('ASN', m.asn != null ? [`AS${m.asn}`, m.asnOrganization].filter(Boolean).join(' ') : m.asnOrganization);
+    push('ISP', m.isp);
+    push('Organization', m.organization);
+    push('Domain', m.domain);
+    push('Connection', m.connectionType);
+    push('Anonymizer', m.anonymizerType);
+    push('VPN provider', m.providerName);
+    push('Static IP score', m.staticIpScore != null ? m.staticIpScore.toFixed(2) : undefined);
+    push('IP risk', m.ipRisk);
+    push('User type', m.userType);
+  }
   if (r.domaintools?.found) {
     L.push('', '## DomainTools Iris');
     push('Risk score', r.domaintools.riskScore);

@@ -7,6 +7,7 @@ import {
   type EnrichEvent,
   type EnrichRequest,
   type Intel471Context,
+  type MaxmindContext,
   type NormalizedResult,
   type ResultStatus,
   type ShodanContext,
@@ -16,6 +17,7 @@ import { FatalError, RateLimitError, type ProxyEnv } from './types';
 import { RateLimiter } from './rateLimiter';
 import { vtLookup } from './vtFetch';
 import { shodanHostLookup } from './shodanFetch';
+import { maxmindLookup } from './maxmindFetch';
 import { domaintoolsEnrichDomain, domaintoolsReverseIp } from './domaintoolsFetch';
 import { dnslyticsHostingHistory, dnslyticsIpInfo } from './dnslyticsFetch';
 import { intel471Lookup } from './intel471Fetch';
@@ -26,6 +28,7 @@ import { AsyncQueue, backoffMs, clamp, sleep } from './util';
 const MAX_RL_RETRIES = 3;
 const MAX_TRANSIENT_RETRIES = 2;
 const DEFAULT_SHODAN_RPM = 60;
+const DEFAULT_MAXMIND_RPM = 60;
 const DEFAULT_DOMAINTOOLS_RPM = 30;
 const DEFAULT_DNSLYTICS_RPM = 60;
 const DEFAULT_INTEL471_RPM = 60;
@@ -67,6 +70,12 @@ export async function* runEnrich(
   const shodanEnabled = Boolean(env.shodanApiKey) && req.options?.shodan !== false;
   const shodanLimiter = shodanEnabled
     ? new RateLimiter(clamp(env.shodanRpm ?? DEFAULT_SHODAN_RPM, 1, 600))
+    : null;
+  // MaxMind GeoIP geolocation (IPs) under its own limiter.
+  const maxmindEnabled =
+    Boolean(env.maxmindAccountId && env.maxmindLicenseKey) && req.options?.maxmind !== false;
+  const maxmindLimiter = maxmindEnabled
+    ? new RateLimiter(clamp(env.maxmindRpm ?? DEFAULT_MAXMIND_RPM, 1, 600))
     : null;
   // DomainTools (domains → Iris Enrich, IPs → Iris Investigate reverse) under its own limiter.
   const dtEnabled =
@@ -146,6 +155,18 @@ export async function* runEnrich(
     try {
       await shodanLimiter.acquire(signal);
       return await shodanHostLookup(value, env, signal);
+    } catch (e) {
+      if ((e as Error).name === 'AbortError') return undefined;
+      return { found: false, error: (e as Error).message };
+    }
+  }
+
+  /** MaxMind GeoIP geolocation for IPs. Never throws. */
+  async function enrichMaxmind(value: string): Promise<MaxmindContext | undefined> {
+    if (!maxmindLimiter) return undefined;
+    try {
+      await maxmindLimiter.acquire(signal);
+      return await maxmindLookup(value, env, signal);
     } catch (e) {
       if ((e as Error).name === 'AbortError') return undefined;
       return { found: false, error: (e as Error).message };
@@ -241,6 +262,7 @@ export async function* runEnrich(
 
     if (isIp) {
       if (shodanLimiter) result.shodan = await enrichShodan(ind.value);
+      if (maxmindLimiter) result.maxmind = await enrichMaxmind(ind.value);
       // DNSLytics IPInfo is the verified per-IP endpoint (there is no per-domain "domaininfo" in v1).
       if (dnslLimiter) result.dnslytics = await enrichDnslytics('ip', ind.value);
       if (dtLimiter) result.domaintools = await enrichDomaintools('ip', ind.value);

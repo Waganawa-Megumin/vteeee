@@ -5,7 +5,8 @@ name: Deploy Proxy (Cloudflare)
 #   1) Create a KV namespace:  wrangler kv namespace create VTEEEE_KV
 #      and paste its id into proxy/cloudflare/wrangler.toml
 #   2) Add repo secrets: VT_API_KEY, ANTHROPIC_API_KEY (optional),
-#      SHODAN_API_KEY (optional), DOMAINTOOLS_API_USERNAME + DOMAINTOOLS_API_KEY
+#      SHODAN_API_KEY (optional), MAXMIND_ACCOUNT_ID + MAXMIND_LICENSE_KEY
+#      (optional), DOMAINTOOLS_API_USERNAME + DOMAINTOOLS_API_KEY
 #      (optional), DNSLYTICS_API_KEY (optional), INTEL471_API_USER +
 #      INTEL471_API_KEY (optional), CYFIRMA_API_KEY (optional),
 #      THREATVISION_CLIENT_ID + THREATVISION_CLIENT_SECRET (optional),
@@ -46,6 +47,10 @@ jobs:
           fi
           if [ -n "${{ secrets.SHODAN_API_KEY }}" ]; then
             printf '%s' "${{ secrets.SHODAN_API_KEY }}" | pnpm exec wrangler secret put SHODAN_API_KEY
+          fi
+          if [ -n "${{ secrets.MAXMIND_ACCOUNT_ID }}" ] && [ -n "${{ secrets.MAXMIND_LICENSE_KEY }}" ]; then
+            printf '%s' "${{ secrets.MAXMIND_ACCOUNT_ID }}" | pnpm exec wrangler secret put MAXMIND_ACCOUNT_ID
+            printf '%s' "${{ secrets.MAXMIND_LICENSE_KEY }}" | pnpm exec wrangler secret put MAXMIND_LICENSE_KEY
           fi
           if [ -n "${{ secrets.DOMAINTOOLS_API_USERNAME }}" ] && [ -n "${{ secrets.DOMAINTOOLS_API_KEY }}" ]; then
             printf '%s' "${{ secrets.DOMAINTOOLS_API_USERNAME }}" | pnpm exec wrangler secret put DOMAINTOOLS_API_USERNAME

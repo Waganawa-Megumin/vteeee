@@ -10,6 +10,7 @@ import type {
   Intel471Malware,
   Intel471Search,
   Intel471SearchItem,
+  MaxmindContext,
   NormalizedResult,
   ShodanContext,
   ShodanService,
@@ -134,6 +135,204 @@ function Chips({ items }: { items: string[] }) {
           {t}
         </span>
       ))}
+    </div>
+  );
+}
+
+/** Country/region name plus its ISO code (and an EU marker), when present. */
+function place(name?: string, code?: string, inEu?: boolean): string | undefined {
+  if (!name && !code) return undefined;
+  const base = [name, code ? `(${code})` : ''].filter(Boolean).join(' ');
+  return inEu ? `${base} · EU` : base || undefined;
+}
+const pct = (n?: number): string | undefined => (n != null ? `${n}%` : undefined);
+
+/** OSM zoom level roughly matched to the accuracy radius (km). */
+function zoomForRadius(rk: number): number {
+  if (rk <= 5) return 12;
+  if (rk <= 20) return 10;
+  if (rk <= 75) return 9;
+  if (rk <= 250) return 7;
+  if (rk <= 1000) return 5;
+  return 4;
+}
+
+/**
+ * MaxMind GeoIP geolocation block (IPs). Shows the full GeoIP2/Insights field set — place names
+ * with confidence, network/ASN/ISP/domain, connection type, anonymizer (VPN/Tor/proxy) signals,
+ * static-IP score, user counts and US demographics — plus an embedded OpenStreetMap.
+ * Per MaxMind's ToS the accuracy radius is always shown with the coordinates, which mark an
+ * approximate area (often ISP/city level), NOT a precise address.
+ */
+function MaxmindSection({ m }: { m: MaxmindContext }) {
+  const hasCoords = m.latitude != null && m.longitude != null;
+  const lat = m.latitude ?? 0;
+  const lon = m.longitude ?? 0;
+  const rk = m.accuracyRadius && m.accuracyRadius > 0 ? m.accuracyRadius : 50;
+  const dLat = (rk / 111) * 1.8;
+  const dLon = dLat / Math.max(Math.cos((lat * Math.PI) / 180), 0.2);
+  const bbox = `${lon - dLon},${lat - dLat},${lon + dLon},${lat + dLat}`;
+  const embedUrl = `https://www.openstreetmap.org/export/embed.html?bbox=${encodeURIComponent(
+    bbox,
+  )}&layer=mapnik&marker=${lat},${lon}`;
+  const largeUrl = `https://www.openstreetmap.org/?mlat=${lat}&mlon=${lon}#map=${zoomForRadius(rk)}/${lat}/${lon}`;
+
+  const asn =
+    m.asn != null ? [`AS${m.asn}`, m.asnOrganization].filter(Boolean).join(' ') : m.asnOrganization;
+  const mcc = [m.mobileCountryCode, m.mobileNetworkCode].filter(Boolean).join(' / ');
+  const income = m.averageIncome != null ? `$${m.averageIncome.toLocaleString()}` : undefined;
+  const density = m.populationDensity != null ? `${m.populationDensity.toLocaleString()} /km²` : undefined;
+
+  return (
+    <div className="shodan-block">
+      <div className="shodan-head">
+        <span className="shodan-logo" aria-hidden>
+          🗺
+        </span>
+        MaxMind · GeoIP
+        {m.found && (m.country || m.city) && (
+          <span className="shodan-when">{[m.city, m.countryCode].filter(Boolean).join(', ')}</span>
+        )}
+      </div>
+
+      {!m.found ? (
+        <div className="detail-note">
+          {m.error ?? 'No MaxMind geolocation for this IP (reserved / not in the database).'}
+        </div>
+      ) : (
+        <>
+          <div className="detail-grid">
+            {/* --- Place --- */}
+            <Field
+              k="Country"
+              v={
+                place(m.country, m.countryCode, m.countryInEu) &&
+                [place(m.country, m.countryCode, m.countryInEu), pct(m.countryConfidence)]
+                  .filter(Boolean)
+                  .join(' · ')
+              }
+            />
+            <Field
+              k="Registered country"
+              v={
+                m.registeredCountryCode && m.registeredCountryCode !== m.countryCode
+                  ? place(m.registeredCountry, m.registeredCountryCode, m.registeredCountryInEu)
+                  : undefined
+              }
+            />
+            <Field
+              k="Represented country"
+              v={place(m.representedCountry, m.representedCountryCode)}
+            />
+            <Field
+              k="Region"
+              v={
+                m.subdivisions && m.subdivisions.length
+                  ? [m.subdivisions.join(' › '), m.subdivisionCode ? `(${m.subdivisionCode})` : '']
+                      .filter(Boolean)
+                      .join(' ')
+                  : undefined
+              }
+            />
+            <Field
+              k="City"
+              v={m.city && [m.city, pct(m.cityConfidence)].filter(Boolean).join(' · ')}
+            />
+            <Field
+              k="Postal"
+              v={m.postal && [m.postal, pct(m.postalConfidence)].filter(Boolean).join(' · ')}
+              mono
+            />
+            <Field k="Continent" v={m.continent} />
+            <Field k="Time zone" v={m.timeZone} />
+            <Field k="Avg income (US)" v={income} />
+            <Field k="Pop. density (US)" v={density} />
+
+            {/* --- Network / operator --- */}
+            <Field k="Network" v={m.network} mono />
+            <Field k="ASN" v={asn} />
+            <Field k="ISP" v={m.isp} />
+            <Field k="Organization" v={m.organization && m.organization !== m.isp ? m.organization : undefined} />
+            <Field k="Domain" v={m.domain} mono />
+            <Field k="Connection" v={m.connectionType} />
+            <Field k="Mobile MCC/MNC" v={mcc || undefined} mono />
+
+            {/* --- Anonymizer / VPN --- */}
+            {m.anonymizerType && m.anonymizerType.length > 0 && (
+              <div className="field">
+                <div className="fk">Anonymizer</div>
+                <div className="fv chips">
+                  {m.anonymizerType.map((t) => (
+                    <span key={t} className="chip shodan-vuln">
+                      {t}
+                    </span>
+                  ))}
+                  {m.anonymizerConfidence != null && (
+                    <span className="chip">confidence {m.anonymizerConfidence}</span>
+                  )}
+                </div>
+              </div>
+            )}
+            <Field k="VPN provider" v={m.providerName} />
+            <Field
+              k="Network last seen"
+              v={m.networkLastSeen ? new Date(m.networkLastSeen).toLocaleDateString() : undefined}
+            />
+
+            {/* --- Risk / usage --- */}
+            <Field k="Static IP score" v={m.staticIpScore != null ? m.staticIpScore.toFixed(2) : undefined} />
+            <Field k="IP risk" v={m.ipRisk != null ? String(m.ipRisk) : undefined} />
+            <Field k="User count" v={m.userCount != null ? m.userCount.toLocaleString() : undefined} />
+            <Field k="User type" v={m.userType?.replace(/_/g, ' ')} />
+            {m.confidenceFactors && m.confidenceFactors.length > 0 && (
+              <div className="field">
+                <div className="fk">Confidence factors</div>
+                <div className="fv chips">
+                  {m.confidenceFactors.map((f) => (
+                    <span key={f.factor} className="chip">
+                      {f.factor}
+                      {f.influence != null ? ` ${f.influence}` : ''}
+                    </span>
+                  ))}
+                </div>
+              </div>
+            )}
+          </div>
+
+          {hasCoords && (
+            <div className="maxmind-geo">
+              <div className="maxmind-coords mono">
+                📍 {lat.toFixed(4)}, {lon.toFixed(4)}
+                {m.accuracyRadius != null ? ` · accuracy radius ±${m.accuracyRadius} km` : ''}
+              </div>
+              {/* MaxMind ToS: the coordinates refer to an area, not a precise location. */}
+              <div className="maxmind-approx">
+                ⚠ Approximate area — these coordinates mark the centre of a
+                {m.accuracyRadius != null ? ` ~${m.accuracyRadius} km-radius` : 'n approximate'} area (typically
+                ISP / city level), <strong>not a precise address or household</strong>.
+              </div>
+              <div className="maxmind-map" data-noimage="true">
+                <iframe
+                  title={`Approximate location of this IP (±${m.accuracyRadius ?? '?'} km)`}
+                  src={embedUrl}
+                  loading="lazy"
+                  referrerPolicy="no-referrer"
+                />
+              </div>
+              <a className="btn btn-ghost shodan-link" href={largeUrl} target="_blank" rel="noreferrer">
+                View larger map (OpenStreetMap) ↗
+              </a>
+            </div>
+          )}
+        </>
+      )}
+
+      {m.raw != null && (
+        <details className="raw">
+          <summary>Raw MaxMind data</summary>
+          <pre>{JSON.stringify(m.raw, null, 2)}</pre>
+        </details>
+      )}
     </div>
   );
 }
@@ -1171,6 +1370,7 @@ export function DetailPanel() {
         </a>
 
         {r.shodan && <ShodanSection s={r.shodan} ip={r.value} />}
+        {r.maxmind && <MaxmindSection m={r.maxmind} />}
         {r.domaintools && <DomainToolsSection d={r.domaintools} />}
         {r.dnslytics && <DnslyticsSection d={r.dnslytics} />}
         {r.intel471 && r.type !== 'unknown' && (

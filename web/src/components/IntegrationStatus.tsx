@@ -32,6 +32,7 @@ export function IntegrationStatus({ onManage }: { onManage: () => void }) {
 
   const reachable = health?.ok ?? false;
   const shodanOn = Boolean(health?.shodan) && settings.shodan !== false;
+  const maxmindOn = Boolean(health?.maxmind) && settings.maxmind !== false;
 
   return (
     <button className="intg-cluster" onClick={onManage} title="Integrations — click to manage & see setup">
@@ -54,6 +55,17 @@ export function IntegrationStatus({ onManage }: { onManage: () => void }) {
                   ? 'Shodan OSINT active — IPs get ports / services / CVEs'
                   : 'Shodan key present, but enrichment is turned OFF in Settings'
                 : 'Optional — no SHODAN_API_KEY on the proxy'
+            }
+          />
+          <Chip
+            label="MaxMind"
+            on={maxmindOn}
+            title={
+              health?.maxmind
+                ? settings.maxmind !== false
+                  ? 'MaxMind GeoIP active — IPs get geolocation, ISP/ASN & a map (Insights)'
+                  : 'MaxMind creds present, but enrichment is turned OFF in Settings'
+                : 'Optional — no MAXMIND_ACCOUNT_ID / MAXMIND_LICENSE_KEY on the proxy'
             }
           />
           <Chip

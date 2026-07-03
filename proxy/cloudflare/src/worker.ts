@@ -30,6 +30,11 @@ interface Env {
   VT_API_KEY: string;
   ANTHROPIC_API_KEY?: string;
   SHODAN_API_KEY?: string;
+  MAXMIND_ACCOUNT_ID?: string;
+  MAXMIND_LICENSE_KEY?: string;
+  MAXMIND_BASE_URL?: string;
+  MAXMIND_EDITION?: string;
+  MAXMIND_RPM?: string;
   DOMAINTOOLS_API_USERNAME?: string;
   DOMAINTOOLS_API_KEY?: string;
   DNSLYTICS_API_KEY?: string;
@@ -77,6 +82,11 @@ function build(env: Env): { proxy: ProxyEnv; allowed: string[]; store: Storage }
     vtApiKey: env.VT_API_KEY,
     anthropicApiKey: env.ANTHROPIC_API_KEY,
     shodanApiKey: env.SHODAN_API_KEY,
+    maxmindAccountId: env.MAXMIND_ACCOUNT_ID,
+    maxmindLicenseKey: env.MAXMIND_LICENSE_KEY,
+    maxmindBaseUrl: env.MAXMIND_BASE_URL,
+    maxmindEdition: env.MAXMIND_EDITION,
+    maxmindRpm: env.MAXMIND_RPM ? Number(env.MAXMIND_RPM) : undefined,
     domaintoolsApiUsername: env.DOMAINTOOLS_API_USERNAME,
     domaintoolsApiKey: env.DOMAINTOOLS_API_KEY,
     dnslyticsApiKey: env.DNSLYTICS_API_KEY,
@@ -134,6 +144,7 @@ export default {
           vtKey: Boolean(proxy.vtApiKey),
           claude: Boolean(proxy.anthropicApiKey),
           shodan: Boolean(proxy.shodanApiKey),
+          maxmind: Boolean(proxy.maxmindAccountId && proxy.maxmindLicenseKey),
           domaintools: Boolean(proxy.domaintoolsApiUsername && proxy.domaintoolsApiKey),
           dnslytics: Boolean(proxy.dnslyticsApiKey),
           intel471: Boolean(proxy.intel471ApiUser && proxy.intel471ApiKey),

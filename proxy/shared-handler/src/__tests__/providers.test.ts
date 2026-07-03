@@ -12,11 +12,15 @@ import {
 import { mapRiskDossier, mapStixSearch, mapThreatActor } from '../cyfirmaFetch';
 import { mapTvIp, mapTvDomain, mapTvSample, mapTvAdversary } from '../threatvisionFetch';
 import { mapSocprimeQuery, mapSocprimeRules } from '../socprimeFetch';
+import { mapMaxmind, maxmindLookup } from '../maxmindFetch';
 import { runEnrich } from '../enrich';
 import type { ProxyEnv } from '../types';
 
 const env: ProxyEnv = {
   vtApiKey: 'vt',
+  maxmindAccountId: 'mm',
+  maxmindLicenseKey: 'mmk',
+  maxmindRpm: 600,
   domaintoolsApiUsername: 'u',
   domaintoolsApiKey: 'k',
   domaintoolsRpm: 600,
@@ -353,6 +357,42 @@ const TV_SAMPLE_SEARCH = {
   ],
 };
 
+// MaxMind GeoIP2 Insights web-service response (subset of the real /geoip/v2.1/insights/{ip} shape).
+const MAXMIND_INSIGHTS = {
+  continent: { code: 'NA', geoname_id: 6255149, names: { en: 'North America' } },
+  country: { confidence: 99, geoname_id: 6252001, is_in_european_union: false, iso_code: 'US', names: { en: 'United States' } },
+  registered_country: { geoname_id: 6252001, iso_code: 'US', names: { en: 'United States' } },
+  city: { confidence: 50, geoname_id: 5375480, names: { en: 'Mountain View' } },
+  subdivisions: [{ confidence: 40, geoname_id: 5332921, iso_code: 'CA', names: { en: 'California' } }],
+  postal: { code: '94043', confidence: 20 },
+  location: {
+    accuracy_radius: 50,
+    latitude: 37.386,
+    longitude: -122.0838,
+    time_zone: 'America/Los_Angeles',
+    average_income: 128321,
+    population_density: 2495,
+  },
+  traits: {
+    autonomous_system_number: 15169,
+    autonomous_system_organization: 'GOOGLE',
+    connection_type: 'Corporate',
+    domain: 'google.com',
+    ip_address: '9.9.9.9',
+    isp: 'Google LLC',
+    organization: 'Google LLC',
+    network: '9.9.9.0/24',
+    mobile_country_code: '310',
+    mobile_network_code: '004',
+    static_ip_score: 0.34,
+    user_count: 2,
+    user_type: 'hosting',
+    is_hosting_provider: true,
+    is_anonymous_vpn: false,
+    anonymizer_confidence: 0,
+  },
+};
+
 const TV_ADVERSARY = {
   success: true,
   adversaries: [
@@ -606,6 +646,74 @@ describe('ThreatVision mappers', () => {
   });
 });
 
+describe('MaxMind GeoIP mapper + lookup', () => {
+  it('mapMaxmind maps Insights place/network/anonymizer/demographics fields', () => {
+    const c = mapMaxmind(MAXMIND_INSIGHTS);
+    expect(c).toMatchObject({
+      found: true,
+      continent: 'North America',
+      country: 'United States',
+      countryCode: 'US',
+      countryConfidence: 99,
+      city: 'Mountain View',
+      cityConfidence: 50,
+      subdivision: 'California',
+      subdivisionCode: 'CA',
+      postal: '94043',
+      latitude: 37.386,
+      longitude: -122.0838,
+      accuracyRadius: 50,
+      timeZone: 'America/Los_Angeles',
+      averageIncome: 128321,
+      populationDensity: 2495,
+      network: '9.9.9.0/24',
+      asn: 15169,
+      asnOrganization: 'GOOGLE',
+      isp: 'Google LLC',
+      domain: 'google.com',
+      connectionType: 'Corporate',
+      mobileCountryCode: '310',
+      mobileNetworkCode: '004',
+      staticIpScore: 0.34,
+      userCount: 2,
+      userType: 'hosting',
+    });
+    expect(c.subdivisions).toEqual(['California']);
+    expect(c.anonymizerType).toEqual(['Hosting']); // derived from is_hosting_provider
+    expect(c.isHostingProvider).toBe(true);
+  });
+
+  it('mapMaxmind returns found:false for an empty / non-object response', () => {
+    expect(mapMaxmind({})).toMatchObject({ found: false });
+    expect(mapMaxmind(null)).toMatchObject({ found: false });
+  });
+
+  it('maxmindLookup treats reserved/private IPs as found:false, not an error', async () => {
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(async () => resp(400, { code: 'IP_ADDRESS_RESERVED', error: 'reserved IP' })),
+    );
+    const c = await maxmindLookup('192.168.0.1', env);
+    expect(c).toMatchObject({ found: false });
+    expect(c?.error).toBeUndefined(); // a private IP is simply "no geolocation", not a failure
+  });
+
+  it('maxmindLookup surfaces a 401 (bad account ID / license key) as an error', async () => {
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(async () => resp(401, { code: 'AUTHORIZATION_INVALID', error: 'bad key' })),
+    );
+    const c = await maxmindLookup('9.9.9.9', env);
+    expect(c?.found).toBe(false);
+    expect(c?.error).toMatch(/401/);
+  });
+
+  it('maxmindLookup returns undefined when no MaxMind credentials are configured', async () => {
+    const c = await maxmindLookup('9.9.9.9', { ...env, maxmindAccountId: undefined, maxmindLicenseKey: undefined });
+    expect(c).toBeUndefined();
+  });
+});
+
 describe('SOC Prime Uncoder mapper', () => {
   it('mapSocprimeQuery reads {queries:[{query,iocs_count}]}', () => {
     const r = mapSocprimeQuery({ queries: [{ query: 'index=* dst IN (1.1.1.1)', iocs_count: 3 }], iocs_count: 3 });
@@ -677,6 +785,8 @@ function stubFetch() {
       if (url.includes('threatvision.org') && url.includes('/network/domains/')) return resp(200, TV_DOMAIN);
       if (url.includes('threatvision.org') && url.includes('/samples/search')) return resp(200, TV_SAMPLE_SEARCH);
       if (url.includes('threatvision.org') && url.includes('/adversaries/search')) return resp(200, TV_ADVERSARY);
+      // MaxMind GeoIP (before the VT catch-all): https://geoip.maxmind.com/geoip/v2.1/insights/{ip}
+      if (url.includes('geoip.maxmind.com')) return resp(200, MAXMIND_INSIGHTS);
       if (url.includes('/ip_addresses/') || url.includes('/domains/') || url.includes('/urls'))
         return resp(200, { data: { attributes: { last_analysis_stats: { harmless: 9 } } } });
       return resp(404, '{}');
@@ -704,6 +814,9 @@ describe('runEnrich routing by IOC type', () => {
     expect(dom?.dnslytics?.ips).toContain('193.0.2.10');
     expect(ip?.dnslytics).toMatchObject({ found: true, kind: 'ip', asn: 15169 });
     expect(ip?.domaintools).toMatchObject({ found: true, mode: 'reverse-ip' });
+    // MaxMind GeoIP applies to IPs only (geolocation + Insights traits).
+    expect(ip?.maxmind).toMatchObject({ found: true, country: 'United States', city: 'Mountain View', asn: 15169 });
+    expect(dom?.maxmind).toBeUndefined(); // not an IP → no MaxMind lookup
     // Intel 471 applies to every IOC type, merging Malware Intel (indicators) + IOC feed.
     expect(dom?.intel471?.found).toBe(true);
     expect(dom?.intel471?.malwareFamily).toBe('redline'); // from /indicators

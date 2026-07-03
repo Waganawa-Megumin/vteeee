@@ -20,6 +20,7 @@ export function resultsToCsv(results: NormalizedResult[]): string {
     'asn_or_categories',
     'shodan_ports',
     'shodan_vulns',
+    'maxmind_geo',
     'last_analysis',
     'first_seen',
     'last_seen',
@@ -45,6 +46,15 @@ export function resultsToCsv(results: NormalizedResult[]): string {
     r.ip?.asOwner ?? (r.domain?.categories ? Object.values(r.domain.categories).join('|') : ''),
     r.shodan?.found ? (r.shodan.ports?.join('|') ?? '') : '',
     r.shodan?.found ? (r.shodan.vulns?.join('|') ?? '') : '',
+    r.maxmind?.found
+      ? [
+          [r.maxmind.city, r.maxmind.countryCode].filter(Boolean).join(', '),
+          r.maxmind.asn != null ? `AS${r.maxmind.asn}` : '',
+          r.maxmind.anonymizerType?.length ? r.maxmind.anonymizerType.join('/') : '',
+        ]
+          .filter(Boolean)
+          .join(' · ')
+      : '',
     r.lastAnalysisDate ?? '',
     r.firstSeen ?? '',
     r.lastSeen ?? '',

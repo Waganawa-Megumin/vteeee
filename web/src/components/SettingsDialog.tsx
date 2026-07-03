@@ -42,6 +42,11 @@ export function SettingsDialog({ onClose }: { onClose: () => void }) {
                 Shodan{' '}
                 {health?.shodan ? (draft.shodan !== false ? 'on' : 'key set · off') : 'not configured'}
               </span>
+              <span className={`intg-chip ${health?.maxmind && draft.maxmind !== false ? 'on' : 'off'}`}>
+                <span className="intg-dot" />
+                MaxMind{' '}
+                {health?.maxmind ? (draft.maxmind !== false ? 'on' : 'creds set · off') : 'not configured'}
+              </span>
               <span className={`intg-chip ${health?.domaintools && draft.domaintools !== false ? 'on' : 'off'}`}>
                 <span className="intg-dot" />
                 DomainTools{' '}
@@ -172,6 +177,18 @@ export function SettingsDialog({ onClose }: { onClose: () => void }) {
             <InfoTip
               ja="ONにすると、IPの行に開放ポート・稼働サービス・既知の脆弱性(CVE)を付与します。実際に付与されるのはプロキシに SHODAN_API_KEY が登録されている場合のみ（キーはサーバー側のみ保持）。OFFにするとShodanへの問い合わせを行わず、クレジットを節約できます。登録手順は Docs の『Integrations / 連携サービス』を参照。"
               en="When ON, IP rows are enriched with open ports, services and known CVEs — but only if the proxy has a SHODAN_API_KEY (key stays server-side). Turn OFF to skip Shodan lookups and save credits. Setup steps are in Docs → Integrations."
+            />
+          </label>
+          <label className="chk">
+            <input
+              type="checkbox"
+              checked={draft.maxmind !== false}
+              onChange={(e) => up('maxmind', e.target.checked)}
+            />
+            🗺 MaxMind GeoIP geolocation (IPs)
+            <InfoTip
+              ja="ONにすると、IPの行に地理位置（国/地域/市/郵便番号）、ISP・組織・ASN・接続種別、匿名化(VPN/Tor/プロキシ)判定などを付与し、詳細パネルに地図を表示します。ライセンスが Insights の場合は信頼度スコア・静的IPスコア・ユーザー数・US人口統計まで取得。実際に付与されるのはプロキシに MAXMIND_ACCOUNT_ID / MAXMIND_LICENSE_KEY がある場合のみ（キーはサーバー側のみ保持）。※MaxMindの規約により、緯度経度は必ず精度半径(km)と共に表示し、正確な住所ではなく“おおよその範囲”である旨を明示します。登録手順は Docs の『Integrations / 連携サービス』を参照。"
+              en="When ON, IP rows get geolocation (country/region/city/postal), ISP/org/ASN, connection type and anonymizer (VPN/Tor/proxy) signals, plus a map in the detail panel. With an Insights license you also get confidence scores, static-IP score, user counts and US demographics. Only applied if the proxy has MAXMIND_ACCOUNT_ID / MAXMIND_LICENSE_KEY (keys stay server-side). Per MaxMind's ToS the accuracy radius (km) is always shown with coordinates, which refer to an approximate area — not a precise address. Setup in Docs → Integrations."
             />
           </label>
           <label className="chk">

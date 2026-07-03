@@ -111,6 +111,27 @@ export function HelpDialog({ onClose }: { onClose: () => void }) {
               </IntegrationRow>
 
               <IntegrationRow
+                name="MaxMind GeoIP"
+                env="MAXMIND_ACCOUNT_ID + _LICENSE_KEY"
+                on={health?.maxmind ?? null}
+                live={live}
+              >
+                <span className="help-ja">
+                  <b>IP限定</b>。地理位置（国/地域/市/郵便番号）・ISP/組織/ASN/ドメイン・接続種別・<b>匿名化(VPN/Tor/プロキシ)判定</b>を付与し、
+                  詳細に「🗺 MaxMind」節と<b>地図(OpenStreetMap)</b>を表示。ライセンスが <b>Insights</b> なら信頼度スコア・静的IPスコア・
+                  IPリスク・ユーザー数/種別・US人口統計まで。<b>⚠ MaxMind規約</b>：緯度経度は必ず<b>精度半径(km)</b>と共に表示し、
+                  正確な住所ではなく<b>“おおよその範囲”</b>である旨を明示します。ON/OFFは Settings の「MaxMind GeoIP geolocation」。
+                </span>
+                <span className="help-en">
+                  IPs only — geolocation (country/region/city/postal), ISP/org/ASN/domain, connection type and anonymizer
+                  (VPN/Tor/proxy) signals, plus a “🗺 MaxMind” section with an OpenStreetMap. An Insights license adds
+                  confidence scores, static-IP score, IP risk, user counts/type and US demographics. ⚠ Per MaxMind's ToS
+                  the accuracy radius (km) is always shown with coordinates, which refer to an approximate area — not a
+                  precise address. Toggle in Settings.
+                </span>
+              </IntegrationRow>
+
+              <IntegrationRow
                 name="DomainTools Iris"
                 env="DOMAINTOOLS_API_USERNAME + _KEY"
                 on={health?.domaintools ?? null}
@@ -190,7 +211,7 @@ export function HelpDialog({ onClose }: { onClose: () => void }) {
               </IntegrationRow>
             </div>
             <p className="help-ja" style={{ marginTop: 8 }}>
-              <b>種別で引き分け</b>：ドメイン→VT＋DomainTools(Enrich)＋DNSLytics(HostingHistory) ／ IP→VT＋Shodan＋DNSLytics(IPInfo)＋DomainTools(逆引き)
+              <b>種別で引き分け</b>：ドメイン→VT＋DomainTools(Enrich)＋DNSLytics(HostingHistory) ／ IP→VT＋Shodan＋MaxMind(位置/地図)＋DNSLytics(IPInfo)＋DomainTools(逆引き)
               ／ URL→ホスト名をドメイン扱い ／ ハッシュ→VT＋ThreatVision(サンプル帰属)。<b>Intel 471 と CYFIRMA は全種別</b>、<b>ThreatVision も全種別</b>(IP/ドメイン=1 AAP, ハッシュ=0 AAP)に付与。各連携は Settings で個別ON/OFF可。
             </p>
             <p className="help-en" style={{ marginTop: 8 }}>
@@ -238,6 +259,13 @@ export function HelpDialog({ onClose }: { onClose: () => void }) {
                 IP行にShodanの開放ポート/サービス/CVEを付与（既定ON）。プロキシに <code>SHODAN_API_KEY</code>
                 がある時のみ実際に付与。OFFで問い合わせを止めてクレジット節約。
                 <span className="en">Enrich IPs with Shodan ports/services/CVEs (on by default; only if the proxy has a Shodan key). Turn off to save credits.</span>
+              </dd>
+              <dt>MaxMind GeoIP geolocation</dt>
+              <dd>
+                IP行に地理位置・ISP/ASN・匿名化(VPN/Tor)判定を付与し詳細に地図を表示（既定ON）。プロキシに{' '}
+                <code>MAXMIND_ACCOUNT_ID</code>＋<code>MAXMIND_LICENSE_KEY</code> がある時のみ。緯度経度は規約上、精度半径(km)と
+                “おおよその範囲”注記を必ず併記。OFFで問い合わせを止めてクレジット節約。
+                <span className="en">Enrich IPs with geolocation, ISP/ASN and anonymizer (VPN/Tor) signals + a map (on by default; only if the proxy has MaxMind creds). Coordinates always shown with the accuracy radius and an “approximate area” note, per MaxMind's ToS. Turn off to save credits.</span>
               </dd>
             </dl>
           </section>

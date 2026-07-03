@@ -33,6 +33,7 @@ APIキーはすべて**プロキシ側のみ**が保持します。**VirusTotal 
 |---|---|---|---|---|
 | **VirusTotal / GTI** | 脅威情報（基本） | ✅ 必須 | `VT_API_KEY` | 判定・検出比・レピュテーション・ASN/国・カテゴリ・脅威ラベル・First/Last seen(ファイル・URL)・GTI評価 |
 | **Shodan** | OSINT（IP限定） | 任意 | `SHODAN_API_KEY` | 開放ポート・稼働サービス・既知CVE・組織/ISP/OS・ホスト名・タグ |
+| **MaxMind GeoIP** | 位置情報（IP限定） | 任意 | `MAXMIND_ACCOUNT_ID`＋`MAXMIND_LICENSE_KEY` | 地理位置(国/地域/市/郵便番号)・ISP/組織/ASN/ドメイン・接続種別・**匿名化(VPN/Tor/プロキシ)判定**・詳細に**地図(OpenStreetMap)**。**Insights**ライセンスなら信頼度スコア・静的IPスコア・IPリスク・ユーザー数/種別・US平均所得/人口密度も。※規約により緯度経度は必ず**精度半径(km)**と共に“おおよその範囲”として表示 |
 | **DomainTools Iris** | ドメイン/IP情報 | 任意 | `DOMAINTOOLS_API_USERNAME`＋`DOMAINTOOLS_API_KEY` | **ドメイン**(Enrich)：リスクスコア＋内訳/WHOIS/RDAP/IP/ASN/NS/MX/SSL/website/first_seen/tags。**IP**(Investigate逆引き)：そのIP上のドメイン |
 | **DNSLytics** | IP/ドメイン情報 | 任意 | `DNSLYTICS_API_KEY` | **IP**(IPInfo)：ASN/組織/ネットワーク/逆引き/同居ドメイン数＋サンプル/ブロックリスト。**ドメイン**(HostingHistory)：A/AAAA・NS・MX・SPF の履歴 |
 | **Intel 471 (Titan)** | CTI・全種別 | 任意 | `INTEL471_API_USER`＋`INTEL471_API_KEY` | 全種別のIOC照合（active期間・ISP・関連レポート/アクター）＋詳細の「Global Search」ボタンで横断件数(reports/posts/actors/events/credentials/data-leaks) |
@@ -41,14 +42,16 @@ APIキーはすべて**プロキシ側のみ**が保持します。**VirusTotal 
 | **Claude (Anthropic)** | スマートパース | 任意 | `ANTHROPIC_API_KEY` | レポート本文からIOC抽出 |
 | **SOC Prime (TDM)** | 検知コンテンツ | 任意 | `SOCPRIME_API_KEY` | エンリッチではない。<b>検知ルール検索</b>（ヘッダー「Rules」）：キーワード/ATT&CKアクター/ツール/テクニック/重大度で SOC Prime の Sigma 検知ルールを検索し、指定SIEM形式へ翻訳表示。加えて Resultsの「SIEM query」で表示中IOCから<b>ハンティングクエリ</b>生成（Uncoder AI）。トリアージ→ハンティングの橋渡し |
 
-**IOC種別で引き分け**：ドメイン→VT＋DomainTools(Enrich)＋DNSLytics(HostingHistory) ／ IP→VT＋Shodan＋DNSLytics(IPInfo)＋DomainTools(逆引き) ／ URL→ホスト名をドメイン扱い ／ ハッシュ→VT＋ThreatVision(サンプル帰属)。**Intel 471・CYFIRMA・ThreatVision は全種別**に付与。各連携は Settings で個別ON/OFF可。DomainToolsは従量課金・Investigateは低レート制限のため、`DOMAINTOOLS_RPM`(既定30)/`DNSLYTICS_RPM`(既定60)/`INTEL471_RPM`(既定60)/`CYFIRMA_RPM`(既定30)/`THREATVISION_RPM`(既定30)で調整、`DNSLYTICS_BASE_URL`・`CYFIRMA_BASE_URL`・`THREATVISION_BASE_URL`でエンドポイント変更可。**ThreatVision の IP/ドメイン詳細は 1件 1 AAP 消費**（AAPは有限のため注意）。
+**IOC種別で引き分け**：ドメイン→VT＋DomainTools(Enrich)＋DNSLytics(HostingHistory) ／ IP→VT＋Shodan＋MaxMind(位置/地図)＋DNSLytics(IPInfo)＋DomainTools(逆引き) ／ URL→ホスト名をドメイン扱い ／ ハッシュ→VT＋ThreatVision(サンプル帰属)。**Intel 471・CYFIRMA・ThreatVision は全種別**に付与。各連携は Settings で個別ON/OFF可。DomainToolsは従量課金・Investigateは低レート制限のため、`DOMAINTOOLS_RPM`(既定30)/`DNSLYTICS_RPM`(既定60)/`INTEL471_RPM`(既定60)/`CYFIRMA_RPM`(既定30)/`THREATVISION_RPM`(既定30)で調整、`DNSLYTICS_BASE_URL`・`CYFIRMA_BASE_URL`・`THREATVISION_BASE_URL`でエンドポイント変更可。**ThreatVision の IP/ドメイン詳細は 1件 1 AAP 消費**（AAPは有限のため注意）。
 
 **任意サービスを有効化する手順（3ステップ）:**
 1. 上表の環境変数を **リポジトリ Secret**（GitHub → Settings → Secrets → Actions）に登録。
 2. **「Deploy Proxy」ワークフロー**を実行（Cloudflare）／Nodeプロキシを再起動 → Secret がプロキシに反映。
 3. アプリをリロード → ヘッダーのチップが **ON** に。`<プロキシURL>/health` でも確認可。
 
-> Shodan は Settings の **「Shodan OSINT enrichment」** で実行ON/OFFを切替できます（キーがあってもOFFなら問い合わせしない＝クレジット節約）。
+> Shodan は Settings の **「Shodan OSINT enrichment」**、MaxMind は **「MaxMind GeoIP geolocation」** で実行ON/OFFを切替できます（キーがあってもOFFなら問い合わせしない＝クレジット節約）。
+>
+> MaxMind は既定で **Insights** エディションを叩きます（最も情報量が多い）。City/Country ライセンスや GeoLite2(無料) の場合は `MAXMIND_EDITION`（`insights`/`city`/`country`）と `MAXMIND_BASE_URL`（有料=`https://geoip.maxmind.com`／GeoLite2=`https://geolite.info`）で切替できます。**アカウントIDとライセンスキーの両方**が必要です。
 
 ---
 
@@ -66,6 +69,7 @@ APIキーはすべて**プロキシ側のみ**が保持します。**VirusTotal 
 | `ADMIN_TOKEN` | 推奨 | `/api/admin/*`(ユーザー/設定の書込)保護 | proxy-deploy |
 | `ANTHROPIC_API_KEY` | 任意 | Claudeスマートパース(無ければ正規表現にフォールバック) | proxy-deploy |
 | `SHODAN_API_KEY` | 任意 | **Shodan OSINT**。IP行に開放ポート/サービス/CVE等を自動付与(無ければ付与なし) | proxy-deploy |
+| `MAXMIND_ACCOUNT_ID`＋`MAXMIND_LICENSE_KEY` | 任意 | **MaxMind GeoIP**。IP行に地理位置/ISP/ASN/匿名化判定＋地図を付与(Insights対応)。両方セットで有効 | proxy-deploy |
 | `DOMAINTOOLS_API_USERNAME`＋`DOMAINTOOLS_API_KEY` | 任意 | **DomainTools Iris**。ドメイン=Enrich／IP=Investigate逆引き。両方セットで有効 | proxy-deploy |
 | `DNSLYTICS_API_KEY` | 任意 | **DNSLytics**。IP=IPInfo／ドメイン=HostingHistory | proxy-deploy |
 | `INTEL471_API_USER`＋`INTEL471_API_KEY` | 任意 | **Intel 471 (Titan)**。BasicAuth＝APIメール＋APIキー。全種別IOC照合 | proxy-deploy |
@@ -204,6 +208,8 @@ pnpm exec wrangler kv namespace create VTEEEE_KV
   printf '%s' "<ACCESS>" | pnpm exec wrangler secret put ACCESS_TOKEN
   printf '%s' "<ADMIN>"  | pnpm exec wrangler secret put ADMIN_TOKEN
   printf '%s' "<Shodanキー>" | pnpm exec wrangler secret put SHODAN_API_KEY  # 任意: IPにOSINT付与
+  printf '%s' "<MaxMindアカウントID>" | pnpm exec wrangler secret put MAXMIND_ACCOUNT_ID   # 任意: IPに位置/地図
+  printf '%s' "<MaxMindライセンスキー>" | pnpm exec wrangler secret put MAXMIND_LICENSE_KEY  # 任意(上とペア)
   printf '%s' "<DTユーザー名>" | pnpm exec wrangler secret put DOMAINTOOLS_API_USERNAME  # 任意
   printf '%s' "<DTキー>"       | pnpm exec wrangler secret put DOMAINTOOLS_API_KEY       # 任意
   printf '%s' "<DNSLyticsキー>" | pnpm exec wrangler secret put DNSLYTICS_API_KEY         # 任意
@@ -251,6 +257,7 @@ pnpm exec wrangler kv namespace create VTEEEE_KV
 | `ADMIN_TOKEN` | プロキシ + webのManage | ○ | `/api/admin/*` 書込トークン |
 | `ANTHROPIC_API_KEY` | プロキシ | △ | Claudeスマートパース |
 | `SHODAN_API_KEY` | プロキシ | △ | Shodan OSINT(IPに開放ポート/サービス/CVE付与) |
+| `MAXMIND_ACCOUNT_ID` / `MAXMIND_LICENSE_KEY` / `MAXMIND_EDITION` / `MAXMIND_BASE_URL` | プロキシ | △ | MaxMind GeoIP(IPに位置/ISP/ASN/匿名化判定＋地図)。EDITIONは既定 `insights`(他 city/country)、BASE_URLは有料 geoip.maxmind.com／GeoLite2 geolite.info |
 | `DOMAINTOOLS_API_USERNAME` / `DOMAINTOOLS_API_KEY` | プロキシ | △ | DomainTools Iris(ドメイン=Enrich／IP=逆引き) |
 | `DNSLYTICS_API_KEY` / `DNSLYTICS_BASE_URL` | プロキシ | △ | DNSLytics(IP/ドメイン)。BASE_URLは既定 api.dnslytics.net/v1 |
 | `INTEL471_API_USER` / `INTEL471_API_KEY` | プロキシ | △ | Intel 471 (Titan)。BasicAuth＝APIメール＋APIキー。全種別IOC照合 |

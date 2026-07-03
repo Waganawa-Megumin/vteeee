@@ -91,7 +91,7 @@ export const useStore = create<State>((set, get) => ({
   booted: false,
   session: null,
   users: [],
-  settings: { proxyBaseUrl: null, rpm: 4, concurrency: 1, gti: false, submitUnknown: false, shodan: true, domaintools: true, dnslytics: true, intel471: true, cyfirma: true, threatvision: true },
+  settings: { proxyBaseUrl: null, rpm: 4, concurrency: 1, gti: false, submitUnknown: false, shodan: true, maxmind: true, domaintools: true, dnslytics: true, intel471: true, cyfirma: true, threatvision: true },
   mode: 'demo',
   health: null,
 
@@ -206,6 +206,7 @@ export const useStore = create<State>((set, get) => ({
       gti: settings.gti,
       submitUnknown: settings.submitUnknown,
       shodan: settings.shodan ?? true,
+      maxmind: settings.maxmind ?? true,
       domaintools: settings.domaintools ?? true,
       dnslytics: settings.dnslytics ?? true,
       intel471: settings.intel471 ?? true,
@@ -307,7 +308,7 @@ export const useStore = create<State>((set, get) => ({
     try {
       const res = await fetch(`${base}/health`, { cache: 'no-store' });
       if (!res.ok) {
-        set({ health: { ok: false, vtKey: false, claude: false, shodan: false, domaintools: false, dnslytics: false, intel471: false, cyfirma: false, threatvision: false, socprime: false } });
+        set({ health: { ok: false, vtKey: false, claude: false, shodan: false, maxmind: false, domaintools: false, dnslytics: false, intel471: false, cyfirma: false, threatvision: false, socprime: false } });
         return;
       }
       const h = (await res.json()) as Partial<ProxyHealth>;
@@ -317,6 +318,7 @@ export const useStore = create<State>((set, get) => ({
           vtKey: Boolean(h.vtKey),
           claude: Boolean(h.claude),
           shodan: Boolean(h.shodan),
+          maxmind: Boolean(h.maxmind),
           domaintools: Boolean(h.domaintools),
           dnslytics: Boolean(h.dnslytics),
           intel471: Boolean(h.intel471),
@@ -326,7 +328,7 @@ export const useStore = create<State>((set, get) => ({
         },
       });
     } catch {
-      set({ health: { ok: false, vtKey: false, claude: false, shodan: false, domaintools: false, dnslytics: false, intel471: false, cyfirma: false, threatvision: false, socprime: false } });
+      set({ health: { ok: false, vtKey: false, claude: false, shodan: false, maxmind: false, domaintools: false, dnslytics: false, intel471: false, cyfirma: false, threatvision: false, socprime: false } });
     }
   },
 

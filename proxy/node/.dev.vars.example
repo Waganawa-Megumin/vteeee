@@ -6,6 +6,14 @@ ANTHROPIC_API_KEY=
 SHODAN_API_KEY=
 # Optional — per-minute cap on Shodan host lookups (free plan ≈ 1/s → 60):
 # SHODAN_RPM=60
+# Optional — MaxMind GeoIP geolocation + map on IP rows (HTTP Basic: account ID + license key):
+MAXMIND_ACCOUNT_ID=
+MAXMIND_LICENSE_KEY=
+# GeoLite2 (free) users: set MAXMIND_BASE_URL=https://geolite.info (+ MAXMIND_EDITION=city)
+# MAXMIND_BASE_URL=https://geoip.maxmind.com
+# Edition: insights (default — richest) / city / country (needs a matching license):
+# MAXMIND_EDITION=insights
+# MAXMIND_RPM=60
 # Optional — DomainTools Iris (domains → Enrich, IPs → Investigate reverse). BOTH needed:
 DOMAINTOOLS_API_USERNAME=
 DOMAINTOOLS_API_KEY=

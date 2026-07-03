@@ -6,6 +6,15 @@ export interface ProxyEnv {
   shodanApiKey?: string;
   /** Per-minute cap on Shodan host lookups (free plan ≈ 1/s). Default 60. */
   shodanRpm?: number;
+  /** MaxMind GeoIP account ID + license key (HTTP Basic auth). When both set, IPs get geolocation + map. */
+  maxmindAccountId?: string;
+  maxmindLicenseKey?: string;
+  /** GeoIP web-service base URL. Default https://geoip.maxmind.com (paid). GeoLite2 = https://geolite.info. */
+  maxmindBaseUrl?: string;
+  /** Edition: `insights` (default — richest) / `city` / `country`. Needs a matching MaxMind license. */
+  maxmindEdition?: string;
+  /** Per-minute cap on MaxMind lookups. Default 60. */
+  maxmindRpm?: number;
   /** DomainTools API username + key. When both set, domains use Iris Enrich and IPs use Iris Investigate (reverse). */
   domaintoolsApiUsername?: string;
   domaintoolsApiKey?: string;
