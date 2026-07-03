@@ -1598,6 +1598,26 @@ a.i471-search-item:hover {
   .layout {
     grid-template-columns: 1fr;
   }
+  /* Single-column (tablet/phone): drop the fixed-height desktop app-shell whose columns
+     scroll INTERNALLY. On a short, wrapping mobile topbar the left column was squeezed to a
+     sliver, collapsing the parsed-indicator list. Instead, let the whole page scroll as one
+     document so every panel sizes to its content. */
+  .app {
+    height: auto;
+    min-height: 100%;
+  }
+  .col-left {
+    overflow-y: visible;
+  }
+  .col-right {
+    overflow: visible;
+  }
+  /* Show all parsed rows inline (page scrolls) rather than a nested 340px scroller that
+     gets crushed — this is the "つぶれて読めない" symptom. */
+  .preview-list {
+    max-height: none;
+    overflow: visible;
+  }
 }
 @media (max-width: 720px) {
   .topbar {
@@ -1657,6 +1677,28 @@ a.i471-search-item:hover {
   }
   .ind {
     max-width: 200px;
+  }
+  /* Parsed-indicator rows: let long domains/URLs wrap and read in full instead of being
+     clipped with an ellipsis on a narrow screen. The row itself wraps so the badge/flags
+     drop to the next line rather than squashing the value. */
+  .preview-row {
+    flex-wrap: wrap;
+    row-gap: 3px;
+    padding: 7px 6px;
+  }
+  .pv-value {
+    flex: 1 1 auto;
+    min-width: 0;
+    white-space: normal;
+    overflow-wrap: anywhere;
+  }
+  .pv-raw {
+    flex-basis: 100%;
+  }
+  /* Bigger tap target for the include checkbox on touch. */
+  .preview-row input[type='checkbox'] {
+    width: 18px;
+    height: 18px;
   }
 }
 @media (max-width: 560px) {
