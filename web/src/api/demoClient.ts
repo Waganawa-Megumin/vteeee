@@ -15,6 +15,7 @@ import {
   type RfSandboxIntel,
   type ShodanContext,
   type ShodanInternetDb,
+  type ShodanMonitorResult,
   type ShodanScanRequest,
   type ShodanScanStatus,
   type SocPrimeQueryOptions,
@@ -331,6 +332,28 @@ export class DemoClient implements EnrichClient {
   async shodanScanStatus(id: string): Promise<ShodanScanStatus> {
     await sleep(400);
     return { id, status: 'DONE', count: 1 };
+  }
+
+  /** Sample Shodan Monitor list (demo) — one pre-monitored IP so the page isn't empty. */
+  async shodanMonitorList(): Promise<ShodanMonitorResult> {
+    await sleep(250);
+    return {
+      entries: [
+        { id: 'demo-alert-1', ip: '185.220.101.1', name: 'vteeee:185.220.101.1', size: 1, triggers: ['malware', 'new_service'] },
+      ],
+    };
+  }
+
+  /** Sample Shodan Monitor add (demo). */
+  async shodanMonitorAdd(ip: string): Promise<ShodanMonitorResult> {
+    await sleep(250);
+    return { ok: true, entries: [{ id: `demo-${ip}`, ip, name: `vteeee:${ip}`, size: 1 }] };
+  }
+
+  /** Sample Shodan Monitor remove (demo). */
+  async shodanMonitorRemove(ip: string): Promise<ShodanMonitorResult> {
+    await sleep(250);
+    return { ok: true, removed: ip };
   }
 
   /** Sample fresh Shodan host banners (demo). */

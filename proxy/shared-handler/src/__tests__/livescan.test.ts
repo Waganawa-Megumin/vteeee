@@ -1,6 +1,7 @@
 import { describe, it, expect, vi, afterEach } from 'vitest';
 import { mapUrlscanResult, urlscanSubmit, urlscanResult } from '../urlscanFetch';
 import { mapInternetDb, shodanInternetDb, shodanScanRequest, shodanScanStatus } from '../shodanFetch';
+import { shodanMonitorList, shodanMonitorAdd, shodanMonitorRemove } from '../shodanMonitorFetch';
 import type { ProxyEnv } from '../types';
 
 const env: ProxyEnv = {
@@ -216,5 +217,77 @@ describe('shodanScanStatus', () => {
   it('surfaces an unknown scan id (404)', async () => {
     vi.stubGlobal('fetch', vi.fn(async () => resp(404, '{}')));
     expect((await shodanScanStatus('nope', env))?.error).toMatch(/not found/);
+  });
+});
+
+const alert = (name: string, ip: string, id = 'A1') => ({
+  id,
+  name,
+  filters: { ip: [ip] },
+  created: '2024-01-01',
+  size: 1,
+  triggers: { malware: {} },
+});
+
+describe('Shodan Monitor', () => {
+  it('lists only the vteeee alerts and maps the IP', async () => {
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(async (url: string) => {
+        expect(url).toContain('/shodan/alert/info');
+        return resp(200, [alert('vteeee:1.1.1.1', '1.1.1.1', 'A1'), alert('someone-else', '2.2.2.2', 'B1')]);
+      }),
+    );
+    const r = await shodanMonitorList(env);
+    expect(r.entries).toHaveLength(1);
+    expect(r.entries?.[0]).toMatchObject({ ip: '1.1.1.1', id: 'A1', triggers: ['malware'] });
+  });
+
+  it('add is idempotent — reuses an existing alert (no POST)', async () => {
+    const f = vi.fn(async (url: string) => {
+      if (url.includes('/shodan/alert/info')) return resp(200, [alert('vteeee:1.1.1.1', '1.1.1.1', 'EXIST')]);
+      throw new Error('should not create when it already exists');
+    });
+    vi.stubGlobal('fetch', f);
+    const r = await shodanMonitorAdd('1.1.1.1', env);
+    expect(r.entries?.[0].id).toBe('EXIST');
+    expect(f.mock.calls).toHaveLength(1); // only the list call
+  });
+
+  it('add creates a new alert when none exists', async () => {
+    const methods: (string | undefined)[] = [];
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(async (url: string, init?: RequestInit) => {
+        methods.push(init?.method);
+        if (url.includes('/shodan/alert/info')) return resp(200, []);
+        expect(JSON.parse(String(init?.body))).toMatchObject({ name: 'vteeee:9.9.9.9', filters: { ip: ['9.9.9.9'] } });
+        return resp(200, alert('vteeee:9.9.9.9', '9.9.9.9', 'NEW'));
+      }),
+    );
+    const r = await shodanMonitorAdd('9.9.9.9', env);
+    expect(r.ok).toBe(true);
+    expect(r.entries?.[0].id).toBe('NEW');
+    expect(methods).toContain('POST');
+  });
+
+  it('remove finds the alert and DELETEs it by id', async () => {
+    const calls: [string, string | undefined][] = [];
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(async (url: string, init?: RequestInit) => {
+        calls.push([url, init?.method]);
+        if (url.includes('/shodan/alert/info')) return resp(200, [alert('vteeee:1.1.1.1', '1.1.1.1', 'DELME')]);
+        return resp(200, { success: true });
+      }),
+    );
+    const r = await shodanMonitorRemove('1.1.1.1', env);
+    expect(r.ok).toBe(true);
+    expect(calls.some(([u, m]) => m === 'DELETE' && u.includes('/shodan/alert/DELME'))).toBe(true);
+  });
+
+  it('surfaces a plan/permission error (403)', async () => {
+    vi.stubGlobal('fetch', vi.fn(async () => resp(403, { error: 'membership required' })));
+    expect((await shodanMonitorList(env)).error).toMatch(/monitoring|membership/i);
   });
 });

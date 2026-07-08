@@ -2337,6 +2337,10 @@ export function DetailPanel() {
   // InternetDB needs no key — live ports are available whenever the proxy is reachable (or in demo).
   const liveScanOn = useStore((s) => s.mode === 'demo' || Boolean(s.health?.ok));
   const tlp = useStore((s) => s.settings.tlp);
+  const monitors = useStore((s) => s.monitors);
+  const addMonitor = useStore((s) => s.addMonitor);
+  const removeMonitor = useStore((s) => s.removeMonitor);
+  const monitorable = useStore((s) => s.mode === 'demo' || Boolean(s.health?.shodan));
   const panelRef = useRef<HTMLElement>(null);
   const [copied, setCopied] = useState<'text' | 'image' | 'pdf' | 'err' | null>(null);
   const [busy, setBusy] = useState(false);
@@ -2473,6 +2477,19 @@ export function DetailPanel() {
                 </button>
               ))}
             </div>
+            {(r.type === 'ipv4' || r.type === 'ipv6') && monitorable && (
+              <button
+                className={`btn btn-sm ${monitors[r.value] ? 'btn-primary' : 'btn-ghost'}`}
+                onClick={() => (monitors[r.value] ? void removeMonitor(r.value) : void addMonitor(r.value, r))}
+                title={
+                  monitors[r.value]
+                    ? 'Remove from the Shodan Monitor watchlist'
+                    : 'Add to Shodan Monitor + save this enrichment snapshot (check it again tomorrow)'
+                }
+              >
+                {monitors[r.value] ? '★ Monitoring' : '☆ Monitor'}
+              </button>
+            )}
             <button
               className="btn btn-sm btn-ghost"
               onClick={copyText}

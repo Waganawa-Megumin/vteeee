@@ -14,6 +14,7 @@ import type {
   RfSandboxIntel,
   ShodanContext,
   ShodanInternetDb,
+  ShodanMonitorResult,
   ShodanScanRequest,
   ShodanScanStatus,
   SocPrimeQueryOptions,
@@ -71,6 +72,12 @@ export interface EnrichClient {
   shodanScanStatus(id: string): Promise<ShodanScanStatus>;
   /** Re-fetch Shodan host banners on demand (e.g. after a re-scan). */
   shodanHost(ip: string): Promise<ShodanContext>;
+  /** List the IPs registered to Shodan Monitor (vteeee alerts). */
+  shodanMonitorList(): Promise<ShodanMonitorResult>;
+  /** Register an IP to Shodan Monitor. */
+  shodanMonitorAdd(ip: string): Promise<ShodanMonitorResult>;
+  /** Remove an IP from Shodan Monitor. */
+  shodanMonitorRemove(ip: string): Promise<ShodanMonitorResult>;
 }
 
 export function sleep(ms: number, signal?: AbortSignal): Promise<void> {

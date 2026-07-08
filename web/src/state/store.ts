@@ -109,6 +109,80 @@ function browserNotify(title: string, body: string, tag: string): void {
   }
 }
 
+// ---- Shodan Monitor watchlist ----
+// IPs registered to Shodan Monitor (server-side alerts) PLUS the last vteeee enrichment snapshot, so
+// you can come back the next day and see the intel, not just the raw Shodan monitor. Shodan is the
+// source of truth for which IPs are monitored; the enrichment snapshots are cached in localStorage.
+export interface MonitorEntry {
+  ip: string;
+  addedAt: number;
+  updatedAt: number;
+  /** Shodan alert id. */
+  alertId?: string;
+  /** Present on Shodan's server-side alert list (the authoritative "is monitored" flag). */
+  live?: boolean;
+  /** Enabled Shodan trigger names for this alert (malware / new_service / …). */
+  triggers?: string[];
+  /** Last vteeee enrichment snapshot (raw VT attributes stripped to keep localStorage small). */
+  result?: NormalizedResult;
+  /** A re-enrich is in flight. */
+  enriching?: boolean;
+  error?: string;
+  note?: string;
+}
+
+const MONITORS_KEY = 'vteeee.monitors';
+function stripRaw(r?: NormalizedResult): NormalizedResult | undefined {
+  if (!r) return undefined;
+  const { raw: _raw, ...rest } = r as NormalizedResult & { raw?: unknown };
+  return rest as NormalizedResult;
+}
+function loadMonitors(): Record<string, MonitorEntry> {
+  try {
+    const raw = localStorage.getItem(MONITORS_KEY);
+    return raw ? (JSON.parse(raw) as Record<string, MonitorEntry>) : {};
+  } catch {
+    return {};
+  }
+}
+function saveMonitors(m: Record<string, MonitorEntry>): void {
+  try {
+    const slim: Record<string, MonitorEntry> = {};
+    for (const [k, v] of Object.entries(m)) slim[k] = { ...v, result: stripRaw(v.result), enriching: false };
+    localStorage.setItem(MONITORS_KEY, JSON.stringify(slim));
+  } catch {
+    /* storage full/disabled — in-memory watchlist still works */
+  }
+}
+
+/** Run a full vteeee enrichment for ONE IP and return the normalized result (for monitor snapshots). */
+async function enrichOneIp(settings: AppSettings, ip: string): Promise<NormalizedResult | undefined> {
+  const type: EnrichableType = ip.includes(':') ? 'ipv6' : 'ipv4';
+  const client = await makeClient(settings);
+  let out: NormalizedResult | undefined;
+  const options: EnrichOptions = {
+    rpm: settings.rpm,
+    concurrency: 1,
+    includeRaw: false,
+    gti: settings.gti,
+    submitUnknown: false,
+    shodan: settings.shodan ?? true,
+    maxmind: settings.maxmind ?? true,
+    domaintools: settings.domaintools ?? true,
+    dnslytics: settings.dnslytics ?? true,
+    intel471: settings.intel471 ?? true,
+    cyfirma: settings.cyfirma ?? true,
+    threatvision: settings.threatvision ?? true,
+    recordedfuture: settings.recordedfuture ?? true,
+    abuseipdb: settings.abuseipdb ?? true,
+  };
+  await client.enrich(
+    { indicators: [{ value: ip, type, input: ip }], options },
+    { onResult: (r) => (out = r), onProgress: () => {}, onDone: () => {}, onError: () => {} },
+  );
+  return out;
+}
+
 interface State {
   booted: boolean;
   session: Session | null;
@@ -146,6 +220,8 @@ interface State {
   stop: () => void;
   clearResults: () => void;
   select: (value: string | null) => void;
+  /** Merge one result into the table (if absent) and open its detail — used by the monitor page. */
+  showResult: (r: NormalizedResult) => void;
   restore: (results: NormalizedResult[], input: string) => void;
 
   setView: (v: 'app' | 'admin') => void;
@@ -181,6 +257,17 @@ interface State {
   dismissScan: (ip: string) => void;
   /** Remove all finished scan jobs (keeps still-running ones). */
   clearFinishedScans: () => void;
+
+  /** Shodan Monitor watchlist (IPs + last vteeee enrichment snapshot), keyed by IP. */
+  monitors: Record<string, MonitorEntry>;
+  /** Register an IP to Shodan Monitor and snapshot its current enrichment. */
+  addMonitor: (ip: string, result?: NormalizedResult) => Promise<void>;
+  /** Remove an IP from Shodan Monitor + the watchlist. */
+  removeMonitor: (ip: string) => Promise<void>;
+  /** Reconcile the watchlist against Shodan's server-side alert list. */
+  refreshMonitors: () => Promise<void>;
+  /** Re-run vteeee enrichment for a monitored IP and refresh its snapshot. */
+  reEnrichMonitor: (ip: string) => Promise<void>;
 }
 
 function defaultIncludes(parsed: ParsedIndicator[]): Record<string, boolean> {
@@ -224,6 +311,7 @@ export const useStore = create<State>((set, get) => {
   mode: 'demo',
   health: null,
   scanJobs: loadScanJobs(),
+  monitors: loadMonitors(),
 
   rawInput: '',
   parsed: [],
@@ -404,6 +492,14 @@ export const useStore = create<State>((set, get) => {
 
   select(value) {
     set({ selected: value });
+  },
+
+  showResult(r) {
+    set((s) => ({
+      results: { ...s.results, [r.value]: r },
+      order: s.order.includes(r.value) ? s.order : [...s.order, r.value],
+      selected: r.value,
+    }));
   },
 
   restore(results, input) {
@@ -762,6 +858,130 @@ export const useStore = create<State>((set, get) => {
       for (const [k, v] of Object.entries(s.scanJobs)) if (isActiveScan(v)) scanJobs[k] = v;
       saveScanJobs(scanJobs);
       return { scanJobs };
+    });
+  },
+
+  async addMonitor(ip, result) {
+    const now = Date.now();
+    set((s) => {
+      const cur = s.monitors[ip];
+      const monitors = {
+        ...s.monitors,
+        [ip]: {
+          ip,
+          addedAt: cur?.addedAt ?? now,
+          updatedAt: now,
+          result: result ?? cur?.result,
+          live: cur?.live,
+          alertId: cur?.alertId,
+          triggers: cur?.triggers,
+          note: 'Registering with Shodan Monitor…',
+          error: undefined,
+        } as MonitorEntry,
+      };
+      saveMonitors(monitors);
+      return { monitors };
+    });
+    let res;
+    try {
+      const client = await makeClient(get().settings);
+      res = await client.shodanMonitorAdd(ip);
+    } catch (e) {
+      res = { error: (e as Error).message };
+    }
+    set((s) => {
+      const cur = s.monitors[ip];
+      if (!cur) return {};
+      const e = res.entries?.[0];
+      const monitors = {
+        ...s.monitors,
+        [ip]: {
+          ...cur,
+          live: res.error ? false : true,
+          alertId: e?.id ?? cur.alertId,
+          triggers: e?.triggers ?? cur.triggers,
+          note: undefined,
+          error: res.error,
+          updatedAt: Date.now(),
+        },
+      };
+      saveMonitors(monitors);
+      return { monitors };
+    });
+  },
+
+  async removeMonitor(ip) {
+    try {
+      const client = await makeClient(get().settings);
+      await client.shodanMonitorRemove(ip);
+    } catch {
+      /* best effort — still drop it locally */
+    }
+    set((s) => {
+      if (!s.monitors[ip]) return {};
+      const monitors = { ...s.monitors };
+      delete monitors[ip];
+      saveMonitors(monitors);
+      return { monitors };
+    });
+  },
+
+  async refreshMonitors() {
+    const demo = get().mode === 'demo';
+    let res;
+    try {
+      const client = await makeClient(get().settings);
+      res = await client.shodanMonitorList();
+    } catch {
+      return; // keep the local watchlist as-is
+    }
+    if (res.error) return; // Shodan Monitor unavailable — keep local snapshots
+    const serverIps = new Set((res.entries ?? []).map((e) => e.ip).filter(Boolean) as string[]);
+    set((s) => {
+      const monitors = { ...s.monitors };
+      for (const e of res.entries ?? []) {
+        if (!e.ip) continue;
+        const cur = monitors[e.ip];
+        monitors[e.ip] = {
+          ip: e.ip,
+          addedAt: cur?.addedAt ?? Date.now(),
+          updatedAt: Date.now(),
+          alertId: e.id ?? cur?.alertId,
+          live: true,
+          triggers: e.triggers ?? cur?.triggers,
+          result: cur?.result,
+          note: undefined,
+          error: undefined,
+        };
+      }
+      // In live mode, an entry no longer on Shodan's list isn't actually monitored anymore.
+      if (!demo) for (const [k, v] of Object.entries(monitors)) if (!serverIps.has(k)) monitors[k] = { ...v, live: false };
+      saveMonitors(monitors);
+      return { monitors };
+    });
+  },
+
+  async reEnrichMonitor(ip) {
+    set((s) => {
+      const cur = s.monitors[ip];
+      if (!cur) return {};
+      return { monitors: { ...s.monitors, [ip]: { ...cur, enriching: true } } };
+    });
+    let result: NormalizedResult | undefined;
+    try {
+      result = await enrichOneIp(get().settings, ip);
+    } catch {
+      /* leave the previous snapshot */
+    }
+    set((s) => {
+      const cur = s.monitors[ip];
+      if (!cur) return {};
+      const monitors = {
+        ...s.monitors,
+        [ip]: { ...cur, enriching: false, result: result ?? cur.result, updatedAt: Date.now() },
+      };
+      saveMonitors(monitors);
+      return { monitors };
     });
   },
   };

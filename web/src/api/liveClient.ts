@@ -15,6 +15,7 @@ import type {
   RfSandboxIntel,
   ShodanContext,
   ShodanInternetDb,
+  ShodanMonitorResult,
   ShodanScanRequest,
   ShodanScanStatus,
   SocPrimeQueryOptions,
@@ -280,6 +281,32 @@ export class LiveClient implements EnrichClient {
     });
     if (!res.ok) return { found: false, error: `Shodan host lookup failed: ${res.status}` };
     return (await res.json()) as ShodanContext;
+  }
+
+  async shodanMonitorList(): Promise<ShodanMonitorResult> {
+    const res = await fetch(`${this.base}/api/shodan/monitor`, { headers: this.headers(false) });
+    if (!res.ok) return { error: `Shodan Monitor list failed: ${res.status}` };
+    return (await res.json()) as ShodanMonitorResult;
+  }
+
+  async shodanMonitorAdd(ip: string): Promise<ShodanMonitorResult> {
+    const res = await fetch(`${this.base}/api/shodan/monitor`, {
+      method: 'POST',
+      headers: this.headers(),
+      body: JSON.stringify({ ip }),
+    });
+    if (!res.ok) return { error: `Shodan Monitor add failed: ${res.status}` };
+    return (await res.json()) as ShodanMonitorResult;
+  }
+
+  async shodanMonitorRemove(ip: string): Promise<ShodanMonitorResult> {
+    const res = await fetch(`${this.base}/api/shodan/monitor`, {
+      method: 'POST',
+      headers: this.headers(),
+      body: JSON.stringify({ ip, action: 'remove' }),
+    });
+    if (!res.ok) return { error: `Shodan Monitor remove failed: ${res.status}` };
+    return (await res.json()) as ShodanMonitorResult;
   }
 
   async socprimeQuery(text: string, opts: SocPrimeQueryOptions): Promise<SocPrimeQueryResult> {

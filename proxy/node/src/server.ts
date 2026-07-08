@@ -21,6 +21,9 @@ import {
   shodanScanRequest,
   shodanScanStatus,
   shodanHostLookup,
+  shodanMonitorList,
+  shodanMonitorAdd,
+  shodanMonitorRemove,
   getUsers,
   putUsers,
   getSettings,
@@ -374,6 +377,29 @@ app.get('/api/shodan/host', async (req, res) => {
     return;
   }
   res.json((await shodanHostLookup(ip, env)) ?? { found: false, error: 'unavailable' });
+});
+
+app.get('/api/shodan/monitor', async (req, res) => {
+  if (!requireAccess(req, res)) return;
+  if (!env.shodanApiKey) {
+    res.status(400).json({ error: 'Shodan not configured' });
+    return;
+  }
+  res.json(await shodanMonitorList(env));
+});
+
+app.post('/api/shodan/monitor', async (req, res) => {
+  if (!requireAccess(req, res)) return;
+  if (!env.shodanApiKey) {
+    res.status(400).json({ error: 'Shodan not configured' });
+    return;
+  }
+  const ip = (req.body?.ip as string) || '';
+  if (!ip) {
+    res.status(400).json({ error: 'ip required' });
+    return;
+  }
+  res.json(req.body?.action === 'remove' ? await shodanMonitorRemove(ip, env) : await shodanMonitorAdd(ip, env));
 });
 
 app.post('/api/socprime/ioc-query', async (req, res) => {

@@ -966,6 +966,28 @@ export interface AbuseIpdbContext {
   raw?: unknown;
 }
 
+/** One Shodan Monitor network alert (our watchlist is backed by per-IP alerts named `vteeee:<ip>`). */
+export interface ShodanMonitorEntry {
+  /** Shodan alert id. */
+  id?: string;
+  /** The monitored IP (from the alert's `filters.ip`). */
+  ip?: string;
+  name?: string;
+  created?: string;
+  /** Number of IPs the alert covers (usually 1). */
+  size?: number;
+  /** Enabled trigger names (e.g. malware, new_service, open_database). */
+  triggers?: string[];
+}
+
+/** Result of a Shodan Monitor list/add/remove call. */
+export interface ShodanMonitorResult {
+  entries?: ShodanMonitorEntry[];
+  ok?: boolean;
+  removed?: string;
+  error?: string;
+}
+
 /** The single shape the results table & detail panel consume, for all IOC types. */
 export interface NormalizedResult {
   input: string;

@@ -11,6 +11,7 @@ import { IntegrationStatus } from './components/IntegrationStatus';
 import { ScanTracker } from './components/ScanTracker';
 import { HelpDialog } from './components/HelpDialog';
 import { HistoryDialog } from './components/HistoryDialog';
+import { MonitorDialog } from './components/MonitorDialog';
 import { RuleSearchDialog } from './components/RuleSearchDialog';
 import { EmptyState } from './components/EmptyState';
 import { AdminPanel } from './admin/AdminPanel';
@@ -28,9 +29,12 @@ export default function App() {
   const hasResults = useStore((s) => s.order.length > 0);
   // SOC Prime rule search is available anytime it's configured (or in demo mode via the sample).
   const rulesAvailable = useStore((s) => s.mode === 'demo' || Boolean(s.health?.socprime));
+  const monitorAvailable = useStore((s) => s.mode === 'demo' || Boolean(s.health?.shodan));
+  const monitorCount = useStore((s) => Object.keys(s.monitors).length);
   const [settingsOpen, setSettingsOpen] = useState(false);
   const [helpOpen, setHelpOpen] = useState(false);
   const [historyOpen, setHistoryOpen] = useState(false);
+  const [monitorOpen, setMonitorOpen] = useState(false);
   const [rulesOpen, setRulesOpen] = useState(false);
   const [theme, setTheme] = useState<Theme>(
     () => ((localStorage.getItem('vteeee.theme') as Theme) || 'chalk'),
@@ -68,6 +72,11 @@ export default function App() {
         <button className="btn btn-sm" onClick={() => setHistoryOpen(true)}>
           History
         </button>
+        {monitorAvailable && (
+          <button className="btn btn-sm" onClick={() => setMonitorOpen(true)} title="Shodan Monitor watchlist (IPs + saved enrichment)">
+            📡 Monitor{monitorCount ? ` (${monitorCount})` : ''}
+          </button>
+        )}
         {rulesAvailable && (
           <button className="btn btn-sm" onClick={() => setRulesOpen(true)} title="Search SOC Prime detection rules">
             Rules
@@ -112,6 +121,7 @@ export default function App() {
       {settingsOpen && <SettingsDialog onClose={() => setSettingsOpen(false)} />}
       {helpOpen && <HelpDialog onClose={() => setHelpOpen(false)} />}
       {historyOpen && <HistoryDialog onClose={() => setHistoryOpen(false)} />}
+      {monitorOpen && <MonitorDialog onClose={() => setMonitorOpen(false)} />}
       {rulesOpen && <RuleSearchDialog onClose={() => setRulesOpen(false)} />}
       <DetailPanel />
     </div>

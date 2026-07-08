@@ -18,6 +18,9 @@ import {
   shodanScanRequest,
   shodanScanStatus,
   shodanHostLookup,
+  shodanMonitorList,
+  shodanMonitorAdd,
+  shodanMonitorRemove,
   getUsers,
   putUsers,
   getSettings,
@@ -360,6 +363,27 @@ export default {
         const id = url.searchParams.get('id') ?? '';
         if (!id) return json({ error: 'id required' }, 400);
         return json((await shodanScanStatus(id, proxy, request.signal)) ?? { error: 'unavailable' });
+      }
+
+      // Shodan Monitor — list the watched IPs (network alerts named vteeee:<ip>).
+      if (url.pathname === '/api/shodan/monitor' && request.method === 'GET') {
+        if (!checkAccess(auth, proxy)) return json({ error: 'unauthorized' }, 401);
+        if (!proxy.shodanApiKey) return json({ error: 'Shodan not configured' }, 400);
+        return json(await shodanMonitorList(proxy, request.signal));
+      }
+
+      // Shodan Monitor — add/remove an IP (create/delete its alert).
+      if (url.pathname === '/api/shodan/monitor' && request.method === 'POST') {
+        if (origin && !originAllowed(origin, allowed)) return json({ error: 'origin not allowed' }, 403);
+        if (!checkAccess(auth, proxy)) return json({ error: 'unauthorized' }, 401);
+        if (!proxy.shodanApiKey) return json({ error: 'Shodan not configured' }, 400);
+        const b = (await request.json()) as { ip?: string; action?: string };
+        if (!b.ip) return json({ error: 'ip required' }, 400);
+        return json(
+          b.action === 'remove'
+            ? await shodanMonitorRemove(b.ip, proxy, request.signal)
+            : await shodanMonitorAdd(b.ip, proxy, request.signal),
+        );
       }
 
       // Re-fetch Shodan host banners on demand (e.g. after a re-scan).
