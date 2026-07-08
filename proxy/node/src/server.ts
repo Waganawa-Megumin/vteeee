@@ -24,6 +24,8 @@ import {
   shodanMonitorList,
   shodanMonitorAdd,
   shodanMonitorRemove,
+  getSharedMonitors,
+  putSharedMonitors,
   getUsers,
   putUsers,
   getSettings,
@@ -377,6 +379,16 @@ app.get('/api/shodan/host', async (req, res) => {
     return;
   }
   res.json((await shodanHostLookup(ip, env)) ?? { found: false, error: 'unavailable' });
+});
+
+app.get('/api/monitor', async (req, res) => {
+  if (!requireAccess(req, res)) return;
+  res.json(await getSharedMonitors(store));
+});
+app.put('/api/monitor', async (req, res) => {
+  if (!requireAccess(req, res)) return;
+  await putSharedMonitors(store, req.body);
+  res.json({ ok: true });
 });
 
 app.get('/api/shodan/monitor', async (req, res) => {

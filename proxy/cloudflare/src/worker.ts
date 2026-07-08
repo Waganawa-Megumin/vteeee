@@ -21,6 +21,8 @@ import {
   shodanMonitorList,
   shodanMonitorAdd,
   shodanMonitorRemove,
+  getSharedMonitors,
+  putSharedMonitors,
   getUsers,
   putUsers,
   getSettings,
@@ -363,6 +365,18 @@ export default {
         const id = url.searchParams.get('id') ?? '';
         if (!id) return json({ error: 'id required' }, 400);
         return json((await shodanScanStatus(id, proxy, request.signal)) ?? { error: 'unavailable' });
+      }
+
+      // Shared IP-Mon watchlist (IPs + vteeee enrichment snapshots) in KV — team-shared.
+      if (url.pathname === '/api/monitor' && request.method === 'GET') {
+        if (!checkAccess(auth, proxy)) return json({ error: 'unauthorized' }, 401);
+        return json(await getSharedMonitors(store));
+      }
+      if (url.pathname === '/api/monitor' && request.method === 'PUT') {
+        if (origin && !originAllowed(origin, allowed)) return json({ error: 'origin not allowed' }, 403);
+        if (!checkAccess(auth, proxy)) return json({ error: 'unauthorized' }, 401);
+        await putSharedMonitors(store, await request.json());
+        return json({ ok: true });
       }
 
       // Shodan Monitor — list the watched IPs (network alerts named vteeee:<ip>).

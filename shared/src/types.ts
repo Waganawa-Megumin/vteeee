@@ -1205,6 +1205,12 @@ export interface AppSettings {
   abuseipdb?: boolean;
   /** Days to keep local search history (per browser). 0 = disabled. Default 30. */
   historyRetentionDays?: number;
+  /**
+   * Share the IP-Mon watchlist (IPs + vteeee enrichment snapshots) via the proxy KV so the whole
+   * team sees the same monitored IPs and their intel — avoids everyone re-enriching. Default true
+   * (only used in Live mode). Set false to keep the watchlist to this browser only.
+   */
+  shareMonitors?: boolean;
   /** Traffic Light Protocol marking stamped on exported PDFs. Default AMBER. */
   tlp?: TlpLevel;
   /** urlscan.io visibility for on-demand 魚拓 scans (public | unlisted | private). Default unlisted. */

@@ -369,6 +369,19 @@ export function SettingsDialog({ onClose }: { onClose: () => void }) {
             </span>
           </label>
 
+          <label className="chk">
+            <input
+              type="checkbox"
+              checked={draft.shareMonitors !== false}
+              onChange={(e) => up('shareMonitors', e.target.checked)}
+            />
+            📡 Share the IP-Mon watchlist with the team (via the proxy)
+            <InfoTip
+              ja="IP-Mon の監視IPと vteeee エンリッチ結果スナップショットを、プロキシのKVで共有します（既定ON・Liveモード時のみ）。ONにすると、同じプロキシを使うアナリスト全員が同じ監視IP＋intelを見られ、再エンリッチによるAPIの無駄打ちを防げます。OFFにするとこのブラウザだけに保存。デモ（プロキシ無し）は常にローカルです。"
+              en="Share the IP-Mon watchlist (monitored IPs + vteeee enrichment snapshots) via the proxy KV so the whole team sees the same monitored IPs + intel — nobody re-enriches what's already been looked up. Default on (Live mode only). Off = this browser only. Demo (no proxy) is always local."
+            />
+          </label>
+
           <p className="hint">
             Free VT tier ≈ 4 req/min, 500/day — keep rpm low to avoid 429s. The access token is stored
             only in this browser (now backed by persistent storage + IndexedDB so it survives much

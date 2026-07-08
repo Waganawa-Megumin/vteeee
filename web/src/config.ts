@@ -24,6 +24,7 @@ export const DEFAULT_SETTINGS: AppSettings = {
   historyRetentionDays: 30,
   tlp: 'AMBER',
   urlscanVisibility: 'unlisted',
+  shareMonitors: true,
 };
 
 async function fetchJson<T>(path: string): Promise<T | null> {

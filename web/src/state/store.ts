@@ -200,6 +200,49 @@ async function enrichOneIp(settings: AppSettings, ip: string): Promise<Normalize
   return out;
 }
 
+// ---- Shared watchlist sync (proxy KV) ----
+// Default-on in Live mode: the watchlist + snapshots are shared across the team so nobody re-enriches
+// what someone already monitored. Set shareMonitors:false to keep it to this browser.
+const monitorSharingOn = (settings: AppSettings): boolean =>
+  Boolean(settings.proxyBaseUrl) && settings.shareMonitors !== false;
+function monitorAuth(settings: AppSettings): Record<string, string> {
+  const h: Record<string, string> = {};
+  if (settings.accessToken) h['Authorization'] = `Bearer ${settings.accessToken}`;
+  return h;
+}
+async function fetchSharedMonitors(settings: AppSettings): Promise<Record<string, MonitorEntry> | null> {
+  if (!monitorSharingOn(settings)) return null;
+  const base = settings.proxyBaseUrl!.replace(/\/$/, '');
+  try {
+    const res = await fetch(`${base}/api/monitor`, { headers: monitorAuth(settings), cache: 'no-store' });
+    if (!res.ok) return null;
+    const j = await res.json();
+    return j && typeof j === 'object' ? (j as Record<string, MonitorEntry>) : {};
+  } catch {
+    return null;
+  }
+}
+/** Read-modify-write ONE entry into the shared blob (set, or delete when entry is null) so a stale
+ *  client can't clobber the whole team list. Best-effort. */
+async function pushSharedMonitorEntry(settings: AppSettings, ip: string, entry: MonitorEntry | null): Promise<void> {
+  if (!monitorSharingOn(settings)) return;
+  const base = settings.proxyBaseUrl!.replace(/\/$/, '');
+  try {
+    const res = await fetch(`${base}/api/monitor`, { headers: monitorAuth(settings), cache: 'no-store' });
+    const j = res.ok ? await res.json() : {};
+    const map = (j && typeof j === 'object' ? j : {}) as Record<string, MonitorEntry>;
+    if (entry) map[ip] = { ...entry, result: stripRaw(entry.result), enriching: false, checking: false };
+    else delete map[ip];
+    await fetch(`${base}/api/monitor`, {
+      method: 'PUT',
+      headers: { ...monitorAuth(settings), 'content-type': 'application/json' },
+      body: JSON.stringify(map),
+    });
+  } catch {
+    /* offline — the local copy keeps it; a later refresh reconciles */
+  }
+}
+
 interface State {
   booted: boolean;
   session: Session | null;
@@ -326,7 +369,7 @@ export const useStore = create<State>((set, get) => {
   booted: false,
   session: null,
   users: [],
-  settings: { proxyBaseUrl: null, rpm: 4, concurrency: 1, gti: false, submitUnknown: false, shodan: true, maxmind: true, domaintools: true, dnslytics: true, intel471: true, cyfirma: true, threatvision: true, recordedfuture: true, abuseipdb: true, tlp: 'AMBER', urlscanVisibility: 'unlisted' },
+  settings: { proxyBaseUrl: null, rpm: 4, concurrency: 1, gti: false, submitUnknown: false, shodan: true, maxmind: true, domaintools: true, dnslytics: true, intel471: true, cyfirma: true, threatvision: true, recordedfuture: true, abuseipdb: true, tlp: 'AMBER', urlscanVisibility: 'unlisted', shareMonitors: true },
   mode: 'demo',
   health: null,
   scanJobs: loadScanJobs(),
@@ -935,6 +978,7 @@ export const useStore = create<State>((set, get) => {
       saveMonitors(monitors);
       return { monitors };
     });
+    void pushSharedMonitorEntry(get().settings, ip, get().monitors[ip] ?? null);
   },
 
   async removeMonitor(ip) {
@@ -951,38 +995,43 @@ export const useStore = create<State>((set, get) => {
       saveMonitors(monitors);
       return { monitors };
     });
+    void pushSharedMonitorEntry(get().settings, ip, null);
   },
 
   async refreshMonitors() {
     const demo = get().mode === 'demo';
-    let res;
+    // Pull the team-shared watchlist (KV) — this is what gives an analyst the admin's snapshots.
+    const shared = await fetchSharedMonitors(get().settings);
+    let list: ReadonlyArray<{ ip?: string; id?: string; triggers?: string[] }> | null = null;
     try {
       const client = await makeClient(get().settings);
-      res = await client.shodanMonitorList();
+      const res = await client.shodanMonitorList();
+      if (!res.error) list = res.entries ?? [];
     } catch {
-      return; // keep the local watchlist as-is
+      /* Shodan Monitor list unavailable — still merge the shared snapshots below */
     }
-    if (res.error) return; // Shodan Monitor unavailable — keep local snapshots
-    const serverIps = new Set((res.entries ?? []).map((e) => e.ip).filter(Boolean) as string[]);
     set((s) => {
-      const monitors = { ...s.monitors };
-      for (const e of res.entries ?? []) {
-        if (!e.ip) continue;
-        const cur = monitors[e.ip];
-        monitors[e.ip] = {
-          ip: e.ip,
-          addedAt: cur?.addedAt ?? Date.now(),
-          updatedAt: Date.now(),
-          alertId: e.id ?? cur?.alertId,
-          live: true,
-          triggers: e.triggers ?? cur?.triggers,
-          result: cur?.result,
-          note: undefined,
-          error: undefined,
-        };
+      // Shared snapshots (team truth) overlay local for overlapping IPs; local-only entries survive.
+      const monitors: Record<string, MonitorEntry> = { ...s.monitors, ...(shared ?? {}) };
+      if (list) {
+        const serverIps = new Set(list.map((e) => e.ip).filter(Boolean) as string[]);
+        for (const e of list) {
+          if (!e.ip) continue;
+          const cur = monitors[e.ip];
+          monitors[e.ip] = {
+            ...(cur ?? { ip: e.ip, addedAt: Date.now() }),
+            ip: e.ip,
+            updatedAt: Date.now(),
+            alertId: e.id ?? cur?.alertId,
+            live: true,
+            triggers: e.triggers ?? cur?.triggers,
+            note: undefined,
+            error: undefined,
+          } as MonitorEntry;
+        }
+        // In live mode, an entry no longer on Shodan's list isn't actually monitored anymore.
+        if (!demo) for (const [k, v] of Object.entries(monitors)) if (!serverIps.has(k)) monitors[k] = { ...v, live: false };
       }
-      // In live mode, an entry no longer on Shodan's list isn't actually monitored anymore.
-      if (!demo) for (const [k, v] of Object.entries(monitors)) if (!serverIps.has(k)) monitors[k] = { ...v, live: false };
       saveMonitors(monitors);
       return { monitors };
     });
@@ -1010,6 +1059,7 @@ export const useStore = create<State>((set, get) => {
       saveMonitors(monitors);
       return { monitors };
     });
+    void pushSharedMonitorEntry(get().settings, ip, get().monitors[ip] ?? null);
   },
 
   async checkMonitor(ip) {
@@ -1055,6 +1105,7 @@ export const useStore = create<State>((set, get) => {
       saveMonitors(monitors);
       return { monitors };
     });
+    void pushSharedMonitorEntry(get().settings, ip, get().monitors[ip] ?? null);
   },
   };
 });
