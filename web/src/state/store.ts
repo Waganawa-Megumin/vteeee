@@ -617,6 +617,7 @@ export const useStore = create<State>((set, get) => {
     const token = Date.now() + Math.random();
     const started = Date.now();
     const alive = () => get().scanJobs[ip]?.token === token;
+    const wait = (ms: number) => new Promise((res) => setTimeout(res, ms));
     maybeRequestNotify(); // the button click is a user gesture, so we may ask for notification permission
     writeJob(ip, token, started, {
       phase: 'submitting',
@@ -633,6 +634,20 @@ export const useStore = create<State>((set, get) => {
       writeJob(ip, token, started, { phase: 'error', msg: (e as Error).message });
       return;
     }
+
+    // Baseline: the host record's current lastUpdate. We treat the scan as complete when this
+    // CHANGES (plain string compare, so Shodan's timezone-ambiguous timestamps don't matter). This is
+    // far more reliable than waiting for the scan-status endpoint to report DONE — on-demand scans
+    // frequently sit in QUEUE/PROCESSING for many minutes, which is why the old 2-min DONE-wait never
+    // succeeded.
+    let baseline: string | undefined;
+    try {
+      baseline = (await client.shodanHost(ip)).lastUpdate;
+    } catch {
+      /* ignore — treat as no baseline */
+    }
+    if (!alive()) return;
+
     const req = await client.shodanScan(ip);
     if (!alive()) return;
     if (req.error || !req.id) {
@@ -640,43 +655,64 @@ export const useStore = create<State>((set, get) => {
       return;
     }
     const credits = req.creditsLeft;
-    // Shodan queues scans server-side — poll status until DONE (~10s to a couple of minutes).
-    for (let i = 0; i < 30; i++) {
+    const id = req.id;
+
+    // On-demand scans can take many minutes — poll (in the background) for up to ~15 min.
+    const deadline = started + 15 * 60 * 1000;
+    let iter = 0;
+    let lastHostCheck = 0;
+    while (Date.now() < deadline) {
+      const secs = Math.round((Date.now() - started) / 1000);
       writeJob(ip, token, started, {
         phase: 'scanning',
         creditsLeft: credits,
-        msg: `Scanning… ${Math.round((Date.now() - started) / 1000)}s`,
+        msg: `Scanning… ${secs}s (Shodan on-demand scans can take several minutes)`,
       });
-      await new Promise((res) => setTimeout(res, i === 0 ? 5000 : 4000));
+      await wait(iter < 6 ? 8000 : 15000); // quick for the first ~48s, then every 15s
+      iter++;
       if (!alive()) return;
-      const st = await client.shodanScanStatus(req.id);
-      if (!alive()) return;
-      if (st.error) {
-        writeJob(ip, token, started, { phase: 'error', creditsLeft: credits, msg: st.error });
-        return;
+
+      // Progress only — the scan-status endpoint is unreliable, so a failure here is non-fatal.
+      let statusDone = false;
+      try {
+        const st = await client.shodanScanStatus(id);
+        if (!alive()) return;
+        const s = (st.status ?? '').toUpperCase();
+        statusDone = s === 'DONE';
+        writeJob(ip, token, started, {
+          phase: 'scanning',
+          status: s || undefined,
+          creditsLeft: credits,
+          msg: `Scanning… ${Math.round((Date.now() - started) / 1000)}s${s ? ` · ${s}` : ''}`,
+        });
+      } catch {
+        /* keep going — the host-change check below is authoritative */
       }
-      const s = (st.status ?? '').toUpperCase();
-      writeJob(ip, token, started, {
-        phase: 'scanning',
-        status: s || 'PROCESSING',
-        creditsLeft: credits,
-        msg: `Scanning… ${Math.round((Date.now() - started) / 1000)}s${s ? ` · ${s}` : ''}`,
-      });
-      if (s === 'DONE') {
-        writeJob(ip, token, started, { phase: 'fetching', creditsLeft: credits, msg: 'Scan complete — fetching fresh banners…' });
+
+      // Authoritative completion: has the host record actually been refreshed? Check on DONE, and
+      // otherwise every ~40s (host lookups cost a query credit, so we don't hammer it).
+      if (statusDone || Date.now() - lastHostCheck > 40000) {
+        lastHostCheck = Date.now();
+        writeJob(ip, token, started, {
+          phase: 'fetching',
+          creditsLeft: credits,
+          msg: `Checking for fresh banners… ${Math.round((Date.now() - started) / 1000)}s`,
+        });
         const host = await client.shodanHost(ip);
         if (!alive()) return;
-        writeJob(ip, token, started, { phase: 'done', creditsLeft: credits, host, seen: false, msg: undefined });
-        browserNotify('Shodan re-scan complete', `${ip}${host.ports?.length ? ` · ports ${host.ports.slice(0, 8).join(', ')}` : ''}`, `vteeee-shodan-${ip}`);
-        return;
+        if (host.found && host.lastUpdate && host.lastUpdate !== baseline) {
+          writeJob(ip, token, started, { phase: 'done', creditsLeft: credits, host, seen: false, msg: undefined });
+          browserNotify('Shodan re-scan complete', `${ip}${host.ports?.length ? ` · ports ${host.ports.slice(0, 8).join(', ')}` : ''}`, `vteeee-shodan-${ip}`);
+          return;
+        }
       }
     }
     writeJob(ip, token, started, {
       phase: 'timeout',
       creditsLeft: credits,
-      msg: 'Still queued at Shodan after ~2 min — it finishes server-side. Re-check the banners shortly.',
+      msg: 'Shodan has not refreshed this host within ~15 min — the scan may still be queued. Re-check later.',
     });
-    browserNotify('Shodan re-scan still running', `${ip} — check back and re-fetch the banners.`, `vteeee-shodan-${ip}`);
+    browserNotify('Shodan re-scan still pending', `${ip} — not refreshed yet; re-check later.`, `vteeee-shodan-${ip}`);
   },
 
   async recheckShodanHost(ip) {

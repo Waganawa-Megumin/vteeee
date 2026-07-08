@@ -2144,9 +2144,10 @@ function LivePortsSection({ r }: { r: NormalizedResult }) {
               <br />
               <b>Current ports (InternetDB)</b>＝無料・鍵不要・<b>再スキャンなし</b>で Shodan の最新既知ポート/CVEを即取得。
               <br />
-              <b>Re-scan with Shodan</b>＝Shodan に <b>今すぐ再観測</b>を依頼（スキャンクレジット消費）。再スキャンは
-              <b>非同期</b>なので、状態(QUEUE→PROCESSING→DONE)と経過秒を表示し、<b>DONE になったら自動で最新バナーを取得</b>します。
-              いずれも <b>Shodan 側から</b>観測するのでこちらの出口IPは晒れません。
+              <b>Re-scan with Shodan</b>＝Shodan に <b>今すぐ再観測</b>を依頼（スキャンクレジット消費）。オンデマンド再スキャンは
+              <b>数分〜十数分</b>かかることがあり、<b>バックグラウンドで進行</b>します（パネルを閉じてもOK・ヘッダーの
+              スキャン・トラッカー＋完了通知で確認）。完了は「ホスト情報が実際に更新されたか」で判定し、更新され次第
+              <b>自動で最新バナーを表示</b>します。いずれも <b>Shodan 側から</b>観測するのでこちらの出口IPは晒れません。
               <br />
               Web系ポート(80/443等)があれば、下の <b>「🎣 Web 魚拓」</b>で <b>そのIPが配信しているサイトを urlscan で保全</b>できます
               （IPでも魚拓）。
@@ -2156,9 +2157,10 @@ function LivePortsSection({ r }: { r: NormalizedResult }) {
             <>
               Shows this IP's current ports/services. “Current ports (InternetDB)” is free and needs no key
               (Shodan's latest known state, no active scan). “Re-scan with Shodan” asks Shodan to observe the
-              host again (uses credits); since that's asynchronous, it shows the status (QUEUE → PROCESSING →
-              DONE) with elapsed time and auto-loads the fresh banners the moment it's DONE. If the host has web
-              ports, use “🎣 Web 魚拓” below to capture the site it serves via urlscan — a 魚拓 even for a bare IP.
+              host again (uses credits). On-demand scans can take several minutes and run in the background — you
+              can close this panel; the header scan tracker + a notification tell you when it's done. Completion
+              is detected when the host record is actually refreshed. If the host has web ports, use “🎣 Web 魚拓”
+              below to capture the site it serves via urlscan — a 魚拓 even for a bare IP.
             </>
           }
         />
