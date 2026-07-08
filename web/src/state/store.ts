@@ -129,6 +129,23 @@ export interface MonitorEntry {
   enriching?: boolean;
   error?: string;
   note?: string;
+  /** Shodan state when monitoring began — the reference the "monitoring result" diffs against. */
+  baseline?: { ports?: number[]; vulns?: string[]; lastUpdate?: string };
+  /** Latest Shodan re-observation vs. the baseline — this IS the "what did monitoring find" result. */
+  check?: {
+    at: number;
+    found: boolean;
+    ports?: number[];
+    vulns?: string[];
+    lastUpdate?: string;
+    newPorts: number[];
+    gonePorts: number[];
+    newVulns: string[];
+    changed: boolean;
+    error?: string;
+  };
+  /** A monitor check is in flight. */
+  checking?: boolean;
 }
 
 const MONITORS_KEY = 'vteeee.monitors';
@@ -268,6 +285,8 @@ interface State {
   refreshMonitors: () => Promise<void>;
   /** Re-run vteeee enrichment for a monitored IP and refresh its snapshot. */
   reEnrichMonitor: (ip: string) => Promise<void>;
+  /** Re-observe a monitored IP on Shodan and diff it vs. the baseline (the "monitoring result"). */
+  checkMonitor: (ip: string) => Promise<void>;
 }
 
 function defaultIncludes(parsed: ParsedIndicator[]): Record<string, boolean> {
@@ -876,6 +895,12 @@ export const useStore = create<State>((set, get) => {
           live: cur?.live,
           alertId: cur?.alertId,
           triggers: cur?.triggers,
+          baseline:
+            cur?.baseline ??
+            (result?.shodan
+              ? { ports: result.shodan.ports ?? [], vulns: result.shodan.vulns ?? [], lastUpdate: result.shodan.lastUpdate }
+              : undefined),
+          check: cur?.check,
           note: 'Registering with Shodan Monitor…',
           error: undefined,
         } as MonitorEntry,
@@ -981,6 +1006,51 @@ export const useStore = create<State>((set, get) => {
         ...s.monitors,
         [ip]: { ...cur, enriching: false, result: result ?? cur.result, updatedAt: Date.now() },
       };
+      saveMonitors(monitors);
+      return { monitors };
+    });
+  },
+
+  async checkMonitor(ip) {
+    set((s) => {
+      const cur = s.monitors[ip];
+      if (!cur) return {};
+      return { monitors: { ...s.monitors, [ip]: { ...cur, checking: true } } };
+    });
+    let host: ShodanContext;
+    try {
+      const client = await makeClient(get().settings);
+      host = await client.shodanHost(ip);
+    } catch (e) {
+      host = { found: false, error: (e as Error).message };
+    }
+    set((s) => {
+      const cur = s.monitors[ip];
+      if (!cur) return {};
+      // Establish a baseline on first check if we never captured one (e.g. added without enrichment).
+      const baseline = cur.baseline ?? { ports: host.ports ?? [], vulns: host.vulns ?? [], lastUpdate: host.lastUpdate };
+      const basePorts = new Set(baseline.ports ?? []);
+      const baseVulns = new Set(baseline.vulns ?? []);
+      const curPorts = host.ports ?? [];
+      const curPortSet = new Set(curPorts);
+      const curVulns = host.vulns ?? [];
+      const newPorts = curPorts.filter((p) => !basePorts.has(p));
+      const gonePorts = [...basePorts].filter((p) => !curPortSet.has(p));
+      const newVulns = curVulns.filter((v) => !baseVulns.has(v));
+      const changed = newPorts.length > 0 || gonePorts.length > 0 || newVulns.length > 0;
+      const check = {
+        at: Date.now(),
+        found: host.found,
+        ports: curPorts,
+        vulns: curVulns,
+        lastUpdate: host.lastUpdate,
+        newPorts,
+        gonePorts,
+        newVulns,
+        changed,
+        error: host.error,
+      };
+      const monitors = { ...s.monitors, [ip]: { ...cur, baseline, check, checking: false } };
       saveMonitors(monitors);
       return { monitors };
     });

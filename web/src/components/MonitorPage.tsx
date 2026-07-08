@@ -141,6 +141,7 @@ export function MonitorPage() {
   const refresh = useStore((s) => s.refreshMonitors);
   const reEnrich = useStore((s) => s.reEnrichMonitor);
   const remove = useStore((s) => s.removeMonitor);
+  const check = useStore((s) => s.checkMonitor);
   const showResult = useStore((s) => s.showResult);
   const [checked, setChecked] = useState<Set<string>>(new Set());
 
@@ -158,6 +159,7 @@ export function MonitorPage() {
   const malicious = list.filter((e) => e.result?.verdict === 'malicious').length;
   const suspicious = list.filter((e) => e.result?.verdict === 'suspicious').length;
   const highAbuse = list.filter((e) => (e.result?.abuseipdb?.abuseConfidenceScore ?? -1) >= 75).length;
+  const changedCount = list.filter((e) => e.check?.changed).length;
 
   // Country breakdown.
   const byCountry = new Map<string, number>();
@@ -211,6 +213,9 @@ export function MonitorPage() {
   function bulkReEnrich() {
     checkedList.forEach((e) => void reEnrich(e.ip));
   }
+  function bulkCheck() {
+    checkedList.forEach((e) => void check(e.ip));
+  }
 
   return (
     <section className="panel monitor-page">
@@ -231,6 +236,7 @@ export function MonitorPage() {
       <p className="hint mon-intro">
         監視IPは Shodan の<b>ネットワークアラート（サーバ側）</b>として登録され、Shodan が変化を監視し続けます。ここには
         <b>各IPの最新 vteeee エンリッチ結果</b>も保存されるので、<b>翌日でも intel ごと</b>確認できます（地図・国別・脆弱性の集計付き）。
+        各行の <b>Check</b>（または一括）で、<b>監視開始時からの Shodan の変化</b>（新規ポート／閉じたポート／新規CVE）＝<b>監視結果</b>を表示します。
         {mode === 'demo' && ' （デモ：サンプル表示）'}
       </p>
 
@@ -251,6 +257,7 @@ export function MonitorPage() {
             {highAbuse > 0 && <StatTile n={highAbuse} label="abuse ≥75" tone="bad" />}
             {hostsWithCves > 0 && <StatTile n={hostsWithCves} label="hosts w/ CVEs" tone="warn" />}
             {byCve.size > 0 && <StatTile n={byCve.size} label="distinct CVEs" />}
+            {changedCount > 0 && <StatTile n={changedCount} label="changed since baseline" tone="warn" />}
             <StatTile n={byCountry.size} label="countries" />
           </div>
 
@@ -280,6 +287,14 @@ export function MonitorPage() {
               select all
             </label>
             <span className="spacer" />
+            <button
+              className="btn btn-sm"
+              disabled={!checkedList.length}
+              onClick={bulkCheck}
+              title="Re-observe on Shodan and diff vs. baseline (uses 1 query credit each)"
+            >
+              Check selected{checkedList.length ? ` (${checkedList.length})` : ''}
+            </button>
             <button className="btn btn-sm" disabled={!checkedList.length} onClick={bulkReEnrich}>
               Re-enrich selected{checkedList.length ? ` (${checkedList.length})` : ''}
             </button>
@@ -331,11 +346,37 @@ export function MonitorPage() {
                     ) : (
                       <span className="mon-nointel">no enrichment yet — press “Re-enrich”</span>
                     )}
+                    {e.check && (
+                      <div className={`mon-check${e.check.changed ? ' changed' : ''}`}>
+                        {e.check.error
+                          ? `check failed: ${e.check.error}`
+                          : e.check.changed
+                            ? `▲ change — ${[
+                                e.check.newPorts.length ? `+ports ${e.check.newPorts.join(', ')}` : '',
+                                e.check.gonePorts.length ? `−ports ${e.check.gonePorts.join(', ')}` : '',
+                                e.check.newVulns.length
+                                  ? `+CVE ${e.check.newVulns.slice(0, 4).join(', ')}${e.check.newVulns.length > 4 ? '…' : ''}`
+                                  : '',
+                              ]
+                                .filter(Boolean)
+                                .join(' · ')}`
+                            : '✓ no change since baseline'}
+                        <span className="mon-check-when"> · checked {new Date(e.check.at).toLocaleString()}</span>
+                      </div>
+                    )}
                     {e.error && <div className="mon-err">{e.error}</div>}
                   </div>
                   <div className="mon-actions">
                     <button className="btn btn-sm" disabled={!r} onClick={() => r && showResult(r)}>
                       Open
+                    </button>
+                    <button
+                      className="btn btn-sm"
+                      disabled={e.checking}
+                      onClick={() => void check(e.ip)}
+                      title="Re-observe on Shodan now and diff vs. baseline (the monitoring result)"
+                    >
+                      {e.checking ? 'Checking…' : 'Check'}
                     </button>
                     <button className="btn btn-sm" disabled={e.enriching} onClick={() => void reEnrich(e.ip)}>
                       {e.enriching ? 'Enriching…' : 'Re-enrich'}
