@@ -317,18 +317,39 @@ export function SettingsDialog({ onClose }: { onClose: () => void }) {
             <span className="fld-label">
               urlscan.io scan visibility
               <InfoTip
-                ja="詳細パネルの「urlscan.io · 魚拓」ボタンで送信する際の公開範囲。unlisted=公開フィードに出ないが URL を知る人は閲覧可（既定・推奨）。public=公開検索に出る。private=有料アカウントのみ・自分だけ。調査対象を晒したくない場合は public を避けてください。"
-                en="Visibility used when submitting to urlscan.io from the detail panel's “魚拓” button. unlisted = not in the public feed but viewable via link (default, recommended); public = shows in public search; private = paid, only you. Avoid public when you don't want to reveal what you're investigating."
+                ja={
+                  <>
+                    「urlscan.io · 魚拓」送信時の公開範囲。<b>unlisted＝公開フィード/検索に出ない</b>（URLを知る人だけ閲覧可・
+                    <b>フリー版でも安全な最大値・推奨</b>）。public＝公開検索に出る＝<b>調査対象にバレる恐れ</b>があり、
+                    <b>サーバ側で既定ブロック</b>（プロキシで URLSCAN_ALLOW_PUBLIC=true の時のみ有効）。private＝有料アカウントのみ。
+                    <br />
+                    ※スキャンに<b>タグは付けません</b>（タグは検索可能で、付けると全スキャンが芋づるで特定されるため）。
+                    提出はプロキシ経由なので、urlscan に記録される提出元の国は Cloudflare であってあなたの所在地ではありません。
+                  </>
+                }
+                en={
+                  <>
+                    Visibility for the “魚拓” button. unlisted = not in urlscan's public feed/search (viewable only via the
+                    exact link) — the safe maximum even on the free tier, recommended. public = shows in public search (can
+                    tip off your target) and is clamped to unlisted server-side unless URLSCAN_ALLOW_PUBLIC=true on the proxy.
+                    private = paid accounts only. No tags are ever attached (they're searchable and would let anyone cluster
+                    your scans); submissions go via the proxy, so the recorded submitter country is Cloudflare's, not yours.
+                  </>
+                }
               />
             </span>
             <select
               value={draft.urlscanVisibility ?? 'unlisted'}
               onChange={(e) => up('urlscanVisibility', e.target.value as AppSettings['urlscanVisibility'])}
             >
-              <option value="unlisted">unlisted (default)</option>
-              <option value="public">public</option>
-              <option value="private">private (paid)</option>
+              <option value="unlisted">unlisted — private-by-obscurity (recommended)</option>
+              <option value="public">public — ⚠ public feed (blocked by default)</option>
+              <option value="private">private — paid account only</option>
             </select>
+            <span className="hint">
+              OPSEC: even on the free tier, <b>unlisted</b> keeps scans out of urlscan's public search. “public” is
+              forced back to unlisted on the proxy unless explicitly allowed, and no identifying tag is sent.
+            </span>
           </label>
 
           <p className="hint">

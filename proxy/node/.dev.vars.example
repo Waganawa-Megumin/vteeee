@@ -53,6 +53,10 @@ RECORDEDFUTURE_API_KEY=
 URLSCAN_API_KEY=
 # Default submission visibility: public / unlisted (default) / private
 # URLSCAN_VISIBILITY=unlisted
+# OPSEC: `public` is clamped to `unlisted` unless you set this to true. Keep OFF for covert work.
+# URLSCAN_ALLOW_PUBLIC=false
+# OPSEC: keep tags EMPTY — urlscan tags are searchable and would let anyone cluster your scans.
+# URLSCAN_TAGS=
 # URLSCAN_BASE_URL=https://urlscan.io
 # Shared token required on /api/* (set the same value in the web Settings dialog):
 ACCESS_TOKEN=

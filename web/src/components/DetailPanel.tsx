@@ -1679,11 +1679,14 @@ function UrlscanSection({ r }: { r: NormalizedResult }) {
     phase: 'idle',
   });
   const [imgOk, setImgOk] = useState(true);
+  // The visibility urlscan actually used — the proxy may clamp `public` → `unlisted` for OPSEC.
+  const [effVis, setEffVis] = useState<string | null>(null);
   const aliveRef = useRef(true);
   useEffect(() => () => void (aliveRef.current = false), []);
 
   async function run() {
     setImgOk(true);
+    setEffVis(null);
     setState({ phase: 'running', msg: 'Submitting to urlscan…' });
     const sub = await submit(r.value, visibility);
     if (!aliveRef.current) return;
@@ -1691,6 +1694,7 @@ function UrlscanSection({ r }: { r: NormalizedResult }) {
       setState({ phase: 'error', msg: sub.error ?? 'urlscan did not return a scan id' });
       return;
     }
+    setEffVis(sub.visibility ?? visibility);
     const uuid = sub.uuid;
     // urlscan renders the page over ~10–40s; poll the result until it materializes.
     for (let i = 0; i < 14; i++) {
@@ -1760,6 +1764,16 @@ function UrlscanSection({ r }: { r: NormalizedResult }) {
           <a className="btn btn-ghost shodan-link" href={d.resultUrl} target="_blank" rel="noreferrer">
             Open on urlscan ↗
           </a>
+        )}
+        {effVis && (
+          <span className="hint">
+            sent as <b>{effVis}</b>
+            {effVis === 'unlisted'
+              ? ' · not in urlscan public search'
+              : effVis === 'public'
+                ? ' · ⚠ public feed'
+                : ''}
+          </span>
         )}
       </div>
 

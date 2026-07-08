@@ -79,18 +79,49 @@ describe('urlscanSubmit', () => {
     expect(await urlscanSubmit('http://x.example', { ...env, urlscanApiKey: undefined })).toBeUndefined();
   });
 
-  it('submits with the API key + visibility and returns ids', async () => {
+  it('submits with the API key, defaults to unlisted, and sends NO identifying tag', async () => {
     const f = vi.fn(async (_url: string, init?: RequestInit) => {
+      const body = JSON.parse(String(init?.body));
       expect((init?.headers as Record<string, string>)['API-Key']).toBe('urlscankey');
-      expect(JSON.parse(String(init?.body)).visibility).toBe('unlisted');
-      return resp(200, { uuid: 'u1', result: 'https://urlscan.io/result/u1/', api: 'https://urlscan.io/api/v1/result/u1/', message: 'ok' });
+      expect(body.visibility).toBe('unlisted');
+      // OPSEC: no tags → scans can't be clustered/attributed via urlscan tag search.
+      expect(body.tags).toBeUndefined();
+      return resp(200, { uuid: 'u1', result: 'https://urlscan.io/result/u1/', api: 'https://urlscan.io/api/v1/result/u1/', visibility: 'unlisted', message: 'ok' });
     });
     vi.stubGlobal('fetch', f);
     const s = await urlscanSubmit('phishy-malware-example.com', env);
     expect(s?.uuid).toBe('u1');
+    expect(s?.visibility).toBe('unlisted');
     expect(s?.screenshotUrl).toContain('/screenshots/u1.png');
     // bare domain got a scheme
     expect(JSON.parse(String(f.mock.calls[0][1]?.body)).url).toMatch(/^http:\/\//);
+  });
+
+  it('clamps a requested public visibility to unlisted (OPSEC default)', async () => {
+    const f = vi.fn(async (_url: string, init?: RequestInit) => {
+      expect(JSON.parse(String(init?.body)).visibility).toBe('unlisted'); // clamped
+      return resp(200, { uuid: 'u2', visibility: 'unlisted' });
+    });
+    vi.stubGlobal('fetch', f);
+    await urlscanSubmit('http://x.example', env, 'public');
+  });
+
+  it('allows public only when the proxy explicitly opts in', async () => {
+    const f = vi.fn(async (_url: string, init?: RequestInit) => {
+      expect(JSON.parse(String(init?.body)).visibility).toBe('public');
+      return resp(200, { uuid: 'u3', visibility: 'public' });
+    });
+    vi.stubGlobal('fetch', f);
+    await urlscanSubmit('http://x.example', { ...env, urlscanAllowPublic: true }, 'public');
+  });
+
+  it('only attaches tags when the operator configured them', async () => {
+    const f = vi.fn(async (_url: string, init?: RequestInit) => {
+      expect(JSON.parse(String(init?.body)).tags).toEqual(['ir-2026', 'case42']);
+      return resp(200, { uuid: 'u4', visibility: 'unlisted' });
+    });
+    vi.stubGlobal('fetch', f);
+    await urlscanSubmit('http://x.example', { ...env, urlscanTags: 'ir-2026, case42' });
   });
 
   it('surfaces a 400 (unresolvable/blacklisted) as an error', async () => {

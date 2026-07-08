@@ -63,13 +63,24 @@ export async function urlscanSubmit(
   if (signal?.aborted) return undefined;
   // urlscan wants a fetchable URL; bare domains get a scheme.
   const url = /^[a-z][a-z0-9+.-]*:\/\//i.test(target) ? target : `http://${target}`;
-  const vis = normVisibility(visibility || env.urlscanVisibility);
+  // OPSEC: never expose a scan to urlscan's PUBLIC feed/search unless the operator explicitly opted
+  // in on the proxy (URLSCAN_ALLOW_PUBLIC). Free tier's safe maximum is `unlisted` (not public-searchable).
+  const requested = normVisibility(visibility || env.urlscanVisibility);
+  const vis = requested === 'public' && !env.urlscanAllowPublic ? 'unlisted' : requested;
+  // Body carries only the URL + visibility. Tags are OFF by default: urlscan tags are searchable, so
+  // a fixed tag would let anyone enumerate/cluster every scan this tool makes. Only added if configured.
+  const body: Record<string, unknown> = { url, visibility: vis };
+  const tags = (env.urlscanTags ?? '')
+    .split(',')
+    .map((t) => t.trim())
+    .filter(Boolean);
+  if (tags.length) body.tags = tags;
   let res: Response;
   try {
     res = await fetch(`${base(env)}/api/v1/scan/`, {
       method: 'POST',
       headers: headers(env, true),
-      body: JSON.stringify({ url, visibility: vis, tags: ['vteeee'] }),
+      body: JSON.stringify(body),
       signal,
     });
   } catch (e) {

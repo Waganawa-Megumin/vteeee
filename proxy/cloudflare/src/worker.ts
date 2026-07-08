@@ -68,6 +68,8 @@ interface Env {
   URLSCAN_API_KEY?: string;
   URLSCAN_BASE_URL?: string;
   URLSCAN_VISIBILITY?: string;
+  URLSCAN_ALLOW_PUBLIC?: string;
+  URLSCAN_TAGS?: string;
   ACCESS_TOKEN?: string;
   ADMIN_TOKEN?: string;
   ALLOWED_ORIGINS?: string;
@@ -126,6 +128,8 @@ function build(env: Env): { proxy: ProxyEnv; allowed: string[]; store: Storage }
     urlscanApiKey: env.URLSCAN_API_KEY,
     urlscanBaseUrl: env.URLSCAN_BASE_URL,
     urlscanVisibility: env.URLSCAN_VISIBILITY,
+    urlscanAllowPublic: env.URLSCAN_ALLOW_PUBLIC === 'true',
+    urlscanTags: env.URLSCAN_TAGS,
     accessToken: env.ACCESS_TOKEN,
     adminToken: env.ADMIN_TOKEN,
     allowedOrigins: allowed,

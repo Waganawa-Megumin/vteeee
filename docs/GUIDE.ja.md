@@ -42,7 +42,7 @@ APIキーはすべて**プロキシ側のみ**が保持します。**VirusTotal 
 | **Recorded Future** | CTI・全種別 | 任意 | `RECORDEDFUTURE_API_KEY` | 全種別に Connect API のリスクスコア(0-99)・発火リスクルール＋根拠・活動期間・脅威リスト・関連する脅威アクター/マルウェア・MITRE・AI Insights を付与。詳細でアクター/マルウェアのチップを押すと Threat/Connect API でプロフィールをオンデマンド取得。ハッシュは「Sandbox intel」でサンドボックス評価(**読み取りのみ・検体送信なし**)、「Detection rules」で関連する **Sigma/YARA/Snort** ルールを検索・コピー |
 | **Claude (Anthropic)** | スマートパース | 任意 | `ANTHROPIC_API_KEY` | レポート本文からIOC抽出 |
 | **SOC Prime (TDM)** | 検知コンテンツ | 任意 | `SOCPRIME_API_KEY` | エンリッチではない。<b>検知ルール検索</b>（ヘッダー「Rules」）：キーワード/ATT&CKアクター/ツール/テクニック/重大度で SOC Prime の Sigma 検知ルールを検索し、指定SIEM形式へ翻訳表示。加えて Resultsの「SIEM query」で表示中IOCから<b>ハンティングクエリ</b>生成（Uncoder AI）。トリアージ→ハンティングの橋渡し |
-| **urlscan.io** | ライブ保全・URL/ドメイン（オンデマンド） | 任意 | `URLSCAN_API_KEY` | 詳細パネルの<b>「🎣 魚拓」</b>ボタンで対象を urlscan.io の<b>サンドボックスで実際に開く</b>（訪問は urlscan 側・こちらの出口IPは晒れない）。スクショ・最終URL・解決IP・サーバASN/国・HTTPステータス・<b>悪性判定/スコア</b>・偽装ブランド・接触した全ドメイン/IP・結果ページリンクを取得。既定 unlisted（公開範囲は Settings） |
+| **urlscan.io** | ライブ保全・URL/ドメイン（オンデマンド） | 任意 | `URLSCAN_API_KEY` | 詳細パネルの<b>「🎣 魚拓」</b>ボタンで対象を urlscan.io の<b>サンドボックスで実際に開く</b>（訪問は urlscan 側・こちらの出口IPは晒れない）。スクショ・最終URL・解決IP・サーバASN/国・HTTPステータス・<b>悪性判定/スコア</b>・偽装ブランド・接触した全ドメイン/IP・結果ページリンクを取得。<b>OPSEC既定（フリー版でも安全）</b>：<b>unlisted</b>（公開フィード/検索非掲載）・<b>タグ無し</b>（タグは検索可能で足がつくため）・`public`は`URLSCAN_ALLOW_PUBLIC=true`が無い限り<b>unlistedに強制</b>。提出はプロキシ経由なので記録される国はプロキシ側 |
 
 **IOC種別で引き分け**：ドメイン→VT＋DomainTools(Enrich)＋DNSLytics(HostingHistory) ／ IP→VT＋Shodan＋MaxMind(位置/地図)＋DNSLytics(IPInfo)＋DomainTools(逆引き) ／ URL→ホスト名をドメイン扱い ／ ハッシュ→VT＋ThreatVision(サンプル帰属)。**Intel 471・CYFIRMA・ThreatVision・Recorded Future は全種別**に付与。**オンデマンドのライブ保全（バッチエンリッチとは別・詳細パネル）**：URL/ドメイン→**urlscan.io 魚拓** ／ IP→**📡 Live ports**（無料InternetDBの現在ポート/CVE、Shodanキーがあれば再スキャン＋バナー再取得）。各連携は Settings で個別ON/OFF可。DomainToolsは従量課金・Investigateは低レート制限のため、`DOMAINTOOLS_RPM`(既定30)/`DNSLYTICS_RPM`(既定60)/`INTEL471_RPM`(既定60)/`CYFIRMA_RPM`(既定30)/`THREATVISION_RPM`(既定30)で調整、`DNSLYTICS_BASE_URL`・`CYFIRMA_BASE_URL`・`THREATVISION_BASE_URL`でエンドポイント変更可。**ThreatVision の IP/ドメイン詳細は 1件 1 AAP 消費**（AAPは有限のため注意）。
 
@@ -272,6 +272,7 @@ pnpm exec wrangler kv namespace create VTEEEE_KV
 | `SOCPRIME_API_KEY` / `SOCPRIME_BASE_URL` | プロキシ | △ | SOC Prime (TDM)。`client_secret_id`認証。Uncoder AIでIOC→SIEMクエリ生成。BASE_URLは既定 api.tdm.socprime.com |
 | `RECORDEDFUTURE_API_KEY` / `RECORDEDFUTURE_BASE_URL` | プロキシ | △ | Recorded Future。`X-RFToken`認証。全種別にリスク/根拠/関連エンティティ＋Actor/Malware/Sandbox/Detection Rule。BASE_URLは既定 api.recordedfuture.com |
 | `URLSCAN_API_KEY` / `URLSCAN_BASE_URL` / `URLSCAN_VISIBILITY` | プロキシ | △ | urlscan.io。`API-Key`認証。URL/ドメインのオンデマンド魚拓（サンドボックスでスクショ+解決IP+接触ホスト+悪性判定）。VISIBILITYは public/unlisted(既定)/private。BASE_URLは既定 urlscan.io |
+| `URLSCAN_ALLOW_PUBLIC` / `URLSCAN_TAGS` | プロキシ | △ | **OPSEC**。既定では `public` 指定を **unlisted に強制**（`URLSCAN_ALLOW_PUBLIC=true` の時のみ public 許可）。`URLSCAN_TAGS` は既定空＝タグ無し（タグは検索可能で足がつくため、付けたい場合のみカンマ区切りで指定） |
 | `ALLOWED_ORIGINS` | プロキシ(wrangler.toml / env) | ○ | 許可オリジン(カンマ区切り) |
 | `VT_RPM` / `VT_MAX_RPM` / `VT_DAILY` | プロキシ | △ | レート/日次上限 |
 | `SHODAN_RPM` / `DOMAINTOOLS_RPM` / `DNSLYTICS_RPM` / `INTEL471_RPM` / `CYFIRMA_RPM` / `THREATVISION_RPM` | プロキシ | △ | 各連携の毎分上限(既定 60/30/60/60/30/30) |

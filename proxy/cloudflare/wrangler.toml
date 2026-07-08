@@ -46,6 +46,11 @@ id = "64fde3553d4b4272a3afa346945a0ce0"
 # RECORDEDFUTURE_BASE_URL = "https://api.recordedfuture.com"
 # urlscan.io on-demand "魚拓" default visibility: public / unlisted (default) / private
 # URLSCAN_VISIBILITY = "unlisted"
+# OPSEC: `public` is clamped to `unlisted` unless you explicitly allow it here. Leave OFF for
+# covert investigation so scans never hit urlscan's public feed/search.
+# URLSCAN_ALLOW_PUBLIC = "false"
+# OPSEC: leave tags EMPTY — urlscan tags are searchable and would let anyone cluster your scans.
+# URLSCAN_TAGS = ""
 # Override only if your urlscan endpoint differs from the default:
 # URLSCAN_BASE_URL = "https://urlscan.io"
 

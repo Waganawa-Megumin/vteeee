@@ -84,6 +84,8 @@ const env: ProxyEnv = {
   urlscanApiKey: process.env.URLSCAN_API_KEY || undefined,
   urlscanBaseUrl: process.env.URLSCAN_BASE_URL || undefined,
   urlscanVisibility: process.env.URLSCAN_VISIBILITY || undefined,
+  urlscanAllowPublic: process.env.URLSCAN_ALLOW_PUBLIC === 'true',
+  urlscanTags: process.env.URLSCAN_TAGS || undefined,
   accessToken: process.env.ACCESS_TOKEN || undefined,
   adminToken: process.env.ADMIN_TOKEN || undefined,
   allowedOrigins,

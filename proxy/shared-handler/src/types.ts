@@ -64,6 +64,16 @@ export interface ProxyEnv {
   urlscanBaseUrl?: string;
   /** Default urlscan submission visibility: public | unlisted | private. Default unlisted. */
   urlscanVisibility?: string;
+  /**
+   * OPSEC guard: unless true, a requested `public` visibility is clamped to `unlisted` so an
+   * investigation is never exposed to urlscan's public feed/search by accident. Default false.
+   */
+  urlscanAllowPublic?: boolean;
+  /**
+   * Optional comma-separated tags to attach to urlscan submissions. OFF by default — urlscan tags are
+   * visible + searchable, so a fixed tag lets anyone cluster/attribute every scan this tool makes.
+   */
+  urlscanTags?: string;
   /** Shared token required on /api/* (enrich, parse). */
   accessToken?: string;
   /** Token required to write users/settings via /api/admin/*. */
