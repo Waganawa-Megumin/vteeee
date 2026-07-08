@@ -81,6 +81,10 @@ export function SettingsDialog({ onClose }: { onClose: () => void }) {
                 <span className="intg-dot" />
                 SOC Prime {health?.socprime ? 'on' : 'not configured'}
               </span>
+              <span className={`intg-chip ${health?.urlscan ? 'on' : 'off'}`}>
+                <span className="intg-dot" />
+                urlscan {health?.urlscan ? 'on' : 'not configured'}
+              </span>
               <span className={`intg-chip ${health?.claude ? 'on' : 'off'}`}>
                 <span className="intg-dot" />
                 Claude {health?.claude ? 'on' : 'not configured'}
@@ -306,6 +310,24 @@ export function SettingsDialog({ onClose }: { onClose: () => void }) {
               <option value="AMBER">TLP:AMBER (default)</option>
               <option value="AMBER+STRICT">TLP:AMBER+STRICT</option>
               <option value="RED">TLP:RED</option>
+            </select>
+          </label>
+
+          <label className="fld">
+            <span className="fld-label">
+              urlscan.io scan visibility
+              <InfoTip
+                ja="詳細パネルの「urlscan.io · 魚拓」ボタンで送信する際の公開範囲。unlisted=公開フィードに出ないが URL を知る人は閲覧可（既定・推奨）。public=公開検索に出る。private=有料アカウントのみ・自分だけ。調査対象を晒したくない場合は public を避けてください。"
+                en="Visibility used when submitting to urlscan.io from the detail panel's “魚拓” button. unlisted = not in the public feed but viewable via link (default, recommended); public = shows in public search; private = paid, only you. Avoid public when you don't want to reveal what you're investigating."
+              />
+            </span>
+            <select
+              value={draft.urlscanVisibility ?? 'unlisted'}
+              onChange={(e) => up('urlscanVisibility', e.target.value as AppSettings['urlscanVisibility'])}
+            >
+              <option value="unlisted">unlisted (default)</option>
+              <option value="public">public</option>
+              <option value="private">private (paid)</option>
             </select>
           </label>
 

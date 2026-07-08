@@ -1054,6 +1054,19 @@ a.i471-search-item:hover {
   line-height: 1.4;
   padding: 3px 0;
 }
+/* urlscan.io "魚拓" screenshot — bordered, scales to the panel, click to open the full result. */
+.urlscan-shot {
+  margin: 8px 0 4px;
+}
+.urlscan-shot img {
+  display: block;
+  width: 100%;
+  max-width: 520px;
+  height: auto;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: #fff;
+}
 .rf-evidence + .rf-evidence {
   border-top: 1px solid var(--line);
   padding-top: 6px;

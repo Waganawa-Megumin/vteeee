@@ -48,6 +48,12 @@ SOCPRIME_API_KEY=
 RECORDEDFUTURE_API_KEY=
 # RECORDEDFUTURE_BASE_URL=https://api.recordedfuture.com
 # RECORDEDFUTURE_RPM=30
+# Optional — urlscan.io on-demand "魚拓" for URL/domain rows (sandboxed screenshot + resolved IP +
+# contacted hosts + verdict). The scan runs from urlscan's infra, not your egress:
+URLSCAN_API_KEY=
+# Default submission visibility: public / unlisted (default) / private
+# URLSCAN_VISIBILITY=unlisted
+# URLSCAN_BASE_URL=https://urlscan.io
 # Shared token required on /api/* (set the same value in the web Settings dialog):
 ACCESS_TOKEN=
 # Token required to write users/settings via /api/admin/* :

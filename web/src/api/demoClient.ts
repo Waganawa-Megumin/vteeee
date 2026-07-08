@@ -13,11 +13,16 @@ import {
   type RfRuleSearchParams,
   type RfRuleSearchResult,
   type RfSandboxIntel,
+  type ShodanContext,
+  type ShodanInternetDb,
+  type ShodanScanRequest,
   type SocPrimeQueryOptions,
   type SocPrimeQueryResult,
   type SocPrimeRuleSearchParams,
   type SocPrimeRuleSearchResult,
   type ThreatVisionAdversary,
+  type UrlscanResult,
+  type UrlscanSubmission,
 } from '@vteeee/shared';
 import { FIXTURE_MAP } from '../fixtures/samples';
 import { sleep, type EnrichClient, type EnrichHandlers } from './client';
@@ -261,6 +266,84 @@ export class DemoClient implements EnrichClient {
             'title: Possible X-Agent C2 beacon\nstatus: experimental\nlogsource:\n  category: proxy\ndetection:\n  selection:\n    c-uri|contains: "/watchcom/"\n  condition: selection\nlevel: high',
         },
       ],
+    };
+  }
+
+  /** Sample urlscan.io submission (demo) — returns a fake uuid to "poll". */
+  async urlscanSubmit(): Promise<UrlscanSubmission> {
+    await sleep(300);
+    const uuid = 'demo00000000-4000-8000-000000urlscan';
+    return {
+      uuid,
+      resultUrl: `https://urlscan.io/result/${uuid}/`,
+      visibility: 'unlisted',
+      message: 'Demo — submission simulated (no real scan)',
+    };
+  }
+
+  /** Sample urlscan.io result (demo) — a canned phishing "魚拓". */
+  async urlscanResult(uuid: string): Promise<UrlscanResult> {
+    await sleep(600);
+    return {
+      uuid,
+      resultUrl: `https://urlscan.io/result/${uuid}/`,
+      url: 'http://phishy-malware-example.com/login.php',
+      finalUrl: 'http://phishy-malware-example.com/account/verify',
+      title: 'Sign in to your account',
+      ip: '185.220.101.1',
+      asn: 'AS201814',
+      asnName: 'BADHOST-AS',
+      country: 'RU',
+      server: 'nginx',
+      status: 200,
+      malicious: true,
+      score: 87,
+      brands: ['Microsoft'],
+      tags: ['phishing', 'credential-harvesting'],
+      contactedDomains: ['phishy-malware-example.com', 'cdn.badhost.example', 'track.evil.example'],
+      contactedIps: ['185.220.101.1', '93.184.216.34'],
+    };
+  }
+
+  /** Sample Shodan InternetDB (demo) — current known ports/CVEs, no active scan. */
+  async shodanInternetDb(ip: string): Promise<ShodanInternetDb> {
+    await sleep(350);
+    return {
+      found: true,
+      ip,
+      ports: [22, 80, 443, 8080],
+      vulns: ['CVE-2021-44228', 'CVE-2019-0708'],
+      cpes: ['cpe:/a:nginx:nginx', 'cpe:/a:openbsd:openssh'],
+      hostnames: ['host.demo.example'],
+      tags: ['cloud'],
+    };
+  }
+
+  /** Sample Shodan re-scan request (demo) — no real scan, no credits consumed. */
+  async shodanScan(): Promise<ShodanScanRequest> {
+    await sleep(400);
+    return { id: 'DEMOSCAN1A2B3C', count: 1, creditsLeft: 100 };
+  }
+
+  /** Sample fresh Shodan host banners (demo). */
+  async shodanHost(): Promise<ShodanContext> {
+    await sleep(500);
+    return {
+      found: true,
+      org: 'Demo Cloud Networks',
+      isp: 'Demo Cloud Networks',
+      asn: 'AS13335',
+      country: 'United States',
+      city: 'Ashburn',
+      ports: [22, 80, 443],
+      services: [
+        { port: 22, transport: 'tcp', product: 'OpenSSH', version: '8.9', module: 'ssh' },
+        { port: 443, transport: 'tcp', product: 'nginx', module: 'https' },
+      ],
+      vulns: ['CVE-2021-44228'],
+      tags: ['cloud'],
+      hostnames: ['host.demo.example'],
+      lastUpdate: new Date().toISOString(),
     };
   }
 

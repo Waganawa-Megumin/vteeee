@@ -13,11 +13,16 @@ import type {
   RfRuleSearchParams,
   RfRuleSearchResult,
   RfSandboxIntel,
+  ShodanContext,
+  ShodanInternetDb,
+  ShodanScanRequest,
   SocPrimeQueryOptions,
   SocPrimeQueryResult,
   SocPrimeRuleSearchParams,
   SocPrimeRuleSearchResult,
   ThreatVisionAdversary,
+  UrlscanResult,
+  UrlscanSubmission,
 } from '@vteeee/shared';
 import type { EnrichClient, EnrichHandlers } from './client';
 
@@ -221,6 +226,50 @@ export class LiveClient implements EnrichClient {
     });
     if (!res.ok) return { error: `Recorded Future rule search failed: ${res.status}` };
     return (await res.json()) as RfRuleSearchResult;
+  }
+
+  async urlscanSubmit(url: string, visibility?: string): Promise<UrlscanSubmission> {
+    const res = await fetch(`${this.base}/api/urlscan`, {
+      method: 'POST',
+      headers: this.headers(),
+      body: JSON.stringify({ url, visibility }),
+    });
+    if (!res.ok) return { error: `urlscan submission failed: ${res.status}` };
+    return (await res.json()) as UrlscanSubmission;
+  }
+
+  async urlscanResult(uuid: string): Promise<UrlscanResult> {
+    const res = await fetch(`${this.base}/api/urlscan/result?uuid=${encodeURIComponent(uuid)}`, {
+      headers: this.headers(false),
+    });
+    if (!res.ok) return { uuid, error: `urlscan result failed: ${res.status}` };
+    return (await res.json()) as UrlscanResult;
+  }
+
+  async shodanInternetDb(ip: string): Promise<ShodanInternetDb> {
+    const res = await fetch(`${this.base}/api/shodan/internetdb?ip=${encodeURIComponent(ip)}`, {
+      headers: this.headers(false),
+    });
+    if (!res.ok) return { found: false, error: `InternetDB failed: ${res.status}` };
+    return (await res.json()) as ShodanInternetDb;
+  }
+
+  async shodanScan(ip: string): Promise<ShodanScanRequest> {
+    const res = await fetch(`${this.base}/api/shodan/scan`, {
+      method: 'POST',
+      headers: this.headers(),
+      body: JSON.stringify({ ip }),
+    });
+    if (!res.ok) return { error: `Shodan scan request failed: ${res.status}` };
+    return (await res.json()) as ShodanScanRequest;
+  }
+
+  async shodanHost(ip: string): Promise<ShodanContext> {
+    const res = await fetch(`${this.base}/api/shodan/host?ip=${encodeURIComponent(ip)}`, {
+      headers: this.headers(false),
+    });
+    if (!res.ok) return { found: false, error: `Shodan host lookup failed: ${res.status}` };
+    return (await res.json()) as ShodanContext;
   }
 
   async socprimeQuery(text: string, opts: SocPrimeQueryOptions): Promise<SocPrimeQueryResult> {

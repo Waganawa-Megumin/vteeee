@@ -69,6 +69,15 @@ export function IntegrationStatus({ onManage }: { onManage: () => void }) {
             }
           />
           <Chip
+            label="urlscan"
+            on={Boolean(health?.urlscan)}
+            title={
+              health?.urlscan
+                ? 'urlscan.io active — on-demand URL/domain "魚拓" (sandboxed screenshot + resolved IP + contacts + verdict)'
+                : 'Optional — no URLSCAN_API_KEY on the proxy'
+            }
+          />
+          <Chip
             label="DomainTools"
             on={Boolean(health?.domaintools) && settings.domaintools !== false}
             title={

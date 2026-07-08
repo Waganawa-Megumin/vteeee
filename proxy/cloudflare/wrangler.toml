@@ -44,6 +44,10 @@ id = "64fde3553d4b4272a3afa346945a0ce0"
 # SOCPRIME_BASE_URL = "https://api.tdm.socprime.com"
 # Override only if your Recorded Future endpoint differs from the default:
 # RECORDEDFUTURE_BASE_URL = "https://api.recordedfuture.com"
+# urlscan.io on-demand "魚拓" default visibility: public / unlisted (default) / private
+# URLSCAN_VISIBILITY = "unlisted"
+# Override only if your urlscan endpoint differs from the default:
+# URLSCAN_BASE_URL = "https://urlscan.io"
 
 # Secrets are NOT stored here. Set them with:
 #   wrangler secret put VT_API_KEY
@@ -61,5 +65,6 @@ id = "64fde3553d4b4272a3afa346945a0ce0"
 #   wrangler secret put THREATVISION_CLIENT_SECRET# optional (paired with the client id)
 #   wrangler secret put SOCPRIME_API_KEY          # optional (SOC Prime: Uncoder IOC→SIEM query)
 #   wrangler secret put RECORDEDFUTURE_API_KEY    # optional (Recorded Future: risk intel + pivots + rules)
+#   wrangler secret put URLSCAN_API_KEY           # optional (urlscan.io: on-demand URL/domain 魚拓 scans)
 #   wrangler secret put ACCESS_TOKEN              # required on /api/*
 #   wrangler secret put ADMIN_TOKEN               # required on /api/admin/*

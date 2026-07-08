@@ -15,6 +15,11 @@ import {
   rfMalwareLookup,
   rfSandboxIntel,
   rfDetectionRules,
+  urlscanSubmit,
+  urlscanResult,
+  shodanInternetDb,
+  shodanScanRequest,
+  shodanHostLookup,
   getUsers,
   putUsers,
   getSettings,
@@ -76,6 +81,9 @@ const env: ProxyEnv = {
   recordedfutureRpm: process.env.RECORDEDFUTURE_RPM ? Number(process.env.RECORDEDFUTURE_RPM) : undefined,
   socprimeApiKey: process.env.SOCPRIME_API_KEY || undefined,
   socprimeBaseUrl: process.env.SOCPRIME_BASE_URL || undefined,
+  urlscanApiKey: process.env.URLSCAN_API_KEY || undefined,
+  urlscanBaseUrl: process.env.URLSCAN_BASE_URL || undefined,
+  urlscanVisibility: process.env.URLSCAN_VISIBILITY || undefined,
   accessToken: process.env.ACCESS_TOKEN || undefined,
   adminToken: process.env.ADMIN_TOKEN || undefined,
   allowedOrigins,
@@ -156,6 +164,7 @@ app.get('/health', (_req, res) => {
     ),
     socprime: Boolean(env.socprimeApiKey),
     recordedfuture: Boolean(env.recordedfutureApiKey),
+    urlscan: Boolean(env.urlscanApiKey),
   });
 });
 
@@ -277,6 +286,72 @@ app.post('/api/rf/rules', async (req, res) => {
       env,
     )) ?? { error: 'unavailable' },
   );
+});
+
+app.post('/api/urlscan', async (req, res) => {
+  if (!requireAccess(req, res)) return;
+  if (!env.urlscanApiKey) {
+    res.status(400).json({ error: 'urlscan not configured' });
+    return;
+  }
+  const target = (req.body?.url as string) || '';
+  if (!target) {
+    res.status(400).json({ error: 'url required' });
+    return;
+  }
+  res.json((await urlscanSubmit(target, env, req.body?.visibility)) ?? { error: 'unavailable' });
+});
+
+app.get('/api/urlscan/result', async (req, res) => {
+  if (!requireAccess(req, res)) return;
+  if (!env.urlscanApiKey) {
+    res.status(400).json({ error: 'urlscan not configured' });
+    return;
+  }
+  const uuid = (req.query.uuid as string) || '';
+  if (!uuid) {
+    res.status(400).json({ error: 'uuid required' });
+    return;
+  }
+  res.json((await urlscanResult(uuid, env)) ?? { error: 'unavailable' });
+});
+
+app.get('/api/shodan/internetdb', async (req, res) => {
+  if (!requireAccess(req, res)) return;
+  const ip = (req.query.ip as string) || '';
+  if (!ip) {
+    res.status(400).json({ error: 'ip required' });
+    return;
+  }
+  res.json((await shodanInternetDb(ip)) ?? { found: false, error: 'unavailable' });
+});
+
+app.post('/api/shodan/scan', async (req, res) => {
+  if (!requireAccess(req, res)) return;
+  if (!env.shodanApiKey) {
+    res.status(400).json({ error: 'Shodan not configured' });
+    return;
+  }
+  const ip = (req.body?.ip as string) || '';
+  if (!ip) {
+    res.status(400).json({ error: 'ip required' });
+    return;
+  }
+  res.json((await shodanScanRequest(ip, env)) ?? { error: 'unavailable' });
+});
+
+app.get('/api/shodan/host', async (req, res) => {
+  if (!requireAccess(req, res)) return;
+  if (!env.shodanApiKey) {
+    res.status(400).json({ error: 'Shodan not configured' });
+    return;
+  }
+  const ip = (req.query.ip as string) || '';
+  if (!ip) {
+    res.status(400).json({ error: 'ip required' });
+    return;
+  }
+  res.json((await shodanHostLookup(ip, env)) ?? { found: false, error: 'unavailable' });
 });
 
 app.post('/api/socprime/ioc-query', async (req, res) => {
@@ -430,5 +505,5 @@ app.all('/api/history/:id', (req, res) => void handleHistory(req, res, req.param
 app.listen(PORT, () => {
   console.log(`vteeee proxy listening on :${PORT}`);
   console.log(`  allowed origins: ${allowedOrigins.join(', ')}`);
-  console.log(`  VT key: ${env.vtApiKey ? 'set' : 'MISSING'} · Claude: ${env.anthropicApiKey ? 'set' : 'off (regex fallback)'} · Shodan: ${env.shodanApiKey ? 'set' : 'off'} · MaxMind: ${env.maxmindAccountId && env.maxmindLicenseKey ? 'set' : 'off'} · DomainTools: ${env.domaintoolsApiUsername && env.domaintoolsApiKey ? 'set' : 'off'} · DNSLytics: ${env.dnslyticsApiKey ? 'set' : 'off'} · Intel471: ${env.intel471ApiUser && env.intel471ApiKey ? 'set' : 'off'} · CYFIRMA: ${env.cyfirmaApiKey ? 'set' : 'off'} · ThreatVision: ${env.threatvisionAccessToken || (env.threatvisionClientId && env.threatvisionClientSecret) ? 'set' : 'off'} · SOCPrime: ${env.socprimeApiKey ? 'set' : 'off'} · RecordedFuture: ${env.recordedfutureApiKey ? 'set' : 'off'}`);
+  console.log(`  VT key: ${env.vtApiKey ? 'set' : 'MISSING'} · Claude: ${env.anthropicApiKey ? 'set' : 'off (regex fallback)'} · Shodan: ${env.shodanApiKey ? 'set' : 'off'} · MaxMind: ${env.maxmindAccountId && env.maxmindLicenseKey ? 'set' : 'off'} · DomainTools: ${env.domaintoolsApiUsername && env.domaintoolsApiKey ? 'set' : 'off'} · DNSLytics: ${env.dnslyticsApiKey ? 'set' : 'off'} · Intel471: ${env.intel471ApiUser && env.intel471ApiKey ? 'set' : 'off'} · CYFIRMA: ${env.cyfirmaApiKey ? 'set' : 'off'} · ThreatVision: ${env.threatvisionAccessToken || (env.threatvisionClientId && env.threatvisionClientSecret) ? 'set' : 'off'} · SOCPrime: ${env.socprimeApiKey ? 'set' : 'off'} · RecordedFuture: ${env.recordedfutureApiKey ? 'set' : 'off'} · urlscan: ${env.urlscanApiKey ? 'set' : 'off'}`);
 });

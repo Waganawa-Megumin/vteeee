@@ -105,9 +105,11 @@ export function HelpDialog({ onClose }: { onClose: () => void }) {
               <IntegrationRow name="Shodan (OSINT)" env="SHODAN_API_KEY" on={health?.shodan ?? null} live={live}>
                 <span className="help-ja">
                   <b>IP限定</b>。開放ポート・稼働サービス・既知のCVE・組織/ISP/OS等を付与し、詳細に「🛰 Shodan」節と
-                  shodan.ioリンクを表示。ON/OFFは Settings の「Shodan OSINT enrichment」。
+                  shodan.ioリンクを表示。ON/OFFは Settings の「Shodan OSINT enrichment」。詳細パネルの
+                  <b>「📡 Live ports」</b>では、無料の <b>InternetDB</b> で現在の既知ポート/CVEを即取得、Shodanキーがあれば
+                  <b>オンデマンド再スキャン</b>（クレジット消費）と最新バナー再取得も可能。
                 </span>
-                <span className="help-en">IPs only — open ports, services, known CVEs, org/ISP/OS. Toggle in Settings.</span>
+                <span className="help-en">IPs only — open ports, services, known CVEs, org/ISP/OS. Toggle in Settings. The detail panel's “📡 Live ports” gets current known ports/CVEs free via InternetDB, plus (with a Shodan key) an on-demand re-scan and host-banner refresh.</span>
               </IntegrationRow>
 
               <IntegrationRow
@@ -212,6 +214,21 @@ export function HelpDialog({ onClose }: { onClose: () => void }) {
                   threat lists, related threat actors/malware, MITRE and AI Insights. Click an actor/malware chip for an
                   on-demand profile (Threat/Connect API); on hashes use “Sandbox intel” (read-only — nothing is submitted)
                   and “Detection rules” to search related Sigma/YARA/Snort rules.
+                </span>
+              </IntegrationRow>
+
+              <IntegrationRow name="urlscan.io (魚拓)" env="URLSCAN_API_KEY" on={health?.urlscan ?? null} live={live}>
+                <span className="help-ja">
+                  <b>URL/ドメイン限定・オンデマンド</b>。詳細パネルの「urlscan.io · 魚拓」ボタンで、対象を
+                  <b>urlscan のサンドボックスで実際に開いて現在の状態を保全</b>（スクリーンショット・最終URL・解決IP・
+                  サーバASN・接触した全ドメイン/IP・悪性判定）。訪問は <b>urlscan 側のインフラから</b>行われるため、
+                  <b>こちらの出口IPは調査対象に晒れません</b>。既定は <b>unlisted</b>（公開範囲は Settings で変更可）。
+                </span>
+                <span className="help-en">
+                  URL/domain only, on demand. The detail panel's “urlscan.io · 魚拓” button opens the target in
+                  urlscan's sandbox to preserve its current state — screenshot, final URL, resolved IP, server ASN,
+                  every contacted host, and a malicious verdict. The visit originates from urlscan's infrastructure, so
+                  your egress IP never touches the target. Unlisted by default (visibility configurable in Settings).
                 </span>
               </IntegrationRow>
 

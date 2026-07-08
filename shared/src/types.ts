@@ -806,6 +806,111 @@ export interface SocPrimeRuleSearchResult {
   raw?: unknown;
 }
 
+/** urlscan.io submission visibility. `unlisted` = not shown in the public feed (default). */
+export type UrlscanVisibility = 'public' | 'unlisted' | 'private';
+
+/**
+ * urlscan.io scan submission — the on-demand "web魚拓" for a URL/domain. urlscan visits the target
+ * from ITS OWN sandbox (not our proxy), so the analyst's egress never touches hostile infrastructure.
+ * Submissions default to `unlisted`. The scan is async (~10–30s), so submit returns the ids and the
+ * client polls the result endpoint.
+ */
+export interface UrlscanSubmission {
+  /** Scan uuid — poll the result endpoint with this. */
+  uuid?: string;
+  /** Human result page on urlscan. */
+  resultUrl?: string;
+  /** Result API url. */
+  apiUrl?: string;
+  /** Screenshot url (valid once the scan finishes). */
+  screenshotUrl?: string;
+  /** public | unlisted | private. */
+  visibility?: string;
+  /** Message from urlscan, e.g. "Submission successful". */
+  message?: string;
+  error?: string;
+}
+
+/**
+ * urlscan.io result — the captured "魚拓": screenshot, the page as finally resolved, the IP it
+ * resolved to, HTTP status / server, urlscan's malicious verdict/score, and the domains/IPs the page
+ * contacted. `pending: true` = the scan hasn't finished processing yet (poll again in a few seconds).
+ */
+export interface UrlscanResult {
+  /** The scan is still processing — poll again shortly. */
+  pending?: boolean;
+  uuid?: string;
+  /** Screenshot image url (urlscan CDN). */
+  screenshotUrl?: string;
+  /** Human result page on urlscan. */
+  resultUrl?: string;
+  /** The submitted URL. */
+  url?: string;
+  /** The final URL after redirects. */
+  finalUrl?: string;
+  /** Page <title>. */
+  title?: string;
+  /** Primary IP the page resolved to. */
+  ip?: string;
+  /** Primary server ASN. */
+  asn?: string;
+  /** ASN owner name. */
+  asnName?: string;
+  country?: string;
+  /** Server banner (e.g. "nginx"). */
+  server?: string;
+  /** Primary-request HTTP status. */
+  status?: number;
+  /** urlscan overall verdict — is it malicious? */
+  malicious?: boolean;
+  /** urlscan overall score (0–100, higher = worse). */
+  score?: number;
+  /** Detected brands the page impersonates (phishing). */
+  brands?: string[];
+  /** urlscan verdict tags. */
+  tags?: string[];
+  /** Unique domains the page contacted while rendering. */
+  contactedDomains?: string[];
+  /** Unique IPs the page contacted while rendering. */
+  contactedIps?: string[];
+  error?: string;
+  raw?: unknown;
+}
+
+/**
+ * Shodan InternetDB summary (https://internetdb.shodan.io/{ip}) — free, no key, no active scan.
+ * The current *known* open ports / CVEs / hostnames from Shodan's latest crawl. `found: false` =
+ * the IP isn't in Shodan's dataset.
+ */
+export interface ShodanInternetDb {
+  found: boolean;
+  ip?: string;
+  /** Open ports, ascending. */
+  ports?: number[];
+  /** CVE ids Shodan associates with the host. */
+  vulns?: string[];
+  /** CPEs (product identifiers). */
+  cpes?: string[];
+  hostnames?: string[];
+  tags?: string[];
+  error?: string;
+}
+
+/**
+ * Result of requesting an on-demand Shodan re-scan (`POST /shodan/scan`). This only *asks* Shodan to
+ * observe the host again from Shodan's own scanners; fresh banners land in the host dataset shortly
+ * after (re-fetch the host to see them). Consumes scan credits.
+ */
+export interface ShodanScanRequest {
+  /** Scan id, when accepted. */
+  id?: string;
+  /** Number of IPs the scan covers. */
+  count?: number;
+  /** Scan credits remaining on the plan. */
+  creditsLeft?: number;
+  error?: string;
+}
+
 /** The single shape the results table & detail panel consume, for all IOC types. */
 export interface NormalizedResult {
   input: string;
@@ -940,6 +1045,8 @@ export interface ProxyHealth {
   maxmind: boolean;
   /** Recorded Future API token present (optional — risk intel + actor/malware pivots + detection rules). */
   recordedfuture: boolean;
+  /** urlscan.io API key present (optional — on-demand URL/domain "魚拓" scans). */
+  urlscan: boolean;
 }
 
 export interface EnrichRequest {
@@ -1014,6 +1121,8 @@ export interface AppSettings {
   historyRetentionDays?: number;
   /** Traffic Light Protocol marking stamped on exported PDFs. Default AMBER. */
   tlp?: TlpLevel;
+  /** urlscan.io visibility for on-demand 魚拓 scans (public | unlisted | private). Default unlisted. */
+  urlscanVisibility?: UrlscanVisibility;
   /** Documentation-only note shown in the admin UI. */
   allowedOriginsNote?: string;
   /**

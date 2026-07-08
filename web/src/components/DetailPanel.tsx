@@ -19,11 +19,14 @@ import type {
   RfRuleSearchResult,
   RfSandboxIntel,
   ShodanContext,
+  ShodanInternetDb,
+  ShodanScanRequest,
   ShodanService,
   SocPrimeQueryResult,
   SocPrimeRuleSearchResult,
   ThreatVisionAdversary,
   ThreatVisionContext,
+  UrlscanResult,
 } from '@vteeee/shared';
 import { useStore } from '../state/store';
 import { GtiBadge, VerdictBadge } from './Badges';
@@ -1662,11 +1665,330 @@ const SIZE_STEPS: { key: DetailSize; title: string }[] = [
   { key: 'xl', title: '最大 · max (背景は残す)' },
 ];
 
+/**
+ * urlscan.io "web魚拓" (URL / domain). On demand: submit the target, urlscan renders it in ITS OWN
+ * sandbox (our egress never touches the target), then we poll for the result — a screenshot, the
+ * finally-resolved URL/IP, the server ASN, urlscan's malicious verdict, and every domain/IP the page
+ * contacted. Submissions default to `unlisted` (configurable in Settings).
+ */
+function UrlscanSection({ r }: { r: NormalizedResult }) {
+  const submit = useStore((s) => s.urlscanSubmit);
+  const poll = useStore((s) => s.urlscanResult);
+  const visibility = useStore((s) => s.settings.urlscanVisibility ?? 'unlisted');
+  const [state, setState] = useState<{ phase: 'idle' | 'running' | 'done' | 'error'; msg?: string; data?: UrlscanResult }>({
+    phase: 'idle',
+  });
+  const [imgOk, setImgOk] = useState(true);
+  const aliveRef = useRef(true);
+  useEffect(() => () => void (aliveRef.current = false), []);
+
+  async function run() {
+    setImgOk(true);
+    setState({ phase: 'running', msg: 'Submitting to urlscan…' });
+    const sub = await submit(r.value, visibility);
+    if (!aliveRef.current) return;
+    if (sub.error || !sub.uuid) {
+      setState({ phase: 'error', msg: sub.error ?? 'urlscan did not return a scan id' });
+      return;
+    }
+    const uuid = sub.uuid;
+    // urlscan renders the page over ~10–40s; poll the result until it materializes.
+    for (let i = 0; i < 14; i++) {
+      await new Promise((res) => setTimeout(res, i === 0 ? 6000 : 3000));
+      if (!aliveRef.current) return;
+      setState({ phase: 'running', msg: `Rendering… (~${6 + i * 3}s)` });
+      const result = await poll(uuid);
+      if (!aliveRef.current) return;
+      if (result.error) {
+        setState({ phase: 'error', msg: result.error, data: result });
+        return;
+      }
+      if (!result.pending) {
+        setState({ phase: 'done', data: result });
+        return;
+      }
+    }
+    setState({
+      phase: 'error',
+      msg: 'urlscan is taking longer than usual — open the result page directly.',
+      data: { uuid, resultUrl: `https://urlscan.io/result/${uuid}/` },
+    });
+  }
+
+  const d = state.data;
+  const verdictLine = d
+    ? [d.malicious != null ? (d.malicious ? '⚠ malicious' : 'no verdict') : '', d.score != null ? `score ${d.score}` : '']
+        .filter(Boolean)
+        .join(' · ') || undefined
+    : undefined;
+
+  return (
+    <div className="shodan-block">
+      <div className="shodan-head">
+        <span className="shodan-logo" aria-hidden>
+          🎣
+        </span>
+        urlscan.io · 魚拓
+        <InfoTip
+          ja={
+            <>
+              対象URL/ドメインを <b>urlscan.io のサンドボックスで実際に開き</b>、今の状態を保全（魚拓）します。
+              スクリーンショット・最終URL・解決IP・サーバASN・接触した全ドメイン/IP・悪性判定を取得。
+              <br />
+              訪問するのは <b>urlscan 側のインフラ</b>なので、<b>こちらの出口IPは相手に晒れません</b>（OPSEC安全）。
+              既定は <b>unlisted</b>（公開フィードに出ない）。オンデマンド・完了まで10〜40秒ほど。
+            </>
+          }
+          en={
+            <>
+              Opens the URL/domain in urlscan.io's own sandbox to capture its current state: screenshot,
+              final URL, resolved IP, server ASN, every contacted host, and a malicious verdict. The visit
+              comes from urlscan's infrastructure, so your egress IP never touches the target. Unlisted by default.
+            </>
+          }
+        />
+        {state.phase === 'done' && d?.malicious != null && (
+          <span className="shodan-when">{d.malicious ? `malicious · ${d.score ?? '?'}` : 'no verdict'}</span>
+        )}
+      </div>
+
+      <div className="i471-actions">
+        <button className="btn btn-ghost btn-sm" onClick={run} disabled={state.phase === 'running'}>
+          {state.phase === 'running' ? (state.msg ?? 'Scanning…') : d ? 'Re-scan' : `Scan now (${visibility})`}
+        </button>
+        {d?.resultUrl && (
+          <a className="btn btn-ghost shodan-link" href={d.resultUrl} target="_blank" rel="noreferrer">
+            Open on urlscan ↗
+          </a>
+        )}
+      </div>
+
+      {state.phase === 'error' && <div className="detail-note">{state.msg}</div>}
+
+      {state.phase === 'done' && d && !d.error && (
+        <>
+          {d.screenshotUrl && imgOk && (
+            <figure className="urlscan-shot" data-noimage="true">
+              <a href={d.resultUrl ?? d.screenshotUrl} target="_blank" rel="noreferrer">
+                <img
+                  src={d.screenshotUrl}
+                  alt={`urlscan screenshot of ${d.finalUrl ?? r.value}`}
+                  crossOrigin="anonymous"
+                  loading="lazy"
+                  onError={() => setImgOk(false)}
+                />
+              </a>
+            </figure>
+          )}
+          <div className="detail-grid">
+            <Field k="Final URL" v={d.finalUrl} mono />
+            <Field k="Title" v={d.title} />
+            <Field k="Verdict" v={verdictLine} />
+            {d.brands && d.brands.length > 0 && <Field k="Impersonates" v={d.brands.join(', ')} />}
+            <Field k="Resolved IP" v={d.ip} mono />
+            <Field k="Server ASN" v={[d.asn, d.asnName].filter(Boolean).join(' · ') || undefined} />
+            <Field k="Country" v={d.country} />
+            <Field k="Server" v={d.server} />
+            <Field k="HTTP status" v={d.status != null ? String(d.status) : undefined} />
+            {d.tags && d.tags.length > 0 && (
+              <div className="field">
+                <div className="fk">Tags</div>
+                <Chips items={d.tags} />
+              </div>
+            )}
+            {d.contactedDomains && d.contactedDomains.length > 0 && (
+              <div className="field">
+                <div className="fk">Contacted domains</div>
+                <Chips items={d.contactedDomains} />
+              </div>
+            )}
+            {d.contactedIps && d.contactedIps.length > 0 && (
+              <div className="field">
+                <div className="fk">Contacted IPs</div>
+                <div className="fv chips">
+                  {d.contactedIps.map((ip) => (
+                    <span key={ip} className="chip mono">
+                      {ip}
+                    </span>
+                  ))}
+                </div>
+              </div>
+            )}
+          </div>
+        </>
+      )}
+    </div>
+  );
+}
+
+/**
+ * Live ports / services (IPs). On demand: Shodan InternetDB gives the current *known* open ports/CVEs
+ * for free (no key, no active scan); with a Shodan key you can also request a fresh re-scan (consumes
+ * credits) and re-fetch the host banners once Shodan has re-observed the host.
+ */
+function LivePortsSection({ r }: { r: NormalizedResult }) {
+  const shodanOn = useStore((s) => s.mode === 'demo' || Boolean(s.health?.shodan));
+  const idbFn = useStore((s) => s.shodanInternetDb);
+  const scanFn = useStore((s) => s.shodanScan);
+  const hostFn = useStore((s) => s.shodanHost);
+  const [idb, setIdb] = useState<{ loading: boolean; data?: ShodanInternetDb } | null>(null);
+  const [scan, setScan] = useState<{ loading: boolean; data?: ShodanScanRequest } | null>(null);
+  const [host, setHost] = useState<{ loading: boolean; data?: ShodanContext } | null>(null);
+
+  async function runIdb() {
+    setIdb({ loading: true });
+    setIdb({ loading: false, data: await idbFn(r.value) });
+  }
+  async function runScan() {
+    setScan({ loading: true });
+    setScan({ loading: false, data: await scanFn(r.value) });
+  }
+  async function runHost() {
+    setHost({ loading: true });
+    setHost({ loading: false, data: await hostFn(r.value) });
+  }
+
+  return (
+    <div className="shodan-block">
+      <div className="shodan-head">
+        <span className="shodan-logo" aria-hidden>
+          📡
+        </span>
+        Live ports / services
+        <InfoTip
+          ja={
+            <>
+              このIPの <b>今のポート/サービス</b>を確認します。
+              <br />
+              <b>Current ports (InternetDB)</b>＝無料・鍵不要・<b>再スキャンなし</b>で Shodan の最新既知ポート/CVEを即取得。
+              <br />
+              <b>Re-scan (Shodan)</b>＝Shodan に <b>今すぐ再観測</b>を依頼（スキャンクレジット消費）。少し待って
+              <b>Refresh host banners</b> で最新バナーを取得。いずれも <b>Shodan 側から</b>観測するのでこちらの出口IPは晒れません。
+            </>
+          }
+          en={
+            <>
+              Checks this IP's current ports/services. “Current ports (InternetDB)” is free and needs no
+              key (Shodan's latest known state, no active scan). With a Shodan key, “Re-scan” asks Shodan
+              to observe the host again (uses credits); “Refresh host banners” then re-fetches the result.
+            </>
+          }
+        />
+      </div>
+
+      <div className="i471-actions">
+        <button className="btn btn-ghost btn-sm" onClick={runIdb} disabled={idb?.loading}>
+          {idb?.loading ? 'Checking…' : 'Current ports (InternetDB)'}
+        </button>
+        {shodanOn && (
+          <>
+            <button
+              className="btn btn-ghost btn-sm"
+              onClick={runScan}
+              disabled={scan?.loading}
+              title="Ask Shodan to re-scan this host now (consumes scan credits)"
+            >
+              {scan?.loading ? 'Requesting…' : 'Re-scan (Shodan)'}
+            </button>
+            <button
+              className="btn btn-ghost btn-sm"
+              onClick={runHost}
+              disabled={host?.loading}
+              title="Re-fetch Shodan host banners (after a re-scan)"
+            >
+              {host?.loading ? 'Loading…' : 'Refresh host banners'}
+            </button>
+          </>
+        )}
+      </div>
+
+      {idb?.data &&
+        (idb.data.error ? (
+          <div className="detail-note">{idb.data.error}</div>
+        ) : !idb.data.found ? (
+          <div className="detail-note">Not in Shodan InternetDB.</div>
+        ) : (
+          <div className="detail-grid">
+            {idb.data.ports && idb.data.ports.length > 0 && (
+              <Field k="Open ports (now)" v={idb.data.ports.join(', ')} mono />
+            )}
+            {idb.data.vulns && idb.data.vulns.length > 0 && (
+              <div className="field">
+                <div className="fk">CVEs</div>
+                <div className="fv chips">
+                  {idb.data.vulns.map((cve) => (
+                    <a
+                      key={cve}
+                      className="chip shodan-vuln mono"
+                      href={`https://nvd.nist.gov/vuln/detail/${cve}`}
+                      target="_blank"
+                      rel="noreferrer"
+                    >
+                      {cve}
+                    </a>
+                  ))}
+                </div>
+              </div>
+            )}
+            {idb.data.hostnames && idb.data.hostnames.length > 0 && (
+              <Field k="Hostnames" v={idb.data.hostnames.join(', ')} mono />
+            )}
+            {idb.data.cpes && idb.data.cpes.length > 0 && <Field k="CPEs" v={idb.data.cpes.join(', ')} mono />}
+            {idb.data.tags && idb.data.tags.length > 0 && (
+              <div className="field">
+                <div className="fk">Tags</div>
+                <Chips items={idb.data.tags} />
+              </div>
+            )}
+          </div>
+        ))}
+
+      {scan?.data &&
+        (scan.data.error ? (
+          <div className="detail-note">{scan.data.error}</div>
+        ) : (
+          <div className="detail-note">
+            Re-scan requested{scan.data.id ? ` (id ${scan.data.id})` : ''}
+            {scan.data.creditsLeft != null ? ` · ${scan.data.creditsLeft} scan credits left` : ''}. Fresh banners
+            land shortly — use “Refresh host banners”.
+          </div>
+        ))}
+
+      {host?.data &&
+        (host.data.error ? (
+          <div className="detail-note">{host.data.error}</div>
+        ) : !host.data.found ? (
+          <div className="detail-note">No fresh Shodan host record yet — try again in a moment.</div>
+        ) : (
+          <div className="detail-grid">
+            {host.data.ports && host.data.ports.length > 0 && <Field k="Open ports" v={host.data.ports.join(', ')} mono />}
+            {host.data.services && host.data.services.length > 0 && (
+              <div className="field">
+                <div className="fk">Services</div>
+                <div className="fv chips">
+                  {host.data.services.map((svc, i) => (
+                    <span key={`${svc.port}-${i}`} className="chip shodan mono">
+                      {serviceLabel(svc)}
+                    </span>
+                  ))}
+                </div>
+              </div>
+            )}
+            {host.data.lastUpdate && <Field k="Shodan last saw" v={new Date(host.data.lastUpdate).toLocaleString()} />}
+          </div>
+        ))}
+    </div>
+  );
+}
+
 export function DetailPanel() {
   const selected = useStore((s) => s.selected);
   const results = useStore((s) => s.results);
   const select = useStore((s) => s.select);
   const socprimeOn = useStore((s) => s.mode === 'demo' || Boolean(s.health?.socprime));
+  const urlscanOn = useStore((s) => s.mode === 'demo' || Boolean(s.health?.urlscan));
+  // InternetDB needs no key — live ports are available whenever the proxy is reachable (or in demo).
+  const liveScanOn = useStore((s) => s.mode === 'demo' || Boolean(s.health?.ok));
   const tlp = useStore((s) => s.settings.tlp);
   const panelRef = useRef<HTMLElement>(null);
   const [copied, setCopied] = useState<'text' | 'image' | 'pdf' | 'err' | null>(null);
@@ -1948,7 +2270,9 @@ export function DetailPanel() {
           Open in VirusTotal ↗
         </a>
 
+        {urlscanOn && (r.type === 'url' || r.type === 'domain') && <UrlscanSection key={`us-${r.value}`} r={r} />}
         {r.shodan && <ShodanSection s={r.shodan} ip={r.value} />}
+        {liveScanOn && (r.type === 'ipv4' || r.type === 'ipv6') && <LivePortsSection key={`lp-${r.value}`} r={r} />}
         {r.maxmind && <MaxmindSection m={r.maxmind} />}
         {r.domaintools && <DomainToolsSection d={r.domaintools} />}
         {r.dnslytics && <DnslyticsSection d={r.dnslytics} />}

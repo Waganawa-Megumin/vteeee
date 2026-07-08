@@ -12,11 +12,16 @@ import type {
   RfRuleSearchParams,
   RfRuleSearchResult,
   RfSandboxIntel,
+  ShodanContext,
+  ShodanInternetDb,
+  ShodanScanRequest,
   SocPrimeQueryOptions,
   SocPrimeQueryResult,
   SocPrimeRuleSearchParams,
   SocPrimeRuleSearchResult,
   ThreatVisionAdversary,
+  UrlscanResult,
+  UrlscanSubmission,
 } from '@vteeee/shared';
 
 export interface EnrichHandlers {
@@ -53,6 +58,16 @@ export interface EnrichClient {
   rfSandbox(hash: string): Promise<RfSandboxIntel>;
   /** On-demand Recorded Future detection-rule search (Sigma / YARA / Snort). */
   rfRules(params: RfRuleSearchParams): Promise<RfRuleSearchResult>;
+  /** On-demand urlscan.io scan submission ("魚拓") for a URL/domain. Returns the scan ids to poll. */
+  urlscanSubmit(url: string, visibility?: string): Promise<UrlscanSubmission>;
+  /** Poll a urlscan.io result by uuid (pending:true while still rendering). */
+  urlscanResult(uuid: string): Promise<UrlscanResult>;
+  /** Shodan InternetDB — current known ports/CVEs for an IP (free, no active scan). */
+  shodanInternetDb(ip: string): Promise<ShodanInternetDb>;
+  /** Request an on-demand Shodan re-scan of an IP (consumes scan credits). */
+  shodanScan(ip: string): Promise<ShodanScanRequest>;
+  /** Re-fetch Shodan host banners on demand (e.g. after a re-scan). */
+  shodanHost(ip: string): Promise<ShodanContext>;
 }
 
 export function sleep(ms: number, signal?: AbortSignal): Promise<void> {

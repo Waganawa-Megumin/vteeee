@@ -12,6 +12,11 @@ import {
   rfMalwareLookup,
   rfSandboxIntel,
   rfDetectionRules,
+  urlscanSubmit,
+  urlscanResult,
+  shodanInternetDb,
+  shodanScanRequest,
+  shodanHostLookup,
   getUsers,
   putUsers,
   getSettings,
@@ -60,6 +65,9 @@ interface Env {
   RECORDEDFUTURE_RPM?: string;
   SOCPRIME_API_KEY?: string;
   SOCPRIME_BASE_URL?: string;
+  URLSCAN_API_KEY?: string;
+  URLSCAN_BASE_URL?: string;
+  URLSCAN_VISIBILITY?: string;
   ACCESS_TOKEN?: string;
   ADMIN_TOKEN?: string;
   ALLOWED_ORIGINS?: string;
@@ -115,6 +123,9 @@ function build(env: Env): { proxy: ProxyEnv; allowed: string[]; store: Storage }
     recordedfutureRpm: env.RECORDEDFUTURE_RPM ? Number(env.RECORDEDFUTURE_RPM) : undefined,
     socprimeApiKey: env.SOCPRIME_API_KEY,
     socprimeBaseUrl: env.SOCPRIME_BASE_URL,
+    urlscanApiKey: env.URLSCAN_API_KEY,
+    urlscanBaseUrl: env.URLSCAN_BASE_URL,
+    urlscanVisibility: env.URLSCAN_VISIBILITY,
     accessToken: env.ACCESS_TOKEN,
     adminToken: env.ADMIN_TOKEN,
     allowedOrigins: allowed,
@@ -164,6 +175,7 @@ export default {
           ),
           socprime: Boolean(proxy.socprimeApiKey),
           recordedfuture: Boolean(proxy.recordedfutureApiKey),
+          urlscan: Boolean(proxy.urlscanApiKey),
         });
 
       if (url.pathname === '/api/enrich' && request.method === 'POST') {
@@ -288,6 +300,52 @@ export default {
             request.signal,
           )) ?? { error: 'unavailable' },
         );
+      }
+
+      // On-demand urlscan.io submission — "web魚拓" for a URL/domain (sandboxed, unlisted).
+      if (url.pathname === '/api/urlscan' && request.method === 'POST') {
+        if (origin && !originAllowed(origin, allowed)) return json({ error: 'origin not allowed' }, 403);
+        if (!checkAccess(auth, proxy)) return json({ error: 'unauthorized' }, 401);
+        if (!proxy.urlscanApiKey) return json({ error: 'urlscan not configured' }, 400);
+        const b = (await request.json()) as { url?: string; visibility?: string };
+        if (!b.url) return json({ error: 'url required' }, 400);
+        return json((await urlscanSubmit(b.url, proxy, b.visibility, request.signal)) ?? { error: 'unavailable' });
+      }
+
+      // Poll a urlscan result by uuid (404 while rendering → { pending: true }).
+      if (url.pathname === '/api/urlscan/result' && request.method === 'GET') {
+        if (!checkAccess(auth, proxy)) return json({ error: 'unauthorized' }, 401);
+        if (!proxy.urlscanApiKey) return json({ error: 'urlscan not configured' }, 400);
+        const uuid = url.searchParams.get('uuid') ?? '';
+        if (!uuid) return json({ error: 'uuid required' }, 400);
+        return json((await urlscanResult(uuid, proxy, request.signal)) ?? { error: 'unavailable' });
+      }
+
+      // Shodan InternetDB — current known ports/CVEs for an IP (free, no key, no active scan).
+      if (url.pathname === '/api/shodan/internetdb' && request.method === 'GET') {
+        if (!checkAccess(auth, proxy)) return json({ error: 'unauthorized' }, 401);
+        const ip = url.searchParams.get('ip') ?? '';
+        if (!ip) return json({ error: 'ip required' }, 400);
+        return json((await shodanInternetDb(ip, request.signal)) ?? { found: false, error: 'unavailable' });
+      }
+
+      // Request an on-demand Shodan re-scan of an IP (consumes scan credits).
+      if (url.pathname === '/api/shodan/scan' && request.method === 'POST') {
+        if (origin && !originAllowed(origin, allowed)) return json({ error: 'origin not allowed' }, 403);
+        if (!checkAccess(auth, proxy)) return json({ error: 'unauthorized' }, 401);
+        if (!proxy.shodanApiKey) return json({ error: 'Shodan not configured' }, 400);
+        const b = (await request.json()) as { ip?: string };
+        if (!b.ip) return json({ error: 'ip required' }, 400);
+        return json((await shodanScanRequest(b.ip, proxy, request.signal)) ?? { error: 'unavailable' });
+      }
+
+      // Re-fetch Shodan host banners on demand (e.g. after a re-scan).
+      if (url.pathname === '/api/shodan/host' && request.method === 'GET') {
+        if (!checkAccess(auth, proxy)) return json({ error: 'unauthorized' }, 401);
+        if (!proxy.shodanApiKey) return json({ error: 'Shodan not configured' }, 400);
+        const ip = url.searchParams.get('ip') ?? '';
+        if (!ip) return json({ error: 'ip required' }, 400);
+        return json((await shodanHostLookup(ip, proxy, request.signal)) ?? { found: false, error: 'unavailable' });
       }
 
       // On-demand SOC Prime Uncoder AI — generate a SIEM hunting query from a block of IOCs.

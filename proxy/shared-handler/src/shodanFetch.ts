@@ -1,9 +1,12 @@
-import type { ShodanContext, ShodanService } from '@vteeee/shared';
+import type { ShodanContext, ShodanInternetDb, ShodanScanRequest, ShodanService } from '@vteeee/shared';
 import type { ProxyEnv } from './types';
 
 /* eslint-disable @typescript-eslint/no-explicit-any */
 
 const SHODAN_HOST_API = 'https://api.shodan.io/shodan/host';
+const SHODAN_SCAN_API = 'https://api.shodan.io/shodan/scan';
+/** Free, key-less "current known state" endpoint — no active scan, no credits. */
+const INTERNETDB_API = 'https://internetdb.shodan.io';
 
 function uniqSorted(nums: unknown): number[] {
   if (!Array.isArray(nums)) return [];
@@ -107,5 +110,95 @@ export async function shodanHostLookup(
     return mapShodanHost(await res.json());
   } catch {
     return { found: false, error: 'Shodan: malformed response' };
+  }
+}
+
+/** Map a raw InternetDB response (`{ip,ports,cpes,hostnames,tags,vulns}`) to our shape (pure). */
+export function mapInternetDb(json: any, ip: string): ShodanInternetDb {
+  const out: ShodanInternetDb = { found: true, ip: typeof json?.ip === 'string' ? json.ip : ip };
+  const ports = uniqSorted(json?.ports);
+  if (ports.length) out.ports = ports;
+  const vulns = uniqStrings(json?.vulns);
+  if (vulns.length) out.vulns = vulns.sort();
+  const cpes = uniqStrings(json?.cpes);
+  if (cpes.length) out.cpes = cpes;
+  const hostnames = uniqStrings(json?.hostnames);
+  if (hostnames.length) out.hostnames = hostnames;
+  const tags = uniqStrings(json?.tags);
+  if (tags.length) out.tags = tags;
+  return out;
+}
+
+/**
+ * Shodan InternetDB — current *known* open ports / CVEs / hostnames for an IP. Free, no key, no
+ * active scan (nothing is sent to the target). Never throws. 404 → `{ found: false }` (not in the set).
+ */
+export async function shodanInternetDb(ip: string, signal?: AbortSignal): Promise<ShodanInternetDb | undefined> {
+  if (signal?.aborted) return undefined;
+  let res: Response;
+  try {
+    res = await fetch(`${INTERNETDB_API}/${encodeURIComponent(ip)}`, {
+      headers: { accept: 'application/json' },
+      signal,
+    });
+  } catch (e) {
+    if ((e as Error).name === 'AbortError') return undefined;
+    return { found: false, error: `InternetDB unreachable: ${(e as Error).message}` };
+  }
+  if (res.status === 404) return { found: false };
+  if (res.status === 429) return { found: false, error: 'InternetDB: rate limited' };
+  if (!res.ok) return { found: false, error: `InternetDB error ${res.status}` };
+  try {
+    return mapInternetDb(await res.json(), ip);
+  } catch {
+    return { found: false, error: 'InternetDB: malformed response' };
+  }
+}
+
+/**
+ * Request an on-demand Shodan re-scan of an IP (`POST /shodan/scan`). This asks Shodan's own scanners
+ * to observe the host again — fresh banners appear in the host dataset shortly after (re-fetch the
+ * host to see them). Consumes scan credits. Never throws; needs a Shodan key.
+ */
+export async function shodanScanRequest(
+  ip: string,
+  env: ProxyEnv,
+  signal?: AbortSignal,
+): Promise<ShodanScanRequest | undefined> {
+  if (!env.shodanApiKey) return undefined;
+  if (signal?.aborted) return undefined;
+  let res: Response;
+  try {
+    res = await fetch(`${SHODAN_SCAN_API}?key=${encodeURIComponent(env.shodanApiKey)}`, {
+      method: 'POST',
+      headers: { 'content-type': 'application/x-www-form-urlencoded', accept: 'application/json' },
+      body: `ips=${encodeURIComponent(ip)}`,
+      signal,
+    });
+  } catch (e) {
+    if ((e as Error).name === 'AbortError') return undefined;
+    return { error: `Shodan unreachable: ${(e as Error).message}` };
+  }
+  if (res.status === 401) return { error: 'Shodan: invalid API key' };
+  if (res.status === 403) return { error: 'Shodan: no scan credits / plan does not allow on-demand scans' };
+  if (res.status === 429) return { error: 'Shodan: rate limited' };
+  if (!res.ok) {
+    let detail = '';
+    try {
+      detail = ((await res.json()) as any)?.error ?? '';
+    } catch {
+      /* ignore */
+    }
+    return { error: `Shodan scan error ${res.status}${detail ? ` — ${detail}` : ''}` };
+  }
+  try {
+    const j = (await res.json()) as any;
+    return {
+      id: typeof j?.id === 'string' ? j.id : undefined,
+      count: typeof j?.count === 'number' ? j.count : undefined,
+      creditsLeft: typeof j?.credits_left === 'number' ? j.credits_left : undefined,
+    };
+  } catch {
+    return { error: 'Shodan: malformed scan response' };
   }
 }

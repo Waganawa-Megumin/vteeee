@@ -58,6 +58,12 @@ export interface ProxyEnv {
   socprimeApiKey?: string;
   /** SOC Prime API base URL. Default https://api.tdm.socprime.com. */
   socprimeBaseUrl?: string;
+  /** urlscan.io API key (sent as `API-Key`). When set, on-demand URL/domain "魚拓" scans are available. */
+  urlscanApiKey?: string;
+  /** urlscan.io API base URL. Default https://urlscan.io. */
+  urlscanBaseUrl?: string;
+  /** Default urlscan submission visibility: public | unlisted | private. Default unlisted. */
+  urlscanVisibility?: string;
   /** Shared token required on /api/* (enrich, parse). */
   accessToken?: string;
   /** Token required to write users/settings via /api/admin/*. */

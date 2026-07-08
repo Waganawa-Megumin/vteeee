@@ -18,6 +18,11 @@ import {
   type RfRuleSearchResult,
   type RfSandboxIntel,
   type Session,
+  type ShodanContext,
+  type ShodanInternetDb,
+  type ShodanScanRequest,
+  type UrlscanResult,
+  type UrlscanSubmission,
   type SocPrimeQueryOptions,
   type SocPrimeQueryResult,
   type SocPrimeRuleSearchParams,
@@ -88,6 +93,11 @@ interface State {
   rfMalware: (ref: { id?: string; name?: string }) => Promise<RfMalwareProfile>;
   rfSandbox: (hash: string) => Promise<RfSandboxIntel>;
   rfRules: (params: RfRuleSearchParams) => Promise<RfRuleSearchResult>;
+  urlscanSubmit: (url: string, visibility?: string) => Promise<UrlscanSubmission>;
+  urlscanResult: (uuid: string) => Promise<UrlscanResult>;
+  shodanInternetDb: (ip: string) => Promise<ShodanInternetDb>;
+  shodanScan: (ip: string) => Promise<ShodanScanRequest>;
+  shodanHost: (ip: string) => Promise<ShodanContext>;
 }
 
 function defaultIncludes(parsed: ParsedIndicator[]): Record<string, boolean> {
@@ -100,7 +110,7 @@ export const useStore = create<State>((set, get) => ({
   booted: false,
   session: null,
   users: [],
-  settings: { proxyBaseUrl: null, rpm: 4, concurrency: 1, gti: false, submitUnknown: false, shodan: true, maxmind: true, domaintools: true, dnslytics: true, intel471: true, cyfirma: true, threatvision: true, recordedfuture: true, tlp: 'AMBER' },
+  settings: { proxyBaseUrl: null, rpm: 4, concurrency: 1, gti: false, submitUnknown: false, shodan: true, maxmind: true, domaintools: true, dnslytics: true, intel471: true, cyfirma: true, threatvision: true, recordedfuture: true, tlp: 'AMBER', urlscanVisibility: 'unlisted' },
   mode: 'demo',
   health: null,
 
@@ -318,7 +328,7 @@ export const useStore = create<State>((set, get) => ({
     try {
       const res = await fetch(`${base}/health`, { cache: 'no-store' });
       if (!res.ok) {
-        set({ health: { ok: false, vtKey: false, claude: false, shodan: false, maxmind: false, domaintools: false, dnslytics: false, intel471: false, cyfirma: false, threatvision: false, socprime: false, recordedfuture: false } });
+        set({ health: { ok: false, vtKey: false, claude: false, shodan: false, maxmind: false, domaintools: false, dnslytics: false, intel471: false, cyfirma: false, threatvision: false, socprime: false, recordedfuture: false, urlscan: false } });
         return;
       }
       const h = (await res.json()) as Partial<ProxyHealth>;
@@ -336,10 +346,11 @@ export const useStore = create<State>((set, get) => ({
           threatvision: Boolean(h.threatvision),
           socprime: Boolean(h.socprime),
           recordedfuture: Boolean(h.recordedfuture),
+          urlscan: Boolean(h.urlscan),
         },
       });
     } catch {
-      set({ health: { ok: false, vtKey: false, claude: false, shodan: false, maxmind: false, domaintools: false, dnslytics: false, intel471: false, cyfirma: false, threatvision: false, socprime: false, recordedfuture: false } });
+      set({ health: { ok: false, vtKey: false, claude: false, shodan: false, maxmind: false, domaintools: false, dnslytics: false, intel471: false, cyfirma: false, threatvision: false, socprime: false, recordedfuture: false, urlscan: false } });
     }
   },
 
@@ -430,6 +441,51 @@ export const useStore = create<State>((set, get) => ({
       return await client.rfRules(params);
     } catch (e) {
       return { error: (e as Error).message };
+    }
+  },
+
+  async urlscanSubmit(url, visibility) {
+    try {
+      const client = await makeClient(get().settings);
+      return await client.urlscanSubmit(url, visibility);
+    } catch (e) {
+      return { error: (e as Error).message };
+    }
+  },
+
+  async urlscanResult(uuid) {
+    try {
+      const client = await makeClient(get().settings);
+      return await client.urlscanResult(uuid);
+    } catch (e) {
+      return { uuid, error: (e as Error).message };
+    }
+  },
+
+  async shodanInternetDb(ip) {
+    try {
+      const client = await makeClient(get().settings);
+      return await client.shodanInternetDb(ip);
+    } catch (e) {
+      return { found: false, error: (e as Error).message };
+    }
+  },
+
+  async shodanScan(ip) {
+    try {
+      const client = await makeClient(get().settings);
+      return await client.shodanScan(ip);
+    } catch (e) {
+      return { error: (e as Error).message };
+    }
+  },
+
+  async shodanHost(ip) {
+    try {
+      const client = await makeClient(get().settings);
+      return await client.shodanHost(ip);
+    } catch (e) {
+      return { found: false, error: (e as Error).message };
     }
   },
 }));

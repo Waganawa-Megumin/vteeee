@@ -22,6 +22,7 @@ export const DEFAULT_SETTINGS: AppSettings = {
   recordedfuture: true,
   historyRetentionDays: 30,
   tlp: 'AMBER',
+  urlscanVisibility: 'unlisted',
 };
 
 async function fetchJson<T>(path: string): Promise<T | null> {

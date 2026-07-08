@@ -1,7 +1,14 @@
 export * from './types';
 export { runEnrich, ndjson } from './enrich';
 export { vtLookup, type VtLookup } from './vtFetch';
-export { shodanHostLookup, mapShodanHost } from './shodanFetch';
+export {
+  shodanHostLookup,
+  mapShodanHost,
+  shodanInternetDb,
+  shodanScanRequest,
+  mapInternetDb,
+} from './shodanFetch';
+export { urlscanSubmit, urlscanResult, mapUrlscanResult } from './urlscanFetch';
 export { maxmindLookup, mapMaxmind } from './maxmindFetch';
 export { domaintoolsEnrichDomain, domaintoolsReverseIp, mapIrisEnrich, mapIrisInvestigateReverseIp } from './domaintoolsFetch';
 export { dnslyticsIpInfo, dnslyticsHostingHistory, mapDnslyticsIp, mapDnslyticsHostingHistory } from './dnslyticsFetch';
