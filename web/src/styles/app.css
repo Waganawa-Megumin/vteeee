@@ -1477,6 +1477,9 @@ button.pv-monitored.link:hover {
   border-radius: 8px;
   overflow: hidden;
   background: var(--bg3);
+  /* Contain Leaflet's internal z-indexes (its controls are z-index:1000) so they don't punch
+     through the detail-panel overlay that opens on top of the dashboard. */
+  isolation: isolate;
 }
 .monitor-map .leaflet-container {
   width: 100%;
