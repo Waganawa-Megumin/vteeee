@@ -20,6 +20,7 @@ export const DEFAULT_SETTINGS: AppSettings = {
   cyfirma: true,
   threatvision: true,
   recordedfuture: true,
+  abuseipdb: true,
   historyRetentionDays: 30,
   tlp: 'AMBER',
   urlscanVisibility: 'unlisted',

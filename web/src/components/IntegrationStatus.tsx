@@ -69,6 +69,17 @@ export function IntegrationStatus({ onManage }: { onManage: () => void }) {
             }
           />
           <Chip
+            label="AbuseIPDB"
+            on={Boolean(health?.abuseipdb) && settings.abuseipdb !== false}
+            title={
+              health?.abuseipdb
+                ? settings.abuseipdb !== false
+                  ? 'AbuseIPDB active — IPs get a community abuse-confidence score + reports'
+                  : 'AbuseIPDB key present, but enrichment is turned OFF in Settings'
+                : 'Optional — no ABUSEIPDB_API_KEY on the proxy'
+            }
+          />
+          <Chip
             label="urlscan"
             on={Boolean(health?.urlscan)}
             title={

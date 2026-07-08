@@ -112,7 +112,7 @@ export const useStore = create<State>((set, get) => ({
   booted: false,
   session: null,
   users: [],
-  settings: { proxyBaseUrl: null, rpm: 4, concurrency: 1, gti: false, submitUnknown: false, shodan: true, maxmind: true, domaintools: true, dnslytics: true, intel471: true, cyfirma: true, threatvision: true, recordedfuture: true, tlp: 'AMBER', urlscanVisibility: 'unlisted' },
+  settings: { proxyBaseUrl: null, rpm: 4, concurrency: 1, gti: false, submitUnknown: false, shodan: true, maxmind: true, domaintools: true, dnslytics: true, intel471: true, cyfirma: true, threatvision: true, recordedfuture: true, abuseipdb: true, tlp: 'AMBER', urlscanVisibility: 'unlisted' },
   mode: 'demo',
   health: null,
 
@@ -234,6 +234,7 @@ export const useStore = create<State>((set, get) => ({
       cyfirma: settings.cyfirma ?? true,
       threatvision: settings.threatvision ?? true,
       recordedfuture: settings.recordedfuture ?? true,
+      abuseipdb: settings.abuseipdb ?? true,
     };
     set({
       running: true,
@@ -330,7 +331,7 @@ export const useStore = create<State>((set, get) => ({
     try {
       const res = await fetch(`${base}/health`, { cache: 'no-store' });
       if (!res.ok) {
-        set({ health: { ok: false, vtKey: false, claude: false, shodan: false, maxmind: false, domaintools: false, dnslytics: false, intel471: false, cyfirma: false, threatvision: false, socprime: false, recordedfuture: false, urlscan: false } });
+        set({ health: { ok: false, vtKey: false, claude: false, shodan: false, maxmind: false, domaintools: false, dnslytics: false, intel471: false, cyfirma: false, threatvision: false, socprime: false, recordedfuture: false, urlscan: false, abuseipdb: false } });
         return;
       }
       const h = (await res.json()) as Partial<ProxyHealth>;
@@ -349,10 +350,11 @@ export const useStore = create<State>((set, get) => ({
           socprime: Boolean(h.socprime),
           recordedfuture: Boolean(h.recordedfuture),
           urlscan: Boolean(h.urlscan),
+          abuseipdb: Boolean(h.abuseipdb),
         },
       });
     } catch {
-      set({ health: { ok: false, vtKey: false, claude: false, shodan: false, maxmind: false, domaintools: false, dnslytics: false, intel471: false, cyfirma: false, threatvision: false, socprime: false, recordedfuture: false, urlscan: false } });
+      set({ health: { ok: false, vtKey: false, claude: false, shodan: false, maxmind: false, domaintools: false, dnslytics: false, intel471: false, cyfirma: false, threatvision: false, socprime: false, recordedfuture: false, urlscan: false, abuseipdb: false } });
     }
   },
 

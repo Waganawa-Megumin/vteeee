@@ -1,4 +1,5 @@
 import type {
+  AbuseIpdbContext,
   CyfirmaContext,
   DnslyticsContext,
   DomainToolsContext,
@@ -33,6 +34,8 @@ export interface Fixture {
   threatvision?: ThreatVisionContext;
   /** Sample Recorded Future Connect context (risk + evidence + related actors/malware). */
   recordedfuture?: RecordedFutureContext;
+  /** Sample AbuseIPDB CHECK context (IPs) — abuse-confidence score + reports. */
+  abuseipdb?: AbuseIpdbContext;
 }
 
 const day = 86400;
@@ -148,6 +151,20 @@ export const FIXTURES: Fixture[] = [
       organization: 'Cloudflare, Inc.',
       country: 'Australia',
       intelCard: 'https://app.recordedfuture.com/live/sc/entity/ip%3A1.1.1.1',
+    },
+    abuseipdb: {
+      found: true,
+      abuseConfidenceScore: 0,
+      totalReports: 0,
+      numDistinctUsers: 0,
+      countryCode: 'AU',
+      countryName: 'Australia',
+      usageType: 'Content Delivery Network',
+      isp: 'APNIC and Cloudflare DNS Resolver project',
+      domain: 'cloudflare.com',
+      isTor: false,
+      isWhitelisted: true,
+      ipVersion: 4,
     },
   },
   {
@@ -373,6 +390,37 @@ export const FIXTURES: Fixture[] = [
       aiInsights:
         'This Tor exit node has been repeatedly observed as active C2 infrastructure attributed to BlueDelta campaigns targeting European government mail servers. Blocking is recommended.',
       intelCard: 'https://app.recordedfuture.com/live/sc/entity/ip%3A185.220.101.1',
+    },
+    abuseipdb: {
+      found: true,
+      abuseConfidenceScore: 100,
+      totalReports: 428,
+      numDistinctUsers: 173,
+      lastReportedAt: new Date((now - 3600) * 1000).toISOString(),
+      countryCode: 'DE',
+      countryName: 'Germany',
+      usageType: 'Data Center/Web Hosting/Transit',
+      isp: 'Zwiebelfreunde e.V.',
+      domain: 'torservers.net',
+      hostnames: ['tor-exit.example'],
+      isTor: true,
+      isWhitelisted: false,
+      ipVersion: 4,
+      categories: ['SSH', 'Brute-Force', 'Port Scan', 'Web App Attack', 'Hacking'],
+      reports: [
+        {
+          reportedAt: new Date((now - 3600) * 1000).toISOString(),
+          comment: 'Invalid user admin from 185.220.101.1 port 54211 (SSH brute-force)',
+          categories: ['SSH', 'Brute-Force'],
+          reporterCountryCode: 'DE',
+        },
+        {
+          reportedAt: new Date((now - 3 * 3600) * 1000).toISOString(),
+          comment: 'Port scan detected on multiple honeypot sensors.',
+          categories: ['Port Scan'],
+          reporterCountryCode: 'US',
+        },
+      ],
     },
   },
   {

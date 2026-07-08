@@ -51,7 +51,8 @@ export class LiveClient implements EnrichClient {
       (settings.intel471 !== false ? 2 : 0) + // Intel 471 = /indicators + /iocs (+on-demand /search)
       (settings.cyfirma !== false ? 2 : 0) + // CYFIRMA = /riskdossier + /threatioc search (+on-demand actor)
       (settings.threatvision !== false ? 1 : 0) + // ThreatVision = 1 detail/search call per IOC
-      (settings.recordedfuture !== false ? 1 : 0); // Recorded Future Connect = 1 lookup per IOC
+      (settings.recordedfuture !== false ? 1 : 0) + // Recorded Future Connect = 1 lookup per IOC
+      (settings.abuseipdb !== false ? 1 : 0); // AbuseIPDB CHECK = 1 lookup per IP
     this.chunk = Math.max(3, Math.floor(40 / (providers + 1)));
   }
 

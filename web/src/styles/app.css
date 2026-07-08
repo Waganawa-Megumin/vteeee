@@ -1064,6 +1064,29 @@ a.i471-search-item:hover {
   line-height: 1.4;
   padding: 3px 0;
 }
+/* AbuseIPDB confidence score badge in the section header. */
+.abuse-score {
+  margin-left: auto;
+  font-size: 12px;
+  font-weight: 700;
+  padding: 1px 8px;
+  border-radius: 999px;
+  border: 1px solid var(--line);
+  color: var(--muted);
+}
+.abuse-score.sev-high {
+  color: #fff;
+  background: var(--bad, #b91c1c);
+  border-color: transparent;
+}
+.abuse-score.sev-med {
+  color: #1f2a24;
+  background: var(--warn, #f59e0b);
+  border-color: transparent;
+}
+.abuse-score.sev-low {
+  color: var(--good, #6c9);
+}
 /* urlscan.io "魚拓" screenshot — bordered, scales to the panel, click to open the full result. */
 .urlscan-shot {
   margin: 8px 0 4px;

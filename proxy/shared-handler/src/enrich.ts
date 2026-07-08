@@ -1,6 +1,7 @@
 import {
   buildLinks,
   normalizeVt,
+  type AbuseIpdbContext,
   type CyfirmaContext,
   type DnslyticsContext,
   type DomainToolsContext,
@@ -25,6 +26,7 @@ import { intel471Lookup } from './intel471Fetch';
 import { cyfirmaLookup } from './cyfirmaFetch';
 import { threatvisionLookup } from './threatvisionFetch';
 import { rfLookup } from './recordedfutureFetch';
+import { abuseipdbCheck } from './abuseipdbFetch';
 import { AsyncQueue, backoffMs, clamp, sleep } from './util';
 
 const MAX_RL_RETRIES = 3;
@@ -37,6 +39,7 @@ const DEFAULT_INTEL471_RPM = 60;
 const DEFAULT_CYFIRMA_RPM = 30;
 const DEFAULT_THREATVISION_RPM = 30;
 const DEFAULT_RECORDEDFUTURE_RPM = 30;
+const DEFAULT_ABUSEIPDB_RPM = 60;
 
 /** Hostname from a URL indicator (for treating a URL's host as a domain). null if not parseable. */
 function hostFromUrl(u: string): string | null {
@@ -113,6 +116,11 @@ export async function* runEnrich(
   const rfEnabled = Boolean(env.recordedfutureApiKey) && req.options?.recordedfuture !== false;
   const rfLimiter = rfEnabled
     ? new RateLimiter(clamp(env.recordedfutureRpm ?? DEFAULT_RECORDEDFUTURE_RPM, 1, 600))
+    : null;
+  // AbuseIPDB CHECK (IPs only) under its own limiter.
+  const abuseEnabled = Boolean(env.abuseipdbApiKey) && req.options?.abuseipdb !== false;
+  const abuseLimiter = abuseEnabled
+    ? new RateLimiter(clamp(env.abuseipdbRpm ?? DEFAULT_ABUSEIPDB_RPM, 1, 600))
     : null;
   const queue = new AsyncQueue<EnrichEvent>();
   const tasks = [...req.indicators];
@@ -270,6 +278,18 @@ export async function* runEnrich(
     }
   }
 
+  /** AbuseIPDB CHECK for IPs. Never throws. */
+  async function enrichAbuseipdb(value: string): Promise<AbuseIpdbContext | undefined> {
+    if (!abuseLimiter) return undefined;
+    try {
+      await abuseLimiter.acquire(signal);
+      return await abuseipdbCheck(value, env, signal);
+    } catch (e) {
+      if ((e as Error).name === 'AbortError') return undefined;
+      return { found: false, error: (e as Error).message };
+    }
+  }
+
   /** Attach all provider context to a normalized result, routing by IOC type. */
   async function attachContext(ind: EnrichRequest['indicators'][number], result: NormalizedResult): Promise<void> {
     const isIp = ind.type === 'ipv4' || ind.type === 'ipv6';
@@ -287,6 +307,7 @@ export async function* runEnrich(
     if (isIp) {
       if (shodanLimiter) result.shodan = await enrichShodan(ind.value);
       if (maxmindLimiter) result.maxmind = await enrichMaxmind(ind.value);
+      if (abuseLimiter) result.abuseipdb = await enrichAbuseipdb(ind.value);
       // DNSLytics IPInfo is the verified per-IP endpoint (there is no per-domain "domaininfo" in v1).
       if (dnslLimiter) result.dnslytics = await enrichDnslytics('ip', ind.value);
       if (dtLimiter) result.domaintools = await enrichDomaintools('ip', ind.value);

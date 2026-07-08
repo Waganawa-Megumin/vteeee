@@ -71,6 +71,10 @@ interface Env {
   URLSCAN_VISIBILITY?: string;
   URLSCAN_ALLOW_PUBLIC?: string;
   URLSCAN_TAGS?: string;
+  ABUSEIPDB_API_KEY?: string;
+  ABUSEIPDB_BASE_URL?: string;
+  ABUSEIPDB_MAX_AGE_DAYS?: string;
+  ABUSEIPDB_RPM?: string;
   ACCESS_TOKEN?: string;
   ADMIN_TOKEN?: string;
   ALLOWED_ORIGINS?: string;
@@ -131,6 +135,10 @@ function build(env: Env): { proxy: ProxyEnv; allowed: string[]; store: Storage }
     urlscanVisibility: env.URLSCAN_VISIBILITY,
     urlscanAllowPublic: env.URLSCAN_ALLOW_PUBLIC === 'true',
     urlscanTags: env.URLSCAN_TAGS,
+    abuseipdbApiKey: env.ABUSEIPDB_API_KEY,
+    abuseipdbBaseUrl: env.ABUSEIPDB_BASE_URL,
+    abuseipdbMaxAgeDays: env.ABUSEIPDB_MAX_AGE_DAYS ? Number(env.ABUSEIPDB_MAX_AGE_DAYS) : undefined,
+    abuseipdbRpm: env.ABUSEIPDB_RPM ? Number(env.ABUSEIPDB_RPM) : undefined,
     accessToken: env.ACCESS_TOKEN,
     adminToken: env.ADMIN_TOKEN,
     allowedOrigins: allowed,
@@ -181,6 +189,7 @@ export default {
           socprime: Boolean(proxy.socprimeApiKey),
           recordedfuture: Boolean(proxy.recordedfutureApiKey),
           urlscan: Boolean(proxy.urlscanApiKey),
+          abuseipdb: Boolean(proxy.abuseipdbApiKey),
         });
 
       if (url.pathname === '/api/enrich' && request.method === 'POST') {

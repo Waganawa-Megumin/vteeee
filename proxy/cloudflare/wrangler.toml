@@ -44,6 +44,11 @@ id = "64fde3553d4b4272a3afa346945a0ce0"
 # SOCPRIME_BASE_URL = "https://api.tdm.socprime.com"
 # Override only if your Recorded Future endpoint differs from the default:
 # RECORDEDFUTURE_BASE_URL = "https://api.recordedfuture.com"
+# AbuseIPDB CHECK maxAgeInDays (1-365, how far back reports are considered). Default 90.
+# ABUSEIPDB_MAX_AGE_DAYS = "90"
+# ABUSEIPDB_RPM = "60"
+# Override only if your AbuseIPDB endpoint differs from the default:
+# ABUSEIPDB_BASE_URL = "https://api.abuseipdb.com/api/v2"
 # urlscan.io on-demand "魚拓" default visibility: public / unlisted (default) / private
 # URLSCAN_VISIBILITY = "unlisted"
 # OPSEC: `public` is clamped to `unlisted` unless you explicitly allow it here. Leave OFF for
@@ -71,5 +76,6 @@ id = "64fde3553d4b4272a3afa346945a0ce0"
 #   wrangler secret put SOCPRIME_API_KEY          # optional (SOC Prime: Uncoder IOC→SIEM query)
 #   wrangler secret put RECORDEDFUTURE_API_KEY    # optional (Recorded Future: risk intel + pivots + rules)
 #   wrangler secret put URLSCAN_API_KEY           # optional (urlscan.io: on-demand URL/domain 魚拓 scans)
+#   wrangler secret put ABUSEIPDB_API_KEY         # optional (AbuseIPDB: IP abuse-confidence score + reports)
 #   wrangler secret put ACCESS_TOKEN              # required on /api/*
 #   wrangler secret put ADMIN_TOKEN               # required on /api/admin/*

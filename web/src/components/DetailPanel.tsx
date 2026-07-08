@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from 'react';
 import type {
+  AbuseIpdbContext,
   CyfirmaContext,
   CyfirmaRelated,
   CyfirmaSearch,
@@ -145,6 +146,102 @@ function Chips({ items }: { items: string[] }) {
           {t}
         </span>
       ))}
+    </div>
+  );
+}
+
+/** Colour the abuse-confidence score by severity (AbuseIPDB recommends 75–100 for action). */
+function abuseClass(score?: number): string {
+  if (score == null) return 'abuse-score';
+  if (score >= 75) return 'abuse-score sev-high';
+  if (score >= 25) return 'abuse-score sev-med';
+  return 'abuse-score sev-low';
+}
+
+/** AbuseIPDB block (IPs) — community abuse-confidence score, report volume, attribution + recent reports. */
+function AbuseIpdbSection({ a, ip }: { a: AbuseIpdbContext; ip: string }) {
+  return (
+    <div className="shodan-block">
+      <div className="shodan-head">
+        <span className="shodan-logo" aria-hidden>
+          🛡
+        </span>
+        AbuseIPDB
+        {a.found && a.abuseConfidenceScore != null && (
+          <span className={abuseClass(a.abuseConfidenceScore)}>{a.abuseConfidenceScore}/100</span>
+        )}
+      </div>
+
+      {!a.found ? (
+        <div className="detail-note">{a.error ?? 'No AbuseIPDB data for this IP.'}</div>
+      ) : (
+        <div className="detail-grid">
+          <Field
+            k="Abuse confidence"
+            v={a.abuseConfidenceScore != null ? `${a.abuseConfidenceScore} / 100` : undefined}
+          />
+          <Field
+            k="Reports"
+            v={
+              a.totalReports != null
+                ? `${a.totalReports}${a.numDistinctUsers != null ? ` from ${a.numDistinctUsers} reporters` : ''}`
+                : undefined
+            }
+          />
+          <Field k="Last reported" v={a.lastReportedAt ? new Date(a.lastReportedAt).toLocaleString() : undefined} />
+          <Field k="Usage type" v={a.usageType} />
+          <Field k="ISP" v={a.isp} />
+          <Field k="Domain" v={a.domain} mono />
+          <Field k="Country" v={[a.countryName, a.countryCode ? `(${a.countryCode})` : ''].filter(Boolean).join(' ') || undefined} />
+          <Field k="Hostnames" v={a.hostnames?.join(', ')} mono />
+          {(a.isTor || a.isWhitelisted) && (
+            <div className="field">
+              <div className="fk">Flags</div>
+              <div className="fv chips">
+                {a.isTor && <span className="chip shodan-vuln">Tor exit node</span>}
+                {a.isWhitelisted && <span className="chip">Whitelisted</span>}
+              </div>
+            </div>
+          )}
+          {a.categories && a.categories.length > 0 && (
+            <div className="field">
+              <div className="fk">Attack categories</div>
+              <Chips items={a.categories} />
+            </div>
+          )}
+          {a.reports && a.reports.length > 0 && (
+            <div className="field">
+              <div className="fk">Recent reports</div>
+              <div className="fv">
+                {a.reports.map((rep, i) => (
+                  <div key={i} className="rf-evidence">
+                    <b>{rep.reportedAt ? new Date(rep.reportedAt).toLocaleDateString() : '—'}</b>
+                    {rep.reporterCountryCode ? ` · ${rep.reporterCountryCode}` : ''}
+                    {rep.categories && rep.categories.length ? ` · ${rep.categories.join(', ')}` : ''}
+                    {rep.comment ? <div className="pv-raw">{rep.comment}</div> : null}
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+        </div>
+      )}
+
+      <a
+        className="btn btn-ghost shodan-link"
+        href={`https://www.abuseipdb.com/check/${encodeURIComponent(ip)}`}
+        target="_blank"
+        rel="noreferrer"
+      >
+        Open in AbuseIPDB ↗
+      </a>
+
+      {a.raw != null && (
+        <details className="raw">
+          <summary>Raw AbuseIPDB data</summary>
+          <pre>{JSON.stringify(a.raw, null, 2)}</pre>
+        </details>
+      )}
     </div>
   );
 }
@@ -2573,6 +2670,7 @@ export function DetailPanel() {
         {urlscanOn && (r.type === 'url' || r.type === 'domain') && <UrlscanSection key={`us-${r.value}`} r={r} />}
         {r.shodan && <ShodanSection s={r.shodan} ip={r.value} />}
         {liveScanOn && (r.type === 'ipv4' || r.type === 'ipv6') && <LivePortsSection key={`lp-${r.value}`} r={r} />}
+        {r.abuseipdb && <AbuseIpdbSection a={r.abuseipdb} ip={r.value} />}
         {r.maxmind && <MaxmindSection m={r.maxmind} />}
         {r.domaintools && <DomainToolsSection d={r.domaintools} />}
         {r.dnslytics && <DnslyticsSection d={r.dnslytics} />}

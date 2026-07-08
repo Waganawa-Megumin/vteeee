@@ -81,6 +81,11 @@ export function SettingsDialog({ onClose }: { onClose: () => void }) {
                 <span className="intg-dot" />
                 SOC Prime {health?.socprime ? 'on' : 'not configured'}
               </span>
+              <span className={`intg-chip ${health?.abuseipdb && draft.abuseipdb !== false ? 'on' : 'off'}`}>
+                <span className="intg-dot" />
+                AbuseIPDB{' '}
+                {health?.abuseipdb ? (draft.abuseipdb !== false ? 'on' : 'key set · off') : 'not configured'}
+              </span>
               <span className={`intg-chip ${health?.urlscan ? 'on' : 'off'}`}>
                 <span className="intg-dot" />
                 urlscan {health?.urlscan ? 'on' : 'not configured'}
@@ -270,6 +275,18 @@ export function SettingsDialog({ onClose }: { onClose: () => void }) {
             <InfoTip
               ja="全種別(IP/ドメイン/URL/ハッシュ)に Recorded Future のリスクスコア(0-99)・発火リスクルールと根拠(evidence)・活動期間・脅威リスト・関連する脅威アクター/マルウェアを付与。詳細では脅威アクターやマルウェアのチップを押すと Threat API/Connect API でプロフィール(別名・カテゴリ等)をオンデマンド取得、ハッシュは『Sandbox intel』でサンドボックス評価(読み取りのみ・検体送信なし)、『Detection rules』で関連する Sigma/YARA/Snort ルールを検索できます。プロキシに RECORDEDFUTURE_API_KEY がある時のみ。"
               en="Enrich every IOC type with Recorded Future risk score (0-99), triggered risk rules + evidence, activity window, threat lists and related threat actors/malware. In the detail panel, click an actor/malware chip for an on-demand profile (Threat/Connect API), use 'Sandbox intel' on hashes (read-only — nothing is submitted) and 'Detection rules' to search related Sigma/YARA/Snort rules. Only if the proxy has RECORDEDFUTURE_API_KEY."
+            />
+          </label>
+          <label className="chk">
+            <input
+              type="checkbox"
+              checked={draft.abuseipdb !== false}
+              onChange={(e) => up('abuseipdb', e.target.checked)}
+            />
+            🛡 AbuseIPDB (IPs)
+            <InfoTip
+              ja="IP に AbuseIPDB のコミュニティ悪用信頼度スコア(0-100)・レポート数/報告者数・最終報告日・用途種別(usageType)/ISP/ドメイン・Tor/ホワイトリスト判定・攻撃カテゴリ(SSH/ブルートフォース/ポートスキャン等)と直近レポートを付与。読み取り専用(検体/レポートの送信はしません)。プロキシに ABUSEIPDB_API_KEY がある時のみ。無料枠は 1,000 チェック/日。"
+              en="Enrich IPs with the AbuseIPDB community abuse-confidence score (0-100), report/reporter counts, last-reported date, usage type/ISP/domain, Tor/whitelist flags, and attack categories (SSH, brute-force, port scan, …) with recent reports. Read-only (nothing is ever reported). Only if the proxy has ABUSEIPDB_API_KEY. Free tier = 1,000 checks/day."
             />
           </label>
           <p className="hint shodan-hint">

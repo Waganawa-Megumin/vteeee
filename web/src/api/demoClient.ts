@@ -64,6 +64,7 @@ export class DemoClient implements EnrichClient {
         if (fx.cyfirma) result.cyfirma = fx.cyfirma;
         if (fx.threatvision) result.threatvision = fx.threatvision;
         if (fx.recordedfuture) result.recordedfuture = fx.recordedfuture;
+        if (fx.abuseipdb) result.abuseipdb = fx.abuseipdb;
       } else {
         result = normalizeVt({
           input: ind.input,

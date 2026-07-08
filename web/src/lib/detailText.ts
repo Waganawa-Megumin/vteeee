@@ -175,6 +175,24 @@ export function resultToText(r: NormalizedResult): string {
     push('AI Insights', rf.aiInsights);
     push('Intelligence Card', rf.intelCard);
   }
+  if (r.abuseipdb?.found) {
+    const a = r.abuseipdb;
+    L.push('', '## AbuseIPDB');
+    push('Abuse confidence', a.abuseConfidenceScore != null ? `${a.abuseConfidenceScore}/100` : undefined);
+    push(
+      'Reports',
+      a.totalReports != null
+        ? `${a.totalReports}${a.numDistinctUsers != null ? ` from ${a.numDistinctUsers} reporters` : ''}`
+        : undefined,
+    );
+    push('Last reported', dt(a.lastReportedAt));
+    push('Usage type', a.usageType);
+    push('ISP', a.isp);
+    push('Domain', a.domain);
+    push('Country', [a.countryName, a.countryCode].filter(Boolean).join(' '));
+    push('Flags', [a.isTor ? 'Tor exit node' : '', a.isWhitelisted ? 'Whitelisted' : ''].filter(Boolean).join(', '));
+    push('Attack categories', a.categories);
+  }
   if (r.threatvision?.found) {
     L.push('', '## ThreatVision (TeamT5)');
     push(

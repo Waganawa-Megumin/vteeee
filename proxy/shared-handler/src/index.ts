@@ -10,6 +10,7 @@ export {
   mapInternetDb,
 } from './shodanFetch';
 export { urlscanSubmit, urlscanResult, mapUrlscanResult } from './urlscanFetch';
+export { abuseipdbCheck, mapAbuseIpdb } from './abuseipdbFetch';
 export { maxmindLookup, mapMaxmind } from './maxmindFetch';
 export { domaintoolsEnrichDomain, domaintoolsReverseIp, mapIrisEnrich, mapIrisInvestigateReverseIp } from './domaintoolsFetch';
 export { dnslyticsIpInfo, dnslyticsHostingHistory, mapDnslyticsIp, mapDnslyticsHostingHistory } from './dnslyticsFetch';

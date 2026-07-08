@@ -40,6 +40,7 @@ APIキーはすべて**プロキシ側のみ**が保持します。**VirusTotal 
 | **CYFIRMA (DeCYFIR)** | CTI・全種別 | 任意 | `CYFIRMA_API_KEY` | 全種別に **Risk Dossier**（リスク/外部脅威スコア・推奨アクション・ASN/組織/国・**関連インフラ＝攻撃基盤側**）＋**STIX 2.1検索**（脅威アクター/キャンペーン/マルウェア＝アトリビューション）を付与。詳細で脅威アクターのチップを押すと「広域サーチ」でそのアクターのキャンペーン/マルウェア/標的CVEをオンデマンド取得 |
 | **TeamT5 ThreatVision** | CTI・全種別 | 任意 | `THREATVISION_CLIENT_ID`＋`THREATVISION_CLIENT_SECRET` | APT帰属CTI。**IP/ドメイン**：リスク・**攻撃グループ(APT)**・属性(Malware C2/Hosting)・地域/レジストラ・関連件数(**各1 AAP**)。**ハッシュ**：サンプル検索で攻撃グループ+マルウェアファミリ+リスク(**0 AAP**)。詳細で攻撃グループのチップを押すとAPTの別名/出身国/標的を取得。アップロード系は非対応 |
 | **Recorded Future** | CTI・全種別 | 任意 | `RECORDEDFUTURE_API_KEY` | 全種別に Connect API のリスクスコア(0-99)・発火リスクルール＋根拠・活動期間・脅威リスト・関連する脅威アクター/マルウェア・MITRE・AI Insights を付与。詳細でアクター/マルウェアのチップを押すと Threat/Connect API でプロフィールをオンデマンド取得。ハッシュは「Sandbox intel」でサンドボックス評価(**読み取りのみ・検体送信なし**)、「Detection rules」で関連する **Sigma/YARA/Snort** ルールを検索・コピー |
+| **AbuseIPDB** | レピュテーション・IP限定 | 任意 | `ABUSEIPDB_API_KEY` | IP に<b>悪用信頼度スコア(0-100)</b>・レポート数/報告者数・最終報告日・用途種別/ISP/ドメイン・<b>Tor/ホワイトリスト</b>判定・<b>攻撃カテゴリ</b>(SSH/ブルートフォース/ポートスキャン等)＋直近レポートを付与。abuseipdb.comへのリンクも表示。<b>読み取り専用</b>(CHECKのみ・レポート送信/POST系は非対応)。無料枠1,000/日 |
 | **Claude (Anthropic)** | スマートパース | 任意 | `ANTHROPIC_API_KEY` | レポート本文からIOC抽出 |
 | **SOC Prime (TDM)** | 検知コンテンツ | 任意 | `SOCPRIME_API_KEY` | エンリッチではない。<b>検知ルール検索</b>（ヘッダー「Rules」）：キーワード/ATT&CKアクター/ツール/テクニック/重大度で SOC Prime の Sigma 検知ルールを検索し、指定SIEM形式へ翻訳表示。加えて Resultsの「SIEM query」で表示中IOCから<b>ハンティングクエリ</b>生成（Uncoder AI）。トリアージ→ハンティングの橋渡し |
 | **urlscan.io** | ライブ保全・URL/ドメイン（オンデマンド） | 任意 | `URLSCAN_API_KEY` | 詳細パネルの<b>「🎣 魚拓」</b>ボタンで対象を urlscan.io の<b>サンドボックスで実際に開く</b>（訪問は urlscan 側・こちらの出口IPは晒れない）。スクショ・最終URL・解決IP・サーバASN/国・HTTPステータス・<b>悪性判定/スコア</b>・偽装ブランド・接触した全ドメイン/IP・結果ページリンクを取得。<b>OPSEC既定（フリー版でも安全）</b>：<b>unlisted</b>（公開フィード/検索非掲載）・<b>タグ無し</b>（タグは検索可能で足がつくため）・`public`は`URLSCAN_ALLOW_PUBLIC=true`が無い限り<b>unlistedに強制</b>。提出はプロキシ経由なので記録される国はプロキシ側 |
@@ -80,6 +81,7 @@ APIキーはすべて**プロキシ側のみ**が保持します。**VirusTotal 
 | `THREATVISION_CLIENT_ID`＋`THREATVISION_CLIENT_SECRET` | 任意 | **TeamT5 ThreatVision**。OAuth2クライアント認証。全種別にAPT帰属CTI（IP/ドメイン=各1 AAP, ハッシュ=0 AAP） | proxy-deploy |
 | `SOCPRIME_API_KEY` | 任意 | **SOC Prime (TDM)**。`client_secret_id`ヘッダ認証。Uncoder AIでIOC→SIEMハンティングクエリ生成（Results「SIEM query」ボタン） | proxy-deploy |
 | `URLSCAN_API_KEY` | 任意 | **urlscan.io**。`API-Key`認証。詳細パネルの「🎣 魚拓」でURL/ドメインをサンドボックス実行→スクショ/解決IP/接触ホスト/悪性判定（訪問はurlscan側・出口IP非露出） | proxy-deploy |
+| `ABUSEIPDB_API_KEY` | 任意 | **AbuseIPDB**。`Key`ヘッダ認証。IPに悪用信頼度スコア(0-100)+レポート/攻撃カテゴリを付与（CHECKのみ・読み取り専用）。CORS非対応のためプロキシ必須。無料枠1,000/日 | proxy-deploy |
 | `CLOUDFLARE_API_TOKEN` | Cloudflare使用時のみ | Worker デプロイ認証 | proxy-deploy |
 | `CLOUDFLARE_ACCOUNT_ID` | Cloudflare使用時のみ | Cloudflare アカウントID | proxy-deploy |
 
@@ -225,6 +227,7 @@ pnpm exec wrangler kv namespace create VTEEEE_KV
   printf '%s' "<SOC Primeキー>"   | pnpm exec wrangler secret put SOCPRIME_API_KEY          # 任意
   printf '%s' "<RecordedFutureトークン>" | pnpm exec wrangler secret put RECORDEDFUTURE_API_KEY  # 任意
   printf '%s' "<urlscanキー>"    | pnpm exec wrangler secret put URLSCAN_API_KEY          # 任意: URL/ドメインの魚拓
+  printf '%s' "<AbuseIPDBキー>"  | pnpm exec wrangler secret put ABUSEIPDB_API_KEY        # 任意: IPの悪用信頼度スコア
   ```
 - 注意: Workerのレート制限カウンタはisolate間で共有されません。厳密な全体ペースが要るなら Node版を推奨。
 
@@ -272,6 +275,7 @@ pnpm exec wrangler kv namespace create VTEEEE_KV
 | `SOCPRIME_API_KEY` / `SOCPRIME_BASE_URL` | プロキシ | △ | SOC Prime (TDM)。`client_secret_id`認証。Uncoder AIでIOC→SIEMクエリ生成。BASE_URLは既定 api.tdm.socprime.com |
 | `RECORDEDFUTURE_API_KEY` / `RECORDEDFUTURE_BASE_URL` | プロキシ | △ | Recorded Future。`X-RFToken`認証。全種別にリスク/根拠/関連エンティティ＋Actor/Malware/Sandbox/Detection Rule。BASE_URLは既定 api.recordedfuture.com |
 | `URLSCAN_API_KEY` / `URLSCAN_BASE_URL` / `URLSCAN_VISIBILITY` | プロキシ | △ | urlscan.io。`API-Key`認証。URL/ドメインのオンデマンド魚拓（サンドボックスでスクショ+解決IP+接触ホスト+悪性判定）。VISIBILITYは public/unlisted(既定)/private。BASE_URLは既定 urlscan.io |
+| `ABUSEIPDB_API_KEY` / `ABUSEIPDB_MAX_AGE_DAYS` / `ABUSEIPDB_RPM` / `ABUSEIPDB_BASE_URL` | プロキシ | △ | AbuseIPDB。`Key`ヘッダ認証。IPに悪用信頼度スコア+レポート/攻撃カテゴリ(CHECK・読み取り専用)。MAX_AGE_DAYSは既定90(1-365)。BASE_URLは既定 api.abuseipdb.com/api/v2。CORS非対応=プロキシ必須 |
 | `URLSCAN_ALLOW_PUBLIC` / `URLSCAN_TAGS` | プロキシ | △ | **OPSEC**。既定では `public` 指定を **unlisted に強制**（`URLSCAN_ALLOW_PUBLIC=true` の時のみ public 許可）。`URLSCAN_TAGS` は既定空＝タグ無し（タグは検索可能で足がつくため、付けたい場合のみカンマ区切りで指定） |
 | `ALLOWED_ORIGINS` | プロキシ(wrangler.toml / env) | ○ | 許可オリジン(カンマ区切り) |
 | `VT_RPM` / `VT_MAX_RPM` / `VT_DAILY` | プロキシ | △ | レート/日次上限 |

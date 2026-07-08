@@ -74,6 +74,14 @@ export interface ProxyEnv {
    * visible + searchable, so a fixed tag lets anyone cluster/attribute every scan this tool makes.
    */
   urlscanTags?: string;
+  /** AbuseIPDB API key (sent as the `Key` header). When set, IP indicators get the CHECK context. */
+  abuseipdbApiKey?: string;
+  /** AbuseIPDB API base URL. Default https://api.abuseipdb.com/api/v2. */
+  abuseipdbBaseUrl?: string;
+  /** CHECK `maxAgeInDays` (1–365). How far back reports are considered. Default 90. */
+  abuseipdbMaxAgeDays?: number;
+  /** Per-minute cap on AbuseIPDB CHECK lookups (free = 1000/day). Default 60. */
+  abuseipdbRpm?: number;
   /** Shared token required on /api/* (enrich, parse). */
   accessToken?: string;
   /** Token required to write users/settings via /api/admin/*. */

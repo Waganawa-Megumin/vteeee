@@ -232,6 +232,21 @@ export function HelpDialog({ onClose }: { onClose: () => void }) {
                 </span>
               </IntegrationRow>
 
+              <IntegrationRow name="AbuseIPDB" env="ABUSEIPDB_API_KEY" on={health?.abuseipdb ?? null} live={live}>
+                <span className="help-ja">
+                  <b>IP限定</b>。コミュニティによる<b>悪用信頼度スコア(0-100)</b>・レポート数/報告者数・最終報告日・
+                  用途種別(usageType)/ISP/ドメイン・<b>Tor/ホワイトリスト</b>判定・<b>攻撃カテゴリ</b>(SSH/ブルートフォース/
+                  ポートスキャン/Web App Attack等)と直近レポートを付与し、詳細に「🛡 AbuseIPDB」節と abuseipdb.com リンクを表示。
+                  <b>読み取り専用</b>（レポート送信・POST系は非対応）。ON/OFFは Settings。無料枠 1,000 チェック/日。
+                </span>
+                <span className="help-en">
+                  IPs only — community abuse-confidence score (0-100), report/reporter counts, last-reported date,
+                  usage type/ISP/domain, Tor/whitelist flags, and attack categories (SSH, brute-force, port scan,
+                  web-app attack, …) with recent reports. Read-only (no reporting/POST). Toggle in Settings; free tier
+                  = 1,000 checks/day.
+                </span>
+              </IntegrationRow>
+
               <IntegrationRow name="Claude (smart-parse)" env="ANTHROPIC_API_KEY" on={health?.claude ?? null} live={live}>
                 <span className="help-ja">
                   レポート本文などの雑多なテキストからIOCを抽出（「Smart parse (Claude)」ボタン）。無ければ正規表現で代替。

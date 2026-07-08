@@ -32,6 +32,7 @@ export function resultsToCsv(results: NormalizedResult[]): string {
     'cyfirma',
     'threatvision',
     'recordedfuture',
+    'abuseipdb',
     'vt_link',
   ];
   const rows = results.map((r) => [
@@ -100,6 +101,15 @@ export function resultsToCsv(results: NormalizedResult[]): string {
           r.recordedfuture.criticalityLabel ?? '',
           r.recordedfuture.relatedActors?.length ? r.recordedfuture.relatedActors.map((a) => a.name).join('|') : '',
           r.recordedfuture.relatedMalware?.length ? r.recordedfuture.relatedMalware.map((m) => m.name).join('|') : '',
+        ]
+          .filter(Boolean)
+          .join(' · ')
+      : '',
+    r.abuseipdb?.found
+      ? [
+          r.abuseipdb.abuseConfidenceScore != null ? `abuse ${r.abuseipdb.abuseConfidenceScore}/100` : '',
+          r.abuseipdb.totalReports != null ? `${r.abuseipdb.totalReports} reports` : '',
+          r.abuseipdb.categories?.length ? r.abuseipdb.categories.join('|') : '',
         ]
           .filter(Boolean)
           .join(' · ')

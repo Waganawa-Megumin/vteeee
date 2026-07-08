@@ -925,6 +925,47 @@ export interface ShodanScanStatus {
   error?: string;
 }
 
+/** One AbuseIPDB abuse report (from CHECK verbose). */
+export interface AbuseReport {
+  reportedAt?: string;
+  comment?: string;
+  /** Human category labels mapped from the numeric ids (e.g. "SSH", "Brute-Force"). */
+  categories?: string[];
+  reporterCountryCode?: string;
+}
+
+/**
+ * AbuseIPDB CHECK context (IP indicators only). The community abuse-confidence score (0–100) plus
+ * report volume, network attribution (ISP / usage / domain), Tor/whitelist flags and (verbose) recent
+ * reports with attack categories. `found: false` = lookup unavailable (see `error`). AbuseIPDB sends
+ * no CORS headers, so this only works via the proxy (the key stays server-side).
+ */
+export interface AbuseIpdbContext {
+  found: boolean;
+  /** 0–100 — AbuseIPDB's confidence the IP is abusive. */
+  abuseConfidenceScore?: number;
+  totalReports?: number;
+  numDistinctUsers?: number;
+  lastReportedAt?: string;
+  countryCode?: string;
+  countryName?: string;
+  /** e.g. "Data Center/Web Hosting/Transit", "Fixed Line ISP". */
+  usageType?: string;
+  isp?: string;
+  domain?: string;
+  hostnames?: string[];
+  isTor?: boolean;
+  /** May be null when no whitelist lookup was performed. */
+  isWhitelisted?: boolean;
+  ipVersion?: number;
+  /** Distinct attack categories across the reports (human labels), most-reported first. */
+  categories?: string[];
+  /** A sample of recent reports (verbose). */
+  reports?: AbuseReport[];
+  error?: string;
+  raw?: unknown;
+}
+
 /** The single shape the results table & detail panel consume, for all IOC types. */
 export interface NormalizedResult {
   input: string;
@@ -973,6 +1014,9 @@ export interface NormalizedResult {
 
   /** Recorded Future Connect API context (risk + evidence + related actors/malware) — all IOC types. */
   recordedfuture?: RecordedFutureContext;
+
+  /** AbuseIPDB CHECK context (IP indicators only) — community abuse-confidence score + reports. */
+  abuseipdb?: AbuseIpdbContext;
 
   ip?: {
     country?: string;
@@ -1032,6 +1076,8 @@ export interface EnrichOptions {
   threatvision?: boolean;
   /** Request Recorded Future lookups. Ignored if the proxy has no RF token. */
   recordedfuture?: boolean;
+  /** Request AbuseIPDB CHECK on IPs (default true). Ignored if the proxy has no AbuseIPDB key. */
+  abuseipdb?: boolean;
 }
 
 /** What the proxy `GET /health` reports — which integrations are configured server-side. */
@@ -1061,6 +1107,8 @@ export interface ProxyHealth {
   recordedfuture: boolean;
   /** urlscan.io API key present (optional — on-demand URL/domain "魚拓" scans). */
   urlscan: boolean;
+  /** AbuseIPDB API key present (optional — IP abuse-confidence score + reports). */
+  abuseipdb: boolean;
 }
 
 export interface EnrichRequest {
@@ -1131,6 +1179,8 @@ export interface AppSettings {
   threatvision?: boolean;
   /** Request Recorded Future enrichment (default true; only used if the proxy has an RF token). */
   recordedfuture?: boolean;
+  /** Request AbuseIPDB enrichment for IPs (default true; only used if the proxy has an AbuseIPDB key). */
+  abuseipdb?: boolean;
   /** Days to keep local search history (per browser). 0 = disabled. Default 30. */
   historyRetentionDays?: number;
   /** Traffic Light Protocol marking stamped on exported PDFs. Default AMBER. */

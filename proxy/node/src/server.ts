@@ -87,6 +87,10 @@ const env: ProxyEnv = {
   urlscanVisibility: process.env.URLSCAN_VISIBILITY || undefined,
   urlscanAllowPublic: process.env.URLSCAN_ALLOW_PUBLIC === 'true',
   urlscanTags: process.env.URLSCAN_TAGS || undefined,
+  abuseipdbApiKey: process.env.ABUSEIPDB_API_KEY || undefined,
+  abuseipdbBaseUrl: process.env.ABUSEIPDB_BASE_URL || undefined,
+  abuseipdbMaxAgeDays: process.env.ABUSEIPDB_MAX_AGE_DAYS ? Number(process.env.ABUSEIPDB_MAX_AGE_DAYS) : undefined,
+  abuseipdbRpm: process.env.ABUSEIPDB_RPM ? Number(process.env.ABUSEIPDB_RPM) : undefined,
   accessToken: process.env.ACCESS_TOKEN || undefined,
   adminToken: process.env.ADMIN_TOKEN || undefined,
   allowedOrigins,
@@ -168,6 +172,7 @@ app.get('/health', (_req, res) => {
     socprime: Boolean(env.socprimeApiKey),
     recordedfuture: Boolean(env.recordedfutureApiKey),
     urlscan: Boolean(env.urlscanApiKey),
+    abuseipdb: Boolean(env.abuseipdbApiKey),
   });
 });
 
@@ -522,5 +527,5 @@ app.all('/api/history/:id', (req, res) => void handleHistory(req, res, req.param
 app.listen(PORT, () => {
   console.log(`vteeee proxy listening on :${PORT}`);
   console.log(`  allowed origins: ${allowedOrigins.join(', ')}`);
-  console.log(`  VT key: ${env.vtApiKey ? 'set' : 'MISSING'} · Claude: ${env.anthropicApiKey ? 'set' : 'off (regex fallback)'} · Shodan: ${env.shodanApiKey ? 'set' : 'off'} · MaxMind: ${env.maxmindAccountId && env.maxmindLicenseKey ? 'set' : 'off'} · DomainTools: ${env.domaintoolsApiUsername && env.domaintoolsApiKey ? 'set' : 'off'} · DNSLytics: ${env.dnslyticsApiKey ? 'set' : 'off'} · Intel471: ${env.intel471ApiUser && env.intel471ApiKey ? 'set' : 'off'} · CYFIRMA: ${env.cyfirmaApiKey ? 'set' : 'off'} · ThreatVision: ${env.threatvisionAccessToken || (env.threatvisionClientId && env.threatvisionClientSecret) ? 'set' : 'off'} · SOCPrime: ${env.socprimeApiKey ? 'set' : 'off'} · RecordedFuture: ${env.recordedfutureApiKey ? 'set' : 'off'} · urlscan: ${env.urlscanApiKey ? 'set' : 'off'}`);
+  console.log(`  VT key: ${env.vtApiKey ? 'set' : 'MISSING'} · Claude: ${env.anthropicApiKey ? 'set' : 'off (regex fallback)'} · Shodan: ${env.shodanApiKey ? 'set' : 'off'} · MaxMind: ${env.maxmindAccountId && env.maxmindLicenseKey ? 'set' : 'off'} · DomainTools: ${env.domaintoolsApiUsername && env.domaintoolsApiKey ? 'set' : 'off'} · DNSLytics: ${env.dnslyticsApiKey ? 'set' : 'off'} · Intel471: ${env.intel471ApiUser && env.intel471ApiKey ? 'set' : 'off'} · CYFIRMA: ${env.cyfirmaApiKey ? 'set' : 'off'} · ThreatVision: ${env.threatvisionAccessToken || (env.threatvisionClientId && env.threatvisionClientSecret) ? 'set' : 'off'} · SOCPrime: ${env.socprimeApiKey ? 'set' : 'off'} · RecordedFuture: ${env.recordedfutureApiKey ? 'set' : 'off'} · urlscan: ${env.urlscanApiKey ? 'set' : 'off'} · AbuseIPDB: ${env.abuseipdbApiKey ? 'set' : 'off'}`);
 });
