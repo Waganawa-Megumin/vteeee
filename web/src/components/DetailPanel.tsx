@@ -1674,14 +1674,47 @@ function UrlscanCapture({ target, buttonLabel }: { target: string; buttonLabel?:
   const submit = useStore((s) => s.urlscanSubmit);
   const poll = useStore((s) => s.urlscanResult);
   const visibility = useStore((s) => s.settings.urlscanVisibility ?? 'unlisted');
-  const [state, setState] = useState<{ phase: 'idle' | 'running' | 'done' | 'error'; msg?: string; data?: UrlscanResult }>({
-    phase: 'idle',
-  });
+  const [state, setState] = useState<{
+    phase: 'idle' | 'running' | 'done' | 'error' | 'stalled';
+    msg?: string;
+    uuid?: string;
+    startedAt?: number;
+    data?: UrlscanResult;
+  }>({ phase: 'idle' });
   const [imgOk, setImgOk] = useState(true);
   // The visibility urlscan actually used — the proxy may clamp `public` → `unlisted` for OPSEC.
   const [effVis, setEffVis] = useState<string | null>(null);
   const aliveRef = useRef(true);
   useEffect(() => () => void (aliveRef.current = false), []);
+
+  // Poll the result until it materializes. urlscan queues scans — a busy/slow site can take well over
+  // a minute, and the result URL 404s ("Scan is not finished yet") until it's ready, so we poll
+  // patiently and, if it's still not done, park in a `stalled` state with a "Check again" that resumes
+  // this SAME scan (never re-submits — that would waste a scan and lose the original).
+  async function pollUntilDone(uuid: string, startedAt: number) {
+    for (let i = 0; i < 24; i++) {
+      await new Promise((res) => setTimeout(res, i === 0 ? 5000 : 4000));
+      if (!aliveRef.current) return;
+      const elapsed = Math.round((Date.now() - startedAt) / 1000);
+      setState({ phase: 'running', uuid, startedAt, msg: `Rendering at urlscan… ${elapsed}s` });
+      const result = await poll(uuid);
+      if (!aliveRef.current) return;
+      if (result.error) {
+        setState({ phase: 'error', uuid, msg: result.error, data: result });
+        return;
+      }
+      if (!result.pending) {
+        setState({ phase: 'done', uuid, data: result });
+        return;
+      }
+    }
+    setState({
+      phase: 'stalled',
+      uuid,
+      startedAt,
+      msg: `Still rendering at urlscan after ~${Math.round((Date.now() - startedAt) / 1000)}s — a busy or slow site can take a while. Keep waiting?`,
+    });
+  }
 
   async function run() {
     setImgOk(true);
@@ -1694,28 +1727,12 @@ function UrlscanCapture({ target, buttonLabel }: { target: string; buttonLabel?:
       return;
     }
     setEffVis(sub.visibility ?? visibility);
-    const uuid = sub.uuid;
-    // urlscan renders the page over ~10–40s; poll the result until it materializes.
-    for (let i = 0; i < 14; i++) {
-      await new Promise((res) => setTimeout(res, i === 0 ? 6000 : 3000));
-      if (!aliveRef.current) return;
-      setState({ phase: 'running', msg: `Rendering… (~${6 + i * 3}s)` });
-      const result = await poll(uuid);
-      if (!aliveRef.current) return;
-      if (result.error) {
-        setState({ phase: 'error', msg: result.error, data: result });
-        return;
-      }
-      if (!result.pending) {
-        setState({ phase: 'done', data: result });
-        return;
-      }
-    }
-    setState({
-      phase: 'error',
-      msg: 'urlscan is taking longer than usual — open the result page directly.',
-      data: { uuid, resultUrl: `https://urlscan.io/result/${uuid}/` },
-    });
+    await pollUntilDone(sub.uuid, Date.now());
+  }
+
+  async function resume() {
+    if (!state.uuid) return;
+    await pollUntilDone(state.uuid, state.startedAt ?? Date.now());
   }
 
   const d = state.data;
@@ -1729,8 +1746,18 @@ function UrlscanCapture({ target, buttonLabel }: { target: string; buttonLabel?:
     <div className="urlscan-capture">
       <div className="i471-actions">
         <button className="btn btn-ghost btn-sm" onClick={run} disabled={state.phase === 'running'}>
-          {state.phase === 'running' ? (state.msg ?? 'Scanning…') : d ? 'Re-scan' : (buttonLabel ?? `Scan now (${visibility})`)}
+          {state.phase === 'running'
+            ? (state.msg ?? 'Scanning…')
+            : d || state.phase === 'stalled'
+              ? 'Re-scan'
+              : (buttonLabel ?? `Scan now (${visibility})`)}
         </button>
+        {state.phase === 'stalled' && (
+          <button className="btn btn-ghost btn-sm" onClick={resume}>
+            Check again
+          </button>
+        )}
+        {/* Only link out once the result is ready — while pending the result page 404s. */}
         {d?.resultUrl && (
           <a className="btn btn-ghost shodan-link" href={d.resultUrl} target="_blank" rel="noreferrer">
             Open on urlscan ↗
@@ -1751,7 +1778,7 @@ function UrlscanCapture({ target, buttonLabel }: { target: string; buttonLabel?:
         )}
       </div>
 
-      {state.phase === 'error' && <div className="detail-note">{state.msg}</div>}
+      {(state.phase === 'error' || state.phase === 'stalled') && <div className="detail-note">{state.msg}</div>}
 
       {state.phase === 'done' && d && !d.error && (
         <>
@@ -1842,17 +1869,59 @@ function UrlscanSection({ r }: { r: NormalizedResult }) {
   );
 }
 
-/** Web ports → the browser URLs urlscan should capture for an IP (IPv6 gets bracketed). */
+/** Ports that are clearly NOT browser-web — never auto-offer a web魚拓 for these. */
+const NON_WEB_PORTS = new Set([
+  21, 22, 23, 25, 53, 110, 111, 123, 135, 137, 138, 139, 143, 161, 162, 179, 389, 427, 445, 465,
+  514, 515, 587, 623, 636, 993, 995, 1080, 1433, 1521, 2049, 3306, 3389, 5060, 5432, 5900, 5985,
+  5986, 6379, 9200, 11211, 27017, 27018,
+]);
+
+/**
+ * Web URLs urlscan should try for an IP. 443 → https, 80 → http; every other plausibly-web port
+ * (1443, 8080, 8443, 9000, …) is offered as BOTH https and http (best guess first) since a
+ * non-standard port could be either — and urlscan captures even through TLS/cert errors. IPv6 bracketed.
+ */
 function ipWebEndpoints(ip: string, ports: number[]): string[] {
   const host = ip.includes(':') ? `[${ip}]` : ip;
-  const httpsPorts = new Set([443, 8443, 4443, 9443, 10443, 8444]);
-  const httpPorts = new Set([80, 8080, 8000, 8888, 8081, 8008, 5000, 3000, 8090]);
   const out: string[] = [];
-  for (const p of ports) {
-    if (httpsPorts.has(p)) out.push(p === 443 ? `https://${host}` : `https://${host}:${p}`);
-    else if (httpPorts.has(p)) out.push(p === 80 ? `http://${host}` : `http://${host}:${p}`);
+  for (const p of [...new Set(ports)].sort((a, b) => a - b)) {
+    if (p < 1 || p > 65535 || NON_WEB_PORTS.has(p)) continue;
+    if (p === 443) {
+      out.push(`https://${host}`);
+      continue;
+    }
+    if (p === 80) {
+      out.push(`http://${host}`);
+      continue;
+    }
+    const s = String(p);
+    const httpFirst = s.endsWith('80') || [8000, 8008, 8081, 8888, 8090, 5000, 3000, 7001, 9000, 9080].includes(p);
+    out.push(
+      ...(httpFirst
+        ? [`http://${host}:${p}`, `https://${host}:${p}`]
+        : [`https://${host}:${p}`, `http://${host}:${p}`]),
+    );
   }
-  return [...new Set(out)].slice(0, 8);
+  return [...new Set(out)].slice(0, 14);
+}
+
+/** A free-form URL field so an analyst can 魚拓 any scheme://ip:port/path on this host. */
+function ManualUrlscan({ ip }: { ip: string }) {
+  const host = ip.includes(':') ? `[${ip}]` : ip;
+  const [v, setV] = useState(`https://${host}`);
+  return (
+    <div className="ip-web-ep">
+      <input
+        className="ip-web-input mono"
+        value={v}
+        onChange={(e) => setV(e.target.value)}
+        spellCheck={false}
+        aria-label="Custom URL to capture with urlscan"
+        placeholder={`https://${host}:PORT/path`}
+      />
+      <UrlscanCapture target={v} buttonLabel="🎣 魚拓 (custom)" />
+    </div>
+  );
 }
 
 type ScanPhase = 'idle' | 'submitting' | 'scanning' | 'fetching' | 'done' | 'timeout' | 'error';
@@ -2106,25 +2175,25 @@ function LivePortsSection({ r }: { r: NormalizedResult }) {
         ))}
 
       {/* Combined Shodan × urlscan: capture a "魚拓" of the web service(s) this IP is serving. */}
-      {urlscanOn &&
-        (hasPortData && webEndpoints.length === 0 ? (
-          <div className="detail-note">No web ports (80 / 443 / 8080 / …) detected on this host.</div>
-        ) : (
-          <div className="ip-web-capture">
-            <div className="fk ip-web-title">🎣 Web 魚拓 (urlscan) — capture the site served on this IP</div>
-            {!hasPortData && (
-              <span className="hint">
-                Run “Current ports (InternetDB)” for the exact web ports; showing the common ones for now.
-              </span>
-            )}
-            {webEndpoints.map((ep) => (
-              <div key={ep} className="ip-web-ep">
-                <span className="mono ip-web-url">{ep}</span>
-                <UrlscanCapture target={ep} buttonLabel="🎣 魚拓" />
-              </div>
-            ))}
-          </div>
-        ))}
+      {urlscanOn && (
+        <div className="ip-web-capture">
+          <div className="fk ip-web-title">🎣 Web 魚拓 (urlscan) — capture the site served on this IP</div>
+          <span className="hint">
+            urlscan visits from its own sandbox and captures <b>even if the TLS certificate is invalid /
+            self-signed</b> (the warning is ignored). Non-standard ports (1443, 8080, …) are offered as both
+            https and http.
+            {!hasPortData && ' Run “Current ports (InternetDB)” to list every web port; common ones shown for now.'}
+            {hasPortData && webEndpoints.length === 0 && ' No standard web ports detected — use the custom field below.'}
+          </span>
+          {webEndpoints.map((ep) => (
+            <div key={ep} className="ip-web-ep">
+              <span className="mono ip-web-url">{ep}</span>
+              <UrlscanCapture target={ep} buttonLabel="🎣 魚拓" />
+            </div>
+          ))}
+          <ManualUrlscan ip={r.value} />
+        </div>
+      )}
     </div>
   );
 }

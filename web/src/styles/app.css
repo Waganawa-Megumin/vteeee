@@ -1118,6 +1118,18 @@ a.i471-search-item:hover {
   margin-bottom: 2px;
   word-break: break-all;
 }
+.ip-web-input {
+  display: block;
+  width: 100%;
+  max-width: 420px;
+  margin-bottom: 4px;
+  padding: 4px 8px;
+  font-size: 12.5px;
+  border: 1px solid var(--line);
+  border-radius: 6px;
+  background: var(--bg, transparent);
+  color: inherit;
+}
 .urlscan-capture {
   margin-top: 2px;
 }
