@@ -2082,86 +2082,34 @@ function ManualUrlscan({ ip }: { ip: string }) {
   );
 }
 
-type ScanPhase = 'idle' | 'submitting' | 'scanning' | 'fetching' | 'done' | 'timeout' | 'error';
-
 /**
- * Live ports / services (IPs). On demand: Shodan InternetDB gives the current *known* open ports/CVEs
- * for free (no key, no active scan). With a Shodan key, "Re-scan" is a self-driving flow — it asks
- * Shodan to re-observe the host, polls the scan status (QUEUE → PROCESSING → DONE) so you can see the
- * progress, then automatically pulls the fresh banners the moment it finishes.
+ * Live ports / services (IPs). InternetDB gives the current known ports for free. "Re-scan with
+ * Shodan" kicks a re-scan that now runs in the STORE (not this panel) — so it keeps polling and
+ * finishes with a notification even if you close the detail page, and it shows in the header scan
+ * tracker. Reopening this IP re-shows the live status / result.
  */
 function LivePortsSection({ r }: { r: NormalizedResult }) {
   const shodanOn = useStore((s) => s.mode === 'demo' || Boolean(s.health?.shodan));
   const urlscanOn = useStore((s) => s.mode === 'demo' || Boolean(s.health?.urlscan));
   const idbFn = useStore((s) => s.shodanInternetDb);
-  const scanFn = useStore((s) => s.shodanScan);
-  const statusFn = useStore((s) => s.shodanScanStatus);
-  const hostFn = useStore((s) => s.shodanHost);
+  const job = useStore((s) => s.scanJobs[r.value]);
+  const startRescan = useStore((s) => s.startShodanRescan);
+  const recheck = useStore((s) => s.recheckShodanHost);
+  const markSeen = useStore((s) => s.markScanSeen);
   const [idb, setIdb] = useState<{ loading: boolean; data?: ShodanInternetDb } | null>(null);
-  const [scan, setScan] = useState<{
-    phase: ScanPhase;
-    msg?: string;
-    id?: string;
-    creditsLeft?: number;
-    host?: ShodanContext;
-  }>({ phase: 'idle' });
-  const aliveRef = useRef(true);
-  useEffect(() => () => void (aliveRef.current = false), []);
 
-  const scanning = scan.phase === 'submitting' || scan.phase === 'scanning' || scan.phase === 'fetching';
+  const scanning = job ? job.phase === 'submitting' || job.phase === 'scanning' || job.phase === 'fetching' : false;
+  const host = job?.host;
+
+  // Viewing the finished result here clears its "new" badge in the header tracker.
+  useEffect(() => {
+    if (job && !scanning && !job.seen) markSeen(r.value);
+  }, [job, scanning, markSeen, r.value]);
 
   async function runIdb() {
     setIdb({ loading: true });
     setIdb({ loading: false, data: await idbFn(r.value) });
   }
-
-  async function fetchHost(creditsLeft?: number) {
-    setScan({ phase: 'fetching', msg: 'Scan complete — fetching fresh banners…', creditsLeft });
-    const host = await hostFn(r.value);
-    if (!aliveRef.current) return;
-    setScan({ phase: 'done', creditsLeft, host });
-  }
-
-  async function runScan() {
-    const started = Date.now();
-    setScan({ phase: 'submitting', msg: 'Requesting a Shodan re-scan…' });
-    const req = await scanFn(r.value);
-    if (!aliveRef.current) return;
-    if (req.error || !req.id) {
-      setScan({ phase: 'error', msg: req.error ?? 'Shodan did not accept the scan (no id returned)' });
-      return;
-    }
-    const id = req.id;
-    const credits = req.creditsLeft;
-    // Shodan queues scans server-side — poll status until DONE (typically ~10s to a couple of minutes).
-    for (let i = 0; i < 24; i++) {
-      const elapsed0 = Math.round((Date.now() - started) / 1000);
-      setScan({ phase: 'scanning', id, creditsLeft: credits, msg: `Scanning… ${elapsed0}s` });
-      await new Promise((res) => setTimeout(res, 5000));
-      if (!aliveRef.current) return;
-      const st = await statusFn(id);
-      if (!aliveRef.current) return;
-      if (st.error) {
-        setScan({ phase: 'error', id, creditsLeft: credits, msg: st.error });
-        return;
-      }
-      const s = (st.status ?? '').toUpperCase();
-      const elapsed = Math.round((Date.now() - started) / 1000);
-      setScan({ phase: 'scanning', id, creditsLeft: credits, msg: `Scanning… ${elapsed}s${s ? ` · ${s}` : ''}` });
-      if (s === 'DONE') {
-        await fetchHost(credits);
-        return;
-      }
-    }
-    setScan({
-      phase: 'timeout',
-      id,
-      creditsLeft: credits,
-      msg: 'Still queued at Shodan after ~2 min — it finishes server-side. Fetch the banners in a moment.',
-    });
-  }
-
-  const host = scan.host;
 
   // Combine Shodan + urlscan: for a web-facing IP, capture a "魚拓" of the site it serves. Web
   // endpoints are derived from whatever ports we know (batch Shodan, InternetDB, or a fresh re-scan);
@@ -2223,16 +2171,16 @@ function LivePortsSection({ r }: { r: NormalizedResult }) {
         {shodanOn && (
           <button
             className="btn btn-ghost btn-sm"
-            onClick={runScan}
+            onClick={() => startRescan(r.value)}
             disabled={scanning}
-            title="Ask Shodan to re-scan this host now (consumes scan credits). Progress + fresh banners appear automatically."
+            title="Ask Shodan to re-scan this host now (consumes scan credits). It keeps running even if you close this panel — you'll get a notification and it shows in the header scan tracker."
           >
-            {scanning ? (scan.msg ?? 'Scanning…') : 'Re-scan with Shodan'}
+            {scanning ? (job?.msg ?? 'Scanning…') : 'Re-scan with Shodan'}
           </button>
         )}
-        {scan.phase === 'timeout' && (
-          <button className="btn btn-ghost btn-sm" onClick={() => fetchHost(scan.creditsLeft)}>
-            Fetch banners now
+        {job && (job.phase === 'timeout' || job.phase === 'interrupted') && (
+          <button className="btn btn-ghost btn-sm" onClick={() => recheck(r.value)}>
+            Re-check host
           </button>
         )}
       </div>
@@ -2278,18 +2226,18 @@ function LivePortsSection({ r }: { r: NormalizedResult }) {
           </div>
         ))}
 
-      {/* Re-scan progress — live status line so you can see it running and when it finishes. */}
+      {/* Re-scan progress — this runs in the store, so it survives closing/reopening this panel. */}
       {scanning && (
         <div className="detail-note live-scan">
           <span className="live-dot" aria-hidden />
-          {scan.msg}
-          {scan.creditsLeft != null ? ` · ${scan.creditsLeft} credits left` : ''}
+          {job?.msg}
+          {job?.creditsLeft != null ? ` · ${job.creditsLeft} credits left` : ''}
         </div>
       )}
-      {scan.phase === 'timeout' && <div className="detail-note">{scan.msg}</div>}
-      {scan.phase === 'error' && <div className="detail-note">{scan.msg}</div>}
+      {job && (job.phase === 'timeout' || job.phase === 'interrupted') && <div className="detail-note">{job.msg}</div>}
+      {job?.phase === 'error' && <div className="detail-note">{job.msg}</div>}
 
-      {scan.phase === 'done' &&
+      {job?.phase === 'done' &&
         host &&
         (host.error ? (
           <div className="detail-note">{host.error}</div>
@@ -2300,7 +2248,7 @@ function LivePortsSection({ r }: { r: NormalizedResult }) {
         ) : (
           <>
             <div className="detail-note live-done">
-              ✓ Re-scan complete{scan.creditsLeft != null ? ` · ${scan.creditsLeft} credits left` : ''}
+              ✓ Re-scan complete{job.creditsLeft != null ? ` · ${job.creditsLeft} credits left` : ''}
             </div>
             <div className="detail-grid">
               {host.ports && host.ports.length > 0 && <Field k="Open ports (fresh)" v={host.ports.join(', ')} mono />}

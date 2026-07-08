@@ -8,6 +8,7 @@ import { DetailPanel } from './components/DetailPanel';
 import { ProgressBar } from './components/ProgressBar';
 import { SettingsDialog } from './components/SettingsDialog';
 import { IntegrationStatus } from './components/IntegrationStatus';
+import { ScanTracker } from './components/ScanTracker';
 import { HelpDialog } from './components/HelpDialog';
 import { HistoryDialog } from './components/HistoryDialog';
 import { RuleSearchDialog } from './components/RuleSearchDialog';
@@ -56,6 +57,7 @@ export default function App() {
         </div>
         <IntegrationStatus onManage={() => setSettingsOpen(true)} />
         <div className="spacer" />
+        <ScanTracker />
         <button
           className="btn btn-sm theme-toggle"
           title={theme === 'chalk' ? 'Switch to off-white' : 'Switch to chalkboard'}

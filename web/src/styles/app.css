@@ -1129,6 +1129,91 @@ a.i471-search-item:hover {
   color: var(--good, #6c9);
   font-weight: 600;
 }
+/* Header scan tracker — background Shodan re-scans + their results. */
+.scan-tracker-wrap {
+  position: relative;
+}
+.scan-tracker {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+.scan-tracker.active {
+  border-color: var(--accent, #7c9);
+  color: var(--accent, #7c9);
+}
+.scan-tracker.done {
+  border-color: var(--good, #6c9);
+  color: var(--good, #6c9);
+  font-weight: 600;
+}
+.scan-tracker-backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 40;
+}
+.scan-tracker-menu {
+  position: absolute;
+  right: 0;
+  top: calc(100% + 6px);
+  z-index: 41;
+  width: min(360px, 90vw);
+  max-height: 60vh;
+  overflow-y: auto;
+  background: var(--bg2, #1f2a24);
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  box-shadow: 0 10px 30px rgba(0, 0, 0, 0.35);
+  padding: 6px;
+}
+.stm-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 4px 6px 8px;
+  font-size: 12px;
+  color: var(--muted);
+  border-bottom: 1px solid var(--line);
+}
+.stm-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  padding: 8px 6px;
+  border-bottom: 1px solid var(--line);
+}
+.stm-row:last-child {
+  border-bottom: none;
+}
+.stm-row.unseen {
+  background: color-mix(in srgb, var(--good, #6c9) 12%, transparent);
+}
+.stm-main {
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+.stm-ip {
+  font-size: 12.5px;
+  font-weight: 600;
+}
+.stm-status {
+  font-size: 11.5px;
+  color: var(--muted);
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+.stm-row.phase-error .stm-status {
+  color: var(--bad, #d66);
+}
+.stm-actions {
+  display: flex;
+  gap: 4px;
+  flex: 0 0 auto;
+}
 /* Combined Shodan × urlscan: web-魚拓 endpoints for an IP. */
 .ip-web-capture {
   margin-top: 10px;

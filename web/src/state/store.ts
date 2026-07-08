@@ -41,6 +41,74 @@ export const indKey = (i: { type: string; value: string }) => `${i.type}|${i.val
 
 let abortController: AbortController | null = null;
 
+// ---- Background scan jobs (Shodan re-scan) ----
+// Live re-scans are tracked in the store, not in the detail panel, so they keep running (and finish
+// with a notification) even after the panel is closed. Persisted to localStorage so the history
+// survives navigation; a full page reload can't resume the poll loop, so in-flight jobs become
+// `interrupted` on boot and can be re-checked.
+export type ScanPhase = 'submitting' | 'scanning' | 'fetching' | 'done' | 'timeout' | 'error' | 'interrupted';
+export interface ScanJob {
+  ip: string;
+  kind: 'shodan';
+  phase: ScanPhase;
+  /** Shodan scan status: QUEUE / PROCESSING / DONE. */
+  status?: string;
+  msg?: string;
+  startedAt: number;
+  updatedAt: number;
+  creditsLeft?: number;
+  host?: ShodanContext;
+  error?: string;
+  /** Whether the finished result has been viewed (drives the header "new result" badge). */
+  seen: boolean;
+  /** Guards against a superseded poll loop writing stale updates. */
+  token?: number;
+}
+
+const ACTIVE_PHASES: ScanPhase[] = ['submitting', 'scanning', 'fetching'];
+export const isActiveScan = (j: ScanJob): boolean => ACTIVE_PHASES.includes(j.phase);
+
+const SCANJOBS_KEY = 'vteeee.scanJobs';
+function loadScanJobs(): Record<string, ScanJob> {
+  try {
+    const raw = localStorage.getItem(SCANJOBS_KEY);
+    if (!raw) return {};
+    const jobs = JSON.parse(raw) as Record<string, ScanJob>;
+    for (const k of Object.keys(jobs)) {
+      // The poll loop can't survive a full reload → park it so the user can re-check the host.
+      if (jobs[k] && ACTIVE_PHASES.includes(jobs[k].phase)) {
+        jobs[k] = { ...jobs[k], phase: 'interrupted', msg: 'Interrupted by a page reload — re-check the host.', token: undefined };
+      }
+    }
+    return jobs;
+  } catch {
+    return {};
+  }
+}
+function saveScanJobs(jobs: Record<string, ScanJob>): void {
+  try {
+    localStorage.setItem(SCANJOBS_KEY, JSON.stringify(jobs));
+  } catch {
+    /* storage full / disabled — in-memory tracking still works */
+  }
+}
+function maybeRequestNotify(): void {
+  try {
+    if (typeof Notification !== 'undefined' && Notification.permission === 'default') void Notification.requestPermission();
+  } catch {
+    /* ignore */
+  }
+}
+function browserNotify(title: string, body: string, tag: string): void {
+  try {
+    if (typeof Notification !== 'undefined' && Notification.permission === 'granted') {
+      new Notification(title, { body, tag });
+    }
+  } catch {
+    /* ignore */
+  }
+}
+
 interface State {
   booted: boolean;
   session: Session | null;
@@ -100,6 +168,19 @@ interface State {
   shodanScan: (ip: string) => Promise<ShodanScanRequest>;
   shodanScanStatus: (id: string) => Promise<ShodanScanStatus>;
   shodanHost: (ip: string) => Promise<ShodanContext>;
+
+  /** Background Shodan re-scan jobs, keyed by IP — survive closing the detail panel. */
+  scanJobs: Record<string, ScanJob>;
+  /** Kick a Shodan re-scan that polls to completion in the store (not the panel) + notifies. */
+  startShodanRescan: (ip: string) => Promise<void>;
+  /** Re-fetch the host banners for an IP (after a timeout / interrupted scan). */
+  recheckShodanHost: (ip: string) => Promise<void>;
+  /** Mark a finished scan's result as viewed (clears the header badge). */
+  markScanSeen: (ip: string) => void;
+  /** Remove one scan job from the tracker. */
+  dismissScan: (ip: string) => void;
+  /** Remove all finished scan jobs (keeps still-running ones). */
+  clearFinishedScans: () => void;
 }
 
 function defaultIncludes(parsed: ParsedIndicator[]): Record<string, boolean> {
@@ -108,13 +189,41 @@ function defaultIncludes(parsed: ParsedIndicator[]): Record<string, boolean> {
   return m;
 }
 
-export const useStore = create<State>((set, get) => ({
+export const useStore = create<State>((set, get) => {
+  // Patch a scan job with a token guard so a superseded poll loop can't clobber a newer one.
+  const writeJob = (ip: string, token: number, started: number, patch: Partial<ScanJob>): void => {
+    set((s) => {
+      const cur = s.scanJobs[ip];
+      if (cur && cur.token != null && cur.token !== token) return {};
+      const m: Partial<ScanJob> = { ...cur, ...patch };
+      const next: ScanJob = {
+        ip,
+        kind: 'shodan',
+        phase: m.phase ?? 'submitting',
+        status: m.status,
+        msg: m.msg,
+        startedAt: m.startedAt ?? started,
+        updatedAt: Date.now(),
+        creditsLeft: m.creditsLeft,
+        host: m.host,
+        error: m.error,
+        seen: m.seen ?? false,
+        token,
+      };
+      const scanJobs = { ...s.scanJobs, [ip]: next };
+      saveScanJobs(scanJobs);
+      return { scanJobs };
+    });
+  };
+
+  return {
   booted: false,
   session: null,
   users: [],
   settings: { proxyBaseUrl: null, rpm: 4, concurrency: 1, gti: false, submitUnknown: false, shodan: true, maxmind: true, domaintools: true, dnslytics: true, intel471: true, cyfirma: true, threatvision: true, recordedfuture: true, abuseipdb: true, tlp: 'AMBER', urlscanVisibility: 'unlisted' },
   mode: 'demo',
   health: null,
+  scanJobs: loadScanJobs(),
 
   rawInput: '',
   parsed: [],
@@ -501,4 +610,123 @@ export const useStore = create<State>((set, get) => ({
       return { found: false, error: (e as Error).message };
     }
   },
-}));
+
+  async startShodanRescan(ip) {
+    const existing = get().scanJobs[ip];
+    if (existing && isActiveScan(existing)) return; // a scan for this IP is already running
+    const token = Date.now() + Math.random();
+    const started = Date.now();
+    const alive = () => get().scanJobs[ip]?.token === token;
+    maybeRequestNotify(); // the button click is a user gesture, so we may ask for notification permission
+    writeJob(ip, token, started, {
+      phase: 'submitting',
+      msg: 'Requesting a Shodan re-scan…',
+      status: undefined,
+      host: undefined,
+      error: undefined,
+      seen: false,
+    });
+    let client: EnrichClient;
+    try {
+      client = await makeClient(get().settings);
+    } catch (e) {
+      writeJob(ip, token, started, { phase: 'error', msg: (e as Error).message });
+      return;
+    }
+    const req = await client.shodanScan(ip);
+    if (!alive()) return;
+    if (req.error || !req.id) {
+      writeJob(ip, token, started, { phase: 'error', msg: req.error ?? 'Shodan did not accept the scan (no id returned)' });
+      return;
+    }
+    const credits = req.creditsLeft;
+    // Shodan queues scans server-side — poll status until DONE (~10s to a couple of minutes).
+    for (let i = 0; i < 30; i++) {
+      writeJob(ip, token, started, {
+        phase: 'scanning',
+        creditsLeft: credits,
+        msg: `Scanning… ${Math.round((Date.now() - started) / 1000)}s`,
+      });
+      await new Promise((res) => setTimeout(res, i === 0 ? 5000 : 4000));
+      if (!alive()) return;
+      const st = await client.shodanScanStatus(req.id);
+      if (!alive()) return;
+      if (st.error) {
+        writeJob(ip, token, started, { phase: 'error', creditsLeft: credits, msg: st.error });
+        return;
+      }
+      const s = (st.status ?? '').toUpperCase();
+      writeJob(ip, token, started, {
+        phase: 'scanning',
+        status: s || 'PROCESSING',
+        creditsLeft: credits,
+        msg: `Scanning… ${Math.round((Date.now() - started) / 1000)}s${s ? ` · ${s}` : ''}`,
+      });
+      if (s === 'DONE') {
+        writeJob(ip, token, started, { phase: 'fetching', creditsLeft: credits, msg: 'Scan complete — fetching fresh banners…' });
+        const host = await client.shodanHost(ip);
+        if (!alive()) return;
+        writeJob(ip, token, started, { phase: 'done', creditsLeft: credits, host, seen: false, msg: undefined });
+        browserNotify('Shodan re-scan complete', `${ip}${host.ports?.length ? ` · ports ${host.ports.slice(0, 8).join(', ')}` : ''}`, `vteeee-shodan-${ip}`);
+        return;
+      }
+    }
+    writeJob(ip, token, started, {
+      phase: 'timeout',
+      creditsLeft: credits,
+      msg: 'Still queued at Shodan after ~2 min — it finishes server-side. Re-check the banners shortly.',
+    });
+    browserNotify('Shodan re-scan still running', `${ip} — check back and re-fetch the banners.`, `vteeee-shodan-${ip}`);
+  },
+
+  async recheckShodanHost(ip) {
+    const token = Date.now() + Math.random();
+    const started = get().scanJobs[ip]?.startedAt ?? Date.now();
+    writeJob(ip, token, started, { phase: 'fetching', msg: 'Fetching the latest Shodan banners…', error: undefined });
+    let client: EnrichClient;
+    try {
+      client = await makeClient(get().settings);
+    } catch (e) {
+      writeJob(ip, token, started, { phase: 'error', msg: (e as Error).message });
+      return;
+    }
+    const host = await client.shodanHost(ip);
+    if (get().scanJobs[ip]?.token !== token) return;
+    if (host.error) {
+      writeJob(ip, token, started, { phase: 'error', msg: host.error });
+    } else {
+      writeJob(ip, token, started, { phase: 'done', host, seen: false, msg: undefined });
+      browserNotify('Shodan banners updated', `${ip}${host.ports?.length ? ` · ports ${host.ports.slice(0, 8).join(', ')}` : ''}`, `vteeee-shodan-${ip}`);
+    }
+  },
+
+  markScanSeen(ip) {
+    set((s) => {
+      const cur = s.scanJobs[ip];
+      if (!cur || cur.seen) return {};
+      const scanJobs = { ...s.scanJobs, [ip]: { ...cur, seen: true } };
+      saveScanJobs(scanJobs);
+      return { scanJobs };
+    });
+  },
+
+  dismissScan(ip) {
+    set((s) => {
+      if (!s.scanJobs[ip]) return {};
+      const scanJobs = { ...s.scanJobs };
+      delete scanJobs[ip];
+      saveScanJobs(scanJobs);
+      return { scanJobs };
+    });
+  },
+
+  clearFinishedScans() {
+    set((s) => {
+      const scanJobs: Record<string, ScanJob> = {};
+      for (const [k, v] of Object.entries(s.scanJobs)) if (isActiveScan(v)) scanJobs[k] = v;
+      saveScanJobs(scanJobs);
+      return { scanJobs };
+    });
+  },
+  };
+});
