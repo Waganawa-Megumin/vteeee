@@ -1105,6 +1105,10 @@ a.i471-search-item:hover {
 .ip-web-title {
   margin-bottom: 4px;
 }
+.ip-web-group {
+  display: block;
+  margin-top: 8px;
+}
 .ip-web-ep {
   padding: 6px 0;
 }

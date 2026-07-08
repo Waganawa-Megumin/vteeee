@@ -1692,7 +1692,7 @@ function UrlscanCapture({ target, buttonLabel }: { target: string; buttonLabel?:
   // patiently and, if it's still not done, park in a `stalled` state with a "Check again" that resumes
   // this SAME scan (never re-submits — that would waste a scan and lose the original).
   async function pollUntilDone(uuid: string, startedAt: number) {
-    for (let i = 0; i < 24; i++) {
+    for (let i = 0; i < 30; i++) {
       await new Promise((res) => setTimeout(res, i === 0 ? 5000 : 4000));
       if (!aliveRef.current) return;
       const elapsed = Math.round((Date.now() - startedAt) / 1000);
@@ -2016,6 +2016,13 @@ function LivePortsSection({ r }: { r: NormalizedResult }) {
   const webEndpoints = hasPortData
     ? ipWebEndpoints(r.value, knownPorts)
     : [`https://${webBase}`, `http://${webBase}`];
+  // The IP's hostnames (from Shodan/InternetDB) are the CLEANEST 魚拓 targets: scanning
+  // https://<hostname> sends the right SNI/Host so the correct vhost + a valid cert are used —
+  // a bare-IP HTTPS scan fights the cert/vhost mismatch and often stalls at urlscan.
+  const hostnames = [
+    ...new Set([...(r.shodan?.hostnames ?? []), ...(idb?.data?.hostnames ?? []), ...(host?.hostnames ?? [])]),
+  ].filter((h) => /^(?=.{1,253}$)([a-z0-9-]+\.)+[a-z]{2,}$/i.test(h));
+  const hostnameEndpoints = hostnames.slice(0, 6).map((h) => `https://${h}`);
 
   return (
     <div className="shodan-block">
@@ -2185,6 +2192,21 @@ function LivePortsSection({ r }: { r: NormalizedResult }) {
             {!hasPortData && ' Run “Current ports (InternetDB)” to list every web port; common ones shown for now.'}
             {hasPortData && webEndpoints.length === 0 && ' No standard web ports detected — use the custom field below.'}
           </span>
+          {hostnameEndpoints.length > 0 && (
+            <>
+              <div className="hint ip-web-group">
+                ✅ Recommended — capture via the host's own name (correct vhost + valid cert; a bare-IP HTTPS
+                scan often stalls on the cert/SNI mismatch):
+              </div>
+              {hostnameEndpoints.map((ep) => (
+                <div key={ep} className="ip-web-ep">
+                  <span className="mono ip-web-url">{ep}</span>
+                  <UrlscanCapture target={ep} buttonLabel="🎣 魚拓" />
+                </div>
+              ))}
+              <div className="hint ip-web-group">Or capture the bare IP directly:</div>
+            </>
+          )}
           {webEndpoints.map((ep) => (
             <div key={ep} className="ip-web-ep">
               <span className="mono ip-web-url">{ep}</span>
