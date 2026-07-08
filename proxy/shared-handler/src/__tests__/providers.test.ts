@@ -13,6 +13,14 @@ import { mapRiskDossier, mapStixSearch, mapThreatActor } from '../cyfirmaFetch';
 import { mapTvIp, mapTvDomain, mapTvSample, mapTvAdversary } from '../threatvisionFetch';
 import { mapSocprimeQuery, mapSocprimeRules } from '../socprimeFetch';
 import { mapMaxmind, maxmindLookup } from '../maxmindFetch';
+import {
+  mapRfLookup,
+  mapRfActor,
+  mapRfMalware,
+  mapRfSandbox,
+  mapRfRules,
+  rfLookup,
+} from '../recordedfutureFetch';
 import { runEnrich } from '../enrich';
 import type { ProxyEnv } from '../types';
 
@@ -21,6 +29,8 @@ const env: ProxyEnv = {
   maxmindAccountId: 'mm',
   maxmindLicenseKey: 'mmk',
   maxmindRpm: 600,
+  recordedfutureApiKey: 'rf',
+  recordedfutureRpm: 600,
   domaintoolsApiUsername: 'u',
   domaintoolsApiKey: 'k',
   domaintoolsRpm: 600,
@@ -393,6 +403,107 @@ const MAXMIND_INSIGHTS = {
   },
 };
 
+// Recorded Future Connect API lookup (subset of /v2/{type}/{id}?fields=... response).
+const RF_IP_LOOKUP = {
+  data: {
+    risk: {
+      score: 92,
+      criticality: 4,
+      criticalityLabel: 'Very Malicious',
+      riskString: '9/79',
+      riskSummary: '9 of 79 Risk Rules currently observed',
+      evidenceDetails: [
+        {
+          rule: 'Actively Communicating C&C Server',
+          criticality: 4,
+          criticalityLabel: 'Very Malicious',
+          evidenceString: 'Recorded Future network traffic analysis identified active C2 communication.',
+          timestamp: '2025-01-10T14:51:38.462Z',
+        },
+        {
+          rule: 'Current Tor Node',
+          criticality: 2,
+          criticalityLabel: 'Suspicious',
+          evidenceString: 'This IP is a current Tor exit node.',
+          timestamp: '2025-01-09T00:00:00.000Z',
+        },
+      ],
+    },
+    timestamps: { firstSeen: '2019-08-14T00:00:00.000Z', lastSeen: '2025-01-10T00:00:00.000Z' },
+    threatLists: [{ name: 'Tor Exit Nodes' }, { name: 'C&C Servers' }],
+    relatedEntities: [
+      {
+        type: 'RelatedThreatActor',
+        entities: [
+          { count: 12, entity: { id: 'S9Gvql', name: 'BlueDelta', type: 'Organization' } },
+          { count: 3, entity: { id: 'PD_NyL', name: 'UAC-0056' } },
+        ],
+      },
+      { type: 'RelatedMalware', entities: [{ count: 7, entity: { id: 'K5GvlA', name: 'X-Agent' } }] },
+    ],
+    riskMapping: [{ rule: 'Actively Communicating C&C Server', categories: [{ framework: 'MITRE', name: 'T1071' }] }],
+    location: { asn: 'AS60729', organization: 'Zwiebelfreunde e.V.', location: { country: 'Germany', city: 'Frankfurt' } },
+    aiInsights: { text: 'Active C2 attributed to BlueDelta.' },
+    intelCard: 'https://app.recordedfuture.com/live/sc/entity/ip%3A185.220.101.1',
+  },
+};
+
+const RF_ACTOR = {
+  data: [
+    {
+      id: 'S9Gvql',
+      type: 'Organization',
+      attributes: {
+        name: 'BlueDelta',
+        common_names: ['APT28'],
+        alias: ['Fancy Bear', 'Sofacy'],
+        categories: [{ id: 'PD_NyL', name: 'Nation State Sponsored' }],
+      },
+    },
+  ],
+};
+
+const RF_MALWARE = {
+  data: {
+    entity: { id: 'K5GvlA', name: 'X-Agent' },
+    timestamps: { firstSeen: '2015-02-11T00:00:00.000Z', lastSeen: '2025-01-01T00:00:00.000Z' },
+    relatedEntities: [
+      { type: 'RelatedMalwareCategory', entities: [{ entity: { name: 'Backdoor' } }] },
+      { type: 'RelatedThreatActor', entities: [{ count: 5, entity: { name: 'BlueDelta' } }] },
+    ],
+  },
+};
+
+const RF_SANDBOX = {
+  data: [
+    {
+      name: '275a021bbfb6489e54d471899f7db9d1663fc695ec2fe2a2c4538aabf651fd0f',
+      count: 10,
+      risk_score: 89,
+      sandbox_score: 8,
+      file_extensions: ['.exe'],
+      tags: ['trojan', 'family:redline'],
+      links: { universal_report: 'https://app.recordedfuture.com/portal/x/sandbox-report', intelligence_card: 'https://app.recordedfuture.com/portal/x' },
+    },
+  ],
+  counts: { returned: 1, total: 3 },
+};
+
+const RF_RULES = {
+  result: [
+    {
+      id: 'doc:1',
+      title: 'X-Agent C2 beacon',
+      type: 'sigma',
+      description: 'Detects the HTTP beacon pattern used by X-Agent.',
+      created: '2024-05-01',
+      updated: '2025-11-12',
+      rules: [{ content: 'title: X-Agent C2 beacon\nlevel: high', file_name: 'xagent.yml', entities: [{ name: 'X-Agent' }] }],
+    },
+  ],
+  counts: { total: 1 },
+};
+
 const TV_ADVERSARY = {
   success: true,
   adversaries: [
@@ -714,6 +825,76 @@ describe('MaxMind GeoIP mapper + lookup', () => {
   });
 });
 
+describe('Recorded Future mappers + lookup', () => {
+  it('mapRfLookup maps risk, evidence (+MITRE), related actors/malware, threat lists, location, AI', () => {
+    const c = mapRfLookup(RF_IP_LOOKUP);
+    expect(c).toMatchObject({
+      found: true,
+      riskScore: 92,
+      criticality: 4,
+      criticalityLabel: 'Very Malicious',
+      riskString: '9/79',
+    });
+    expect(c.evidence?.[0]).toMatchObject({ rule: 'Actively Communicating C&C Server', criticality: 4 });
+    expect(c.evidence?.[0]?.mitre).toEqual(['T1071']); // from riskMapping, joined by rule
+    expect(c.threatLists).toEqual(['Tor Exit Nodes', 'C&C Servers']);
+    expect(c.relatedActors?.[0]).toMatchObject({ id: 'S9Gvql', name: 'BlueDelta', count: 12 }); // most-referenced first
+    expect(c.relatedMalware?.[0]).toMatchObject({ id: 'K5GvlA', name: 'X-Agent' });
+    expect(c.mitre).toContain('T1071');
+    expect(c.asn).toBe('AS60729');
+    expect(c.country).toBe('Germany');
+    expect(c.aiInsights).toContain('BlueDelta');
+    expect(c.intelCard).toContain('recordedfuture.com');
+  });
+  it('mapRfLookup returns found:false for an empty response', () => {
+    expect(mapRfLookup({})).toMatchObject({ found: false });
+    expect(mapRfLookup({ data: {} })).toMatchObject({ found: false });
+  });
+  it('mapRfActor picks the name-matching actor + aliases/common names/categories + intel card', () => {
+    const a = mapRfActor(RF_ACTOR, 'BlueDelta');
+    expect(a).toMatchObject({ id: 'S9Gvql', name: 'BlueDelta' });
+    expect(a.commonNames).toContain('APT28');
+    expect(a.aliases).toContain('Fancy Bear');
+    expect(a.categories).toContain('Nation State Sponsored');
+    expect(a.intelCard).toContain('S9Gvql');
+  });
+  it('mapRfMalware maps categories + related actors + timestamps + intel card', () => {
+    const m = mapRfMalware(RF_MALWARE, 'X-Agent');
+    expect(m).toMatchObject({ id: 'K5GvlA', name: 'X-Agent' });
+    expect(m.categories).toContain('Backdoor');
+    expect(m.relatedActors).toContain('BlueDelta');
+    expect(m.intelCard).toContain('K5GvlA');
+  });
+  it('mapRfSandbox maps the first hit (scores/tags/report link/total)', () => {
+    const s = mapRfSandbox(RF_SANDBOX);
+    expect(s).toMatchObject({ riskScore: 89, sandboxScore: 8, total: 3 });
+    expect(s.tags).toContain('family:redline');
+    expect(s.universalReport).toContain('sandbox-report');
+  });
+  it('mapRfRules maps rule docs (type/title/content/entities + total)', () => {
+    const res = mapRfRules(RF_RULES);
+    expect(res.total).toBe(1);
+    expect(res.rules?.[0]).toMatchObject({ id: 'doc:1', title: 'X-Agent C2 beacon', type: 'sigma', fileName: 'xagent.yml' });
+    expect(res.rules?.[0]?.content).toContain('X-Agent');
+    expect(res.rules?.[0]?.entities).toEqual(['X-Agent']);
+  });
+  it('rfLookup treats a 404 as found:false (not in RF), not an error', async () => {
+    vi.stubGlobal('fetch', vi.fn(async () => resp(404, {})));
+    const c = await rfLookup('domain', 'nope.example', env);
+    expect(c).toMatchObject({ found: false });
+    expect(c?.error).toBeUndefined();
+  });
+  it('rfLookup surfaces a 403 (subscription lacks the API) as an error', async () => {
+    vi.stubGlobal('fetch', vi.fn(async () => resp(403, { message: 'no access' })));
+    const c = await rfLookup('ipv4', '1.2.3.4', env);
+    expect(c?.found).toBe(false);
+    expect(c?.error).toMatch(/403/);
+  });
+  it('rfLookup returns undefined when no RF token is configured', async () => {
+    expect(await rfLookup('ipv4', '1.2.3.4', { ...env, recordedfutureApiKey: undefined })).toBeUndefined();
+  });
+});
+
 describe('SOC Prime Uncoder mapper', () => {
   it('mapSocprimeQuery reads {queries:[{query,iocs_count}]}', () => {
     const r = mapSocprimeQuery({ queries: [{ query: 'index=* dst IN (1.1.1.1)', iocs_count: 3 }], iocs_count: 3 });
@@ -787,6 +968,8 @@ function stubFetch() {
       if (url.includes('threatvision.org') && url.includes('/adversaries/search')) return resp(200, TV_ADVERSARY);
       // MaxMind GeoIP (before the VT catch-all): https://geoip.maxmind.com/geoip/v2.1/insights/{ip}
       if (url.includes('geoip.maxmind.com')) return resp(200, MAXMIND_INSIGHTS);
+      // Recorded Future Connect lookup (all IOC types): https://api.recordedfuture.com/v2/{type}/{id}
+      if (url.includes('api.recordedfuture.com/v2/')) return resp(200, RF_IP_LOOKUP);
       if (url.includes('/ip_addresses/') || url.includes('/domains/') || url.includes('/urls'))
         return resp(200, { data: { attributes: { last_analysis_stats: { harmless: 9 } } } });
       return resp(404, '{}');
@@ -817,6 +1000,10 @@ describe('runEnrich routing by IOC type', () => {
     // MaxMind GeoIP applies to IPs only (geolocation + Insights traits).
     expect(ip?.maxmind).toMatchObject({ found: true, country: 'United States', city: 'Mountain View', asn: 15169 });
     expect(dom?.maxmind).toBeUndefined(); // not an IP → no MaxMind lookup
+    // Recorded Future applies to every IOC type (Connect risk + related actors/malware pivots).
+    expect(ip?.recordedfuture).toMatchObject({ found: true, riskScore: 92, criticalityLabel: 'Very Malicious' });
+    expect(ip?.recordedfuture?.relatedActors?.[0]?.name).toBe('BlueDelta');
+    expect(dom?.recordedfuture?.found).toBe(true);
     // Intel 471 applies to every IOC type, merging Malware Intel (indicators) + IOC feed.
     expect(dom?.intel471?.found).toBe(true);
     expect(dom?.intel471?.malwareFamily).toBe('redline'); // from /indicators

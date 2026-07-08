@@ -31,6 +31,7 @@ export function resultsToCsv(results: NormalizedResult[]): string {
     'intel471',
     'cyfirma',
     'threatvision',
+    'recordedfuture',
     'vt_link',
   ];
   const rows = results.map((r) => [
@@ -89,6 +90,16 @@ export function resultsToCsv(results: NormalizedResult[]): string {
           r.threatvision.riskLevel ?? '',
           r.threatvision.adversaries?.length ? r.threatvision.adversaries.join('|') : '',
           r.threatvision.malwareFamilies?.length ? r.threatvision.malwareFamilies.join('|') : '',
+        ]
+          .filter(Boolean)
+          .join(' · ')
+      : '',
+    r.recordedfuture?.found
+      ? [
+          r.recordedfuture.riskScore != null ? `risk ${r.recordedfuture.riskScore}/99` : '',
+          r.recordedfuture.criticalityLabel ?? '',
+          r.recordedfuture.relatedActors?.length ? r.recordedfuture.relatedActors.map((a) => a.name).join('|') : '',
+          r.recordedfuture.relatedMalware?.length ? r.recordedfuture.relatedMalware.map((m) => m.name).join('|') : '',
         ]
           .filter(Boolean)
           .join(' · ')

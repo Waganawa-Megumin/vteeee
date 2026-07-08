@@ -43,6 +43,11 @@ THREATVISION_CLIENT_SECRET=
 # Optional — SOC Prime (TDM): personal API key for Uncoder AI IOC → SIEM query generation:
 SOCPRIME_API_KEY=
 # SOCPRIME_BASE_URL=https://api.tdm.socprime.com
+# Optional — Recorded Future (X-RFToken). Connect risk intel on every IOC + on-demand
+# threat-actor/malware pivots, sandbox summaries (read-only) and Sigma/YARA/Snort rules:
+RECORDEDFUTURE_API_KEY=
+# RECORDEDFUTURE_BASE_URL=https://api.recordedfuture.com
+# RECORDEDFUTURE_RPM=30
 # Shared token required on /api/* (set the same value in the web Settings dialog):
 ACCESS_TOKEN=
 # Token required to write users/settings via /api/admin/* :

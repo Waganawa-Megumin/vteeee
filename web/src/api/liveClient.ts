@@ -8,6 +8,11 @@ import type {
   Intel471Search,
   ParsedIndicator,
   ParseResponse,
+  RfActorProfile,
+  RfMalwareProfile,
+  RfRuleSearchParams,
+  RfRuleSearchResult,
+  RfSandboxIntel,
   SocPrimeQueryOptions,
   SocPrimeQueryResult,
   SocPrimeRuleSearchParams,
@@ -39,7 +44,8 @@ export class LiveClient implements EnrichClient {
       (settings.dnslytics !== false ? 1 : 0) +
       (settings.intel471 !== false ? 2 : 0) + // Intel 471 = /indicators + /iocs (+on-demand /search)
       (settings.cyfirma !== false ? 2 : 0) + // CYFIRMA = /riskdossier + /threatioc search (+on-demand actor)
-      (settings.threatvision !== false ? 1 : 0); // ThreatVision = 1 detail/search call per IOC
+      (settings.threatvision !== false ? 1 : 0) + // ThreatVision = 1 detail/search call per IOC
+      (settings.recordedfuture !== false ? 1 : 0); // Recorded Future Connect = 1 lookup per IOC
     this.chunk = Math.max(3, Math.floor(40 / (providers + 1)));
   }
 
@@ -180,6 +186,41 @@ export class LiveClient implements EnrichClient {
     });
     if (!res.ok) return { error: `ThreatVision adversary lookup failed: ${res.status}` };
     return (await res.json()) as ThreatVisionAdversary;
+  }
+
+  async rfActor(name: string): Promise<RfActorProfile> {
+    const res = await fetch(`${this.base}/api/rf/actor?name=${encodeURIComponent(name)}`, {
+      headers: this.headers(false),
+    });
+    if (!res.ok) return { name, error: `Recorded Future actor lookup failed: ${res.status}` };
+    return (await res.json()) as RfActorProfile;
+  }
+
+  async rfMalware(ref: { id?: string; name?: string }): Promise<RfMalwareProfile> {
+    const q = new URLSearchParams();
+    if (ref.id) q.set('id', ref.id);
+    if (ref.name) q.set('name', ref.name);
+    const res = await fetch(`${this.base}/api/rf/malware?${q.toString()}`, { headers: this.headers(false) });
+    if (!res.ok) return { name: ref.name, error: `Recorded Future malware lookup failed: ${res.status}` };
+    return (await res.json()) as RfMalwareProfile;
+  }
+
+  async rfSandbox(hash: string): Promise<RfSandboxIntel> {
+    const res = await fetch(`${this.base}/api/rf/sandbox?hash=${encodeURIComponent(hash)}`, {
+      headers: this.headers(false),
+    });
+    if (!res.ok) return { error: `Recorded Future sandbox lookup failed: ${res.status}` };
+    return (await res.json()) as RfSandboxIntel;
+  }
+
+  async rfRules(params: RfRuleSearchParams): Promise<RfRuleSearchResult> {
+    const res = await fetch(`${this.base}/api/rf/rules`, {
+      method: 'POST',
+      headers: this.headers(),
+      body: JSON.stringify(params),
+    });
+    if (!res.ok) return { error: `Recorded Future rule search failed: ${res.status}` };
+    return (await res.json()) as RfRuleSearchResult;
   }
 
   async socprimeQuery(text: string, opts: SocPrimeQueryOptions): Promise<SocPrimeQueryResult> {

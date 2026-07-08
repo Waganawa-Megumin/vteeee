@@ -12,6 +12,12 @@ import type {
   Intel471SearchItem,
   MaxmindContext,
   NormalizedResult,
+  RecordedFutureContext,
+  RfActorProfile,
+  RfDetectionRule,
+  RfMalwareProfile,
+  RfRuleSearchResult,
+  RfSandboxIntel,
   ShodanContext,
   ShodanService,
   SocPrimeQueryResult,
@@ -1099,6 +1105,349 @@ function ThreatVisionSection({ d }: { d: ThreatVisionContext }) {
   );
 }
 
+/** Recorded Future criticality → chip class (Very Malicious/Malicious → red, Suspicious → amber). */
+function rfCritClass(c?: number): string {
+  if (c != null && c >= 3) return 'chip shodan-vuln';
+  return 'chip';
+}
+
+/** One Recorded Future detection rule (Sigma / YARA / Snort) with a copyable body. */
+function RfRuleCard({ rule }: { rule: RfDetectionRule }) {
+  const [copied, setCopied] = useState(false);
+  async function copy() {
+    if (!rule.content) return;
+    try {
+      await navigator.clipboard.writeText(rule.content);
+      setCopied(true);
+      setTimeout(() => setCopied(false), 1500);
+    } catch {
+      /* clipboard blocked */
+    }
+  }
+  return (
+    <div className="rule-card">
+      <div className="rule-card-head">
+        <span className={`badge type type-${(rule.type ?? 'rule').toLowerCase()}`}>{rule.type ?? 'rule'}</span>
+        <span className="rule-name">{rule.title ?? rule.fileName ?? rule.id}</span>
+      </div>
+      {rule.description && <div className="pv-raw">{rule.description}</div>}
+      {rule.entities && rule.entities.length > 0 && (
+        <div className="fv chips">
+          {rule.entities.map((e) => (
+            <span key={e} className="chip">
+              {e}
+            </span>
+          ))}
+        </div>
+      )}
+      {rule.content && (
+        <>
+          <div className="i471-actions">
+            <span className="fk">{rule.fileName ?? `${rule.type ?? 'rule'} body`}</span>
+            <button className="btn btn-sm btn-ghost" onClick={copy}>
+              {copied ? '✓ Copied' : 'Copy'}
+            </button>
+          </div>
+          <textarea className="siem-output mono" readOnly rows={8} value={rule.content} />
+        </>
+      )}
+    </div>
+  );
+}
+
+/**
+ * Recorded Future block — automatic Connect enrichment (risk score + triggered rules/evidence,
+ * activity window, threat lists, related actors/malware, MITRE, AI Insights, Intelligence Card link)
+ * plus on-demand pivots: click an actor/malware chip for its RF profile; for hashes fetch a sandbox
+ * summary (read-only — nothing is submitted); and search related Sigma/YARA/Snort detection rules.
+ */
+function RecordedFutureSection({ d, r }: { d: RecordedFutureContext; r: NormalizedResult }) {
+  const rfActor = useStore((s) => s.rfActor);
+  const rfMalware = useStore((s) => s.rfMalware);
+  const rfSandbox = useStore((s) => s.rfSandbox);
+  const rfRules = useStore((s) => s.rfRules);
+  const [actor, setActor] = useState<{ name: string; loading: boolean; data?: RfActorProfile } | null>(null);
+  const [malware, setMalware] = useState<{ name: string; loading: boolean; data?: RfMalwareProfile } | null>(null);
+  const [sandbox, setSandbox] = useState<{ loading: boolean; data?: RfSandboxIntel } | null>(null);
+  const [rules, setRules] = useState<{ loading: boolean; basis: string; data?: RfRuleSearchResult } | null>(null);
+
+  const isHash = r.type === 'md5' || r.type === 'sha1' || r.type === 'sha256';
+
+  async function runActor(name: string) {
+    setActor({ name, loading: true });
+    setActor({ name, loading: false, data: await rfActor(name) });
+  }
+  async function runMalware(m: { id?: string; name: string }) {
+    setMalware({ name: m.name, loading: true });
+    setMalware({ name: m.name, loading: false, data: await rfMalware({ id: m.id, name: m.name }) });
+  }
+  async function runSandbox() {
+    setSandbox({ loading: true });
+    setSandbox({ loading: false, data: await rfSandbox(r.value) });
+  }
+  async function runRules() {
+    // Prefer pivoting on the RF entity ids of related malware/actors; else free-text the top name.
+    const ids = [
+      ...(d.relatedMalware ?? []),
+      ...(d.relatedActors ?? []),
+    ]
+      .map((e) => e.id)
+      .filter((x): x is string => Boolean(x));
+    const title = d.relatedMalware?.[0]?.name ?? d.relatedActors?.[0]?.name;
+    const basis = ids.length ? (title ?? 'related entities') : (title ?? r.value);
+    setRules({ loading: true, basis });
+    const params = ids.length ? { entities: ids, limit: 8 } : { title: title ?? r.value, limit: 8 };
+    setRules({ loading: false, basis, data: await rfRules(params) });
+  }
+
+  const scoreLine =
+    [
+      d.riskScore != null ? `risk ${d.riskScore}/99` : '',
+      d.criticalityLabel ?? '',
+      d.riskString ? `(${d.riskString} rules)` : '',
+    ]
+      .filter(Boolean)
+      .join('  ·  ') || undefined;
+  const ruleList = rules?.data?.rules ?? [];
+
+  return (
+    <div className="shodan-block">
+      <div className="shodan-head">
+        <span className="shodan-logo" aria-hidden>
+          🔮
+        </span>
+        Recorded Future
+        {d.found && d.riskScore != null && (
+          <span className="shodan-when">risk {d.riskScore}/99 · {d.criticalityLabel ?? '—'}</span>
+        )}
+      </div>
+
+      {!d.found ? (
+        <div className="detail-note">{d.error ?? 'No Recorded Future record for this indicator.'}</div>
+      ) : (
+        <div className="detail-grid">
+          <Field k="Risk" v={scoreLine} />
+          <Field k="Summary" v={d.riskSummary} />
+          {d.evidence && d.evidence.length > 0 && (
+            <div className="field">
+              <div className="fk">Evidence</div>
+              <div className="fv">
+                {d.evidence.map((e, i) => (
+                  <div key={i} className="rf-evidence">
+                    <span className={rfCritClass(e.criticality)}>{e.criticalityLabel ?? e.criticality ?? '·'}</span>{' '}
+                    <b>{e.rule}</b>
+                    {e.mitre && e.mitre.length > 0 ? ` [${e.mitre.join(', ')}]` : ''}
+                    {e.evidence ? <div className="pv-raw">{e.evidence}</div> : null}
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+          {d.threatLists && d.threatLists.length > 0 && (
+            <div className="field">
+              <div className="fk">Threat lists</div>
+              <Chips items={d.threatLists} />
+            </div>
+          )}
+          {d.relatedActors && d.relatedActors.length > 0 && (
+            <div className="field">
+              <div className="fk">Threat actors</div>
+              <div className="fv chips">
+                {d.relatedActors.map((a) => (
+                  <button
+                    key={a.name}
+                    className="chip chip-btn"
+                    onClick={() => runActor(a.name)}
+                    title={`Recorded Future actor profile — ${a.name}`}
+                  >
+                    🔎 {a.name}
+                    {a.count ? ` (${a.count})` : ''}
+                  </button>
+                ))}
+              </div>
+            </div>
+          )}
+          {d.relatedMalware && d.relatedMalware.length > 0 && (
+            <div className="field">
+              <div className="fk">Malware</div>
+              <div className="fv chips">
+                {d.relatedMalware.map((m) => (
+                  <button
+                    key={m.name}
+                    className="chip chip-btn shodan-vuln"
+                    onClick={() => runMalware(m)}
+                    title={`Recorded Future malware profile — ${m.name}`}
+                  >
+                    🔎 {m.name}
+                    {m.count ? ` (${m.count})` : ''}
+                  </button>
+                ))}
+              </div>
+            </div>
+          )}
+          <Field k="MITRE ATT&CK" v={d.mitre && d.mitre.length ? d.mitre.join(', ') : undefined} />
+          <Field k="ASN" v={[d.asn, d.organization].filter(Boolean).join(' · ') || undefined} />
+          <Field k="Location" v={[d.city, d.country].filter(Boolean).join(', ') || undefined} />
+          <Field k="First seen" v={d.firstSeen ? new Date(d.firstSeen).toLocaleDateString() : undefined} />
+          <Field k="Last seen" v={d.lastSeen ? new Date(d.lastSeen).toLocaleDateString() : undefined} />
+          {d.aiInsights && (
+            <div className="field">
+              <div className="fk">AI Insights</div>
+              <div className="fv">{d.aiInsights}</div>
+            </div>
+          )}
+        </div>
+      )}
+
+      {/* On-demand actor profile */}
+      {actor && (
+        <div className="cyfirma-actor">
+          {actor.loading ? (
+            <div className="detail-note">Loading {actor.name}…</div>
+          ) : actor.data?.error ? (
+            <div className="detail-note">{actor.data.error}</div>
+          ) : actor.data ? (
+            <>
+              <div className="cyfirma-actor-title">Actor · {actor.data.name}</div>
+              <div className="detail-grid">
+                <Field k="Common names" v={actor.data.commonNames?.join(', ')} />
+                <Field k="Aliases" v={actor.data.aliases?.join(', ')} />
+                <Field k="Categories" v={actor.data.categories?.join(', ')} />
+              </div>
+              {actor.data.intelCard && (
+                <a className="btn btn-ghost shodan-link" href={actor.data.intelCard} target="_blank" rel="noreferrer">
+                  Open actor in Recorded Future ↗
+                </a>
+              )}
+            </>
+          ) : null}
+        </div>
+      )}
+
+      {/* On-demand malware profile */}
+      {malware && (
+        <div className="cyfirma-actor">
+          {malware.loading ? (
+            <div className="detail-note">Loading {malware.name}…</div>
+          ) : malware.data?.error ? (
+            <div className="detail-note">{malware.data.error}</div>
+          ) : malware.data ? (
+            <>
+              <div className="cyfirma-actor-title">Malware · {malware.data.name}</div>
+              <div className="detail-grid">
+                <Field k="Categories" v={malware.data.categories?.join(', ')} />
+                <Field k="Related actors" v={malware.data.relatedActors?.join(', ')} />
+                <Field
+                  k="Active"
+                  v={
+                    [malware.data.firstSeen, malware.data.lastSeen]
+                      .filter(Boolean)
+                      .map((s) => new Date(s!).toLocaleDateString())
+                      .join(' – ') || undefined
+                  }
+                />
+              </div>
+              {malware.data.intelCard && (
+                <a
+                  className="btn btn-ghost shodan-link"
+                  href={malware.data.intelCard}
+                  target="_blank"
+                  rel="noreferrer"
+                >
+                  Open malware in Recorded Future ↗
+                </a>
+              )}
+            </>
+          ) : null}
+        </div>
+      )}
+
+      {/* On-demand sandbox summary (hashes) + detection-rule search */}
+      {d.found && (
+        <div className="i471-actions">
+          {isHash && (
+            <button className="btn btn-ghost btn-sm" onClick={runSandbox} disabled={sandbox?.loading}>
+              {sandbox?.loading ? 'Loading…' : 'Sandbox intel'}
+            </button>
+          )}
+          <button className="btn btn-ghost btn-sm" onClick={runRules} disabled={rules?.loading}>
+            {rules?.loading ? 'Searching…' : 'Detection rules (Sigma/YARA/Snort)'}
+          </button>
+          {d.intelCard && (
+            <a className="btn btn-ghost shodan-link" href={d.intelCard} target="_blank" rel="noreferrer">
+              Intelligence Card ↗
+            </a>
+          )}
+        </div>
+      )}
+
+      {sandbox?.data &&
+        (sandbox.data.error ? (
+          <div className="detail-note">{sandbox.data.error}</div>
+        ) : (
+          <div className="cyfirma-actor">
+            <div className="cyfirma-actor-title">Sandbox (Malware Intelligence)</div>
+            <div className="detail-grid">
+              <Field
+                k="Scores"
+                v={
+                  [
+                    sandbox.data.riskScore != null ? `risk ${sandbox.data.riskScore}/99` : '',
+                    sandbox.data.sandboxScore != null ? `sandbox ${sandbox.data.sandboxScore}/10` : '',
+                  ]
+                    .filter(Boolean)
+                    .join(' · ') || undefined
+                }
+              />
+              {sandbox.data.tags && sandbox.data.tags.length > 0 && (
+                <div className="field">
+                  <div className="fk">Tags</div>
+                  <Chips items={sandbox.data.tags} />
+                </div>
+              )}
+              <Field k="File types" v={sandbox.data.fileExtensions?.join(', ')} mono />
+            </div>
+            {sandbox.data.universalReport && (
+              <a
+                className="btn btn-ghost shodan-link"
+                href={sandbox.data.universalReport}
+                target="_blank"
+                rel="noreferrer"
+              >
+                Open sandbox report ↗
+              </a>
+            )}
+          </div>
+        ))}
+
+      {rules?.data &&
+        (rules.data.error ? (
+          <div className="detail-note">{rules.data.error}</div>
+        ) : ruleList.length === 0 ? (
+          <div className="detail-note">No Recorded Future detection rules for “{rules.basis}”.</div>
+        ) : (
+          <>
+            <div className="hint">
+              Recorded Future detection rules related to “{rules.basis}” ({rules.data.total ?? ruleList.length}):
+            </div>
+            <div className="rule-list">
+              {ruleList.map((rl, i) => (
+                <RfRuleCard key={rl.id ?? i} rule={rl} />
+              ))}
+            </div>
+          </>
+        ))}
+
+      {d.raw != null && (
+        <details className="raw">
+          <summary>Raw Recorded Future data</summary>
+          <pre>{JSON.stringify(d.raw, null, 2)}</pre>
+        </details>
+      )}
+    </div>
+  );
+}
+
 /**
  * SOC Prime block — checks the Threat Detection Marketplace for existing/related detections for this
  * indicator. On open it auto-searches by the threat the *other* providers attributed (Intel 471
@@ -1608,6 +1957,7 @@ export function DetailPanel() {
         )}
         {r.cyfirma && <CyfirmaSection d={r.cyfirma} />}
         {r.threatvision && <ThreatVisionSection d={r.threatvision} />}
+        {r.recordedfuture && <RecordedFutureSection d={r.recordedfuture} r={r} />}
         {socprimeOn && r.type !== 'unknown' && <SocPrimeSection key={r.value} r={r} />}
       </aside>
     </div>

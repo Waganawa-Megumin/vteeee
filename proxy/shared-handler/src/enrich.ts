@@ -9,6 +9,7 @@ import {
   type Intel471Context,
   type MaxmindContext,
   type NormalizedResult,
+  type RecordedFutureContext,
   type ResultStatus,
   type ShodanContext,
   type ThreatVisionContext,
@@ -23,6 +24,7 @@ import { dnslyticsHostingHistory, dnslyticsIpInfo } from './dnslyticsFetch';
 import { intel471Lookup } from './intel471Fetch';
 import { cyfirmaLookup } from './cyfirmaFetch';
 import { threatvisionLookup } from './threatvisionFetch';
+import { rfLookup } from './recordedfutureFetch';
 import { AsyncQueue, backoffMs, clamp, sleep } from './util';
 
 const MAX_RL_RETRIES = 3;
@@ -34,6 +36,7 @@ const DEFAULT_DNSLYTICS_RPM = 60;
 const DEFAULT_INTEL471_RPM = 60;
 const DEFAULT_CYFIRMA_RPM = 30;
 const DEFAULT_THREATVISION_RPM = 30;
+const DEFAULT_RECORDEDFUTURE_RPM = 30;
 
 /** Hostname from a URL indicator (for treating a URL's host as a domain). null if not parseable. */
 function hostFromUrl(u: string): string | null {
@@ -105,6 +108,11 @@ export async function* runEnrich(
     req.options?.threatvision !== false;
   const tvLimiter = tvEnabled
     ? new RateLimiter(clamp(env.threatvisionRpm ?? DEFAULT_THREATVISION_RPM, 1, 600))
+    : null;
+  // Recorded Future Connect lookups (all IOC types) under its own limiter.
+  const rfEnabled = Boolean(env.recordedfutureApiKey) && req.options?.recordedfuture !== false;
+  const rfLimiter = rfEnabled
+    ? new RateLimiter(clamp(env.recordedfutureRpm ?? DEFAULT_RECORDEDFUTURE_RPM, 1, 600))
     : null;
   const queue = new AsyncQueue<EnrichEvent>();
   const tasks = [...req.indicators];
@@ -247,6 +255,21 @@ export async function* runEnrich(
     }
   }
 
+  /** Recorded Future Connect lookup (all types). Never throws. */
+  async function enrichRecordedfuture(
+    value: string,
+    type: EnrichRequest['indicators'][number]['type'],
+  ): Promise<RecordedFutureContext | undefined> {
+    if (!rfLimiter) return undefined;
+    try {
+      await rfLimiter.acquire(signal);
+      return await rfLookup(type, value, env, signal);
+    } catch (e) {
+      if ((e as Error).name === 'AbortError') return undefined;
+      return { found: false, error: (e as Error).message };
+    }
+  }
+
   /** Attach all provider context to a normalized result, routing by IOC type. */
   async function attachContext(ind: EnrichRequest['indicators'][number], result: NormalizedResult): Promise<void> {
     const isIp = ind.type === 'ipv4' || ind.type === 'ipv6';
@@ -256,9 +279,10 @@ export async function* runEnrich(
 
     const isHash = ind.type === 'md5' || ind.type === 'sha1' || ind.type === 'sha256';
 
-    // Intel 471 + CYFIRMA apply to every IOC type (IP / domain / URL / hash).
+    // Intel 471 + CYFIRMA + Recorded Future apply to every IOC type (IP / domain / URL / hash).
     if (i471Limiter) result.intel471 = await enrichIntel471(ind.value, ind.type);
     if (cyfirmaLimiter) result.cyfirma = await enrichCyfirma(ind.value, ind.type);
+    if (rfLimiter) result.recordedfuture = await enrichRecordedfuture(ind.value, ind.type);
 
     if (isIp) {
       if (shodanLimiter) result.shodan = await enrichShodan(ind.value);

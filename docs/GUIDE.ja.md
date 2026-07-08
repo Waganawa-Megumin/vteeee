@@ -39,10 +39,11 @@ APIキーはすべて**プロキシ側のみ**が保持します。**VirusTotal 
 | **Intel 471 (Titan)** | CTI・全種別 | 任意 | `INTEL471_API_USER`＋`INTEL471_API_KEY` | 全種別のIOC照合（active期間・ISP・関連レポート/アクター）＋詳細の「Global Search」ボタンで横断件数(reports/posts/actors/events/credentials/data-leaks) |
 | **CYFIRMA (DeCYFIR)** | CTI・全種別 | 任意 | `CYFIRMA_API_KEY` | 全種別に **Risk Dossier**（リスク/外部脅威スコア・推奨アクション・ASN/組織/国・**関連インフラ＝攻撃基盤側**）＋**STIX 2.1検索**（脅威アクター/キャンペーン/マルウェア＝アトリビューション）を付与。詳細で脅威アクターのチップを押すと「広域サーチ」でそのアクターのキャンペーン/マルウェア/標的CVEをオンデマンド取得 |
 | **TeamT5 ThreatVision** | CTI・全種別 | 任意 | `THREATVISION_CLIENT_ID`＋`THREATVISION_CLIENT_SECRET` | APT帰属CTI。**IP/ドメイン**：リスク・**攻撃グループ(APT)**・属性(Malware C2/Hosting)・地域/レジストラ・関連件数(**各1 AAP**)。**ハッシュ**：サンプル検索で攻撃グループ+マルウェアファミリ+リスク(**0 AAP**)。詳細で攻撃グループのチップを押すとAPTの別名/出身国/標的を取得。アップロード系は非対応 |
+| **Recorded Future** | CTI・全種別 | 任意 | `RECORDEDFUTURE_API_KEY` | 全種別に Connect API のリスクスコア(0-99)・発火リスクルール＋根拠・活動期間・脅威リスト・関連する脅威アクター/マルウェア・MITRE・AI Insights を付与。詳細でアクター/マルウェアのチップを押すと Threat/Connect API でプロフィールをオンデマンド取得。ハッシュは「Sandbox intel」でサンドボックス評価(**読み取りのみ・検体送信なし**)、「Detection rules」で関連する **Sigma/YARA/Snort** ルールを検索・コピー |
 | **Claude (Anthropic)** | スマートパース | 任意 | `ANTHROPIC_API_KEY` | レポート本文からIOC抽出 |
 | **SOC Prime (TDM)** | 検知コンテンツ | 任意 | `SOCPRIME_API_KEY` | エンリッチではない。<b>検知ルール検索</b>（ヘッダー「Rules」）：キーワード/ATT&CKアクター/ツール/テクニック/重大度で SOC Prime の Sigma 検知ルールを検索し、指定SIEM形式へ翻訳表示。加えて Resultsの「SIEM query」で表示中IOCから<b>ハンティングクエリ</b>生成（Uncoder AI）。トリアージ→ハンティングの橋渡し |
 
-**IOC種別で引き分け**：ドメイン→VT＋DomainTools(Enrich)＋DNSLytics(HostingHistory) ／ IP→VT＋Shodan＋MaxMind(位置/地図)＋DNSLytics(IPInfo)＋DomainTools(逆引き) ／ URL→ホスト名をドメイン扱い ／ ハッシュ→VT＋ThreatVision(サンプル帰属)。**Intel 471・CYFIRMA・ThreatVision は全種別**に付与。各連携は Settings で個別ON/OFF可。DomainToolsは従量課金・Investigateは低レート制限のため、`DOMAINTOOLS_RPM`(既定30)/`DNSLYTICS_RPM`(既定60)/`INTEL471_RPM`(既定60)/`CYFIRMA_RPM`(既定30)/`THREATVISION_RPM`(既定30)で調整、`DNSLYTICS_BASE_URL`・`CYFIRMA_BASE_URL`・`THREATVISION_BASE_URL`でエンドポイント変更可。**ThreatVision の IP/ドメイン詳細は 1件 1 AAP 消費**（AAPは有限のため注意）。
+**IOC種別で引き分け**：ドメイン→VT＋DomainTools(Enrich)＋DNSLytics(HostingHistory) ／ IP→VT＋Shodan＋MaxMind(位置/地図)＋DNSLytics(IPInfo)＋DomainTools(逆引き) ／ URL→ホスト名をドメイン扱い ／ ハッシュ→VT＋ThreatVision(サンプル帰属)。**Intel 471・CYFIRMA・ThreatVision・Recorded Future は全種別**に付与。各連携は Settings で個別ON/OFF可。DomainToolsは従量課金・Investigateは低レート制限のため、`DOMAINTOOLS_RPM`(既定30)/`DNSLYTICS_RPM`(既定60)/`INTEL471_RPM`(既定60)/`CYFIRMA_RPM`(既定30)/`THREATVISION_RPM`(既定30)で調整、`DNSLYTICS_BASE_URL`・`CYFIRMA_BASE_URL`・`THREATVISION_BASE_URL`でエンドポイント変更可。**ThreatVision の IP/ドメイン詳細は 1件 1 AAP 消費**（AAPは有限のため注意）。
 
 **任意サービスを有効化する手順（3ステップ）:**
 1. 上表の環境変数を **リポジトリ Secret**（GitHub → Settings → Secrets → Actions）に登録。
@@ -69,6 +70,7 @@ APIキーはすべて**プロキシ側のみ**が保持します。**VirusTotal 
 | `ADMIN_TOKEN` | 推奨 | `/api/admin/*`(ユーザー/設定の書込)保護 | proxy-deploy |
 | `ANTHROPIC_API_KEY` | 任意 | Claudeスマートパース(無ければ正規表現にフォールバック) | proxy-deploy |
 | `SHODAN_API_KEY` | 任意 | **Shodan OSINT**。IP行に開放ポート/サービス/CVE等を自動付与(無ければ付与なし) | proxy-deploy |
+| `RECORDEDFUTURE_API_KEY` | 任意 | **Recorded Future**。全種別にリスク/根拠/関連アクター・マルウェア＋オンデマンドでActor/Malwareプロフィール・サンドボックス・Sigma/YARA/Snort | proxy-deploy |
 | `MAXMIND_ACCOUNT_ID`＋`MAXMIND_LICENSE_KEY` | 任意 | **MaxMind GeoIP**。IP行に地理位置/ISP/ASN/匿名化判定＋地図を付与(Insights対応)。両方セットで有効 | proxy-deploy |
 | `DOMAINTOOLS_API_USERNAME`＋`DOMAINTOOLS_API_KEY` | 任意 | **DomainTools Iris**。ドメイン=Enrich／IP=Investigate逆引き。両方セットで有効 | proxy-deploy |
 | `DNSLYTICS_API_KEY` | 任意 | **DNSLytics**。IP=IPInfo／ドメイン=HostingHistory | proxy-deploy |
@@ -219,6 +221,7 @@ pnpm exec wrangler kv namespace create VTEEEE_KV
   printf '%s' "<TVクライアントID>"  | pnpm exec wrangler secret put THREATVISION_CLIENT_ID    # 任意
   printf '%s' "<TVシークレット>"   | pnpm exec wrangler secret put THREATVISION_CLIENT_SECRET # 任意
   printf '%s' "<SOC Primeキー>"   | pnpm exec wrangler secret put SOCPRIME_API_KEY          # 任意
+  printf '%s' "<RecordedFutureトークン>" | pnpm exec wrangler secret put RECORDEDFUTURE_API_KEY  # 任意
   ```
 - 注意: Workerのレート制限カウンタはisolate間で共有されません。厳密な全体ペースが要るなら Node版を推奨。
 
@@ -264,6 +267,7 @@ pnpm exec wrangler kv namespace create VTEEEE_KV
 | `CYFIRMA_API_KEY` / `CYFIRMA_BASE_URL` | プロキシ | △ | CYFIRMA (DeCYFIR)。`key=`クエリ認証。全種別に Risk Dossier＋STIX検索。BASE_URLは既定 decyfir.cyfirma.com/core/api-ua |
 | `THREATVISION_CLIENT_ID` / `THREATVISION_CLIENT_SECRET` / `THREATVISION_ACCESS_TOKEN` / `THREATVISION_BASE_URL` | プロキシ | △ | TeamT5 ThreatVision。OAuth2(client id/secret)または access token。IP/ドメイン=1 AAP, ハッシュ=0 AAP。BASE_URLは既定 api.threatvision.org |
 | `SOCPRIME_API_KEY` / `SOCPRIME_BASE_URL` | プロキシ | △ | SOC Prime (TDM)。`client_secret_id`認証。Uncoder AIでIOC→SIEMクエリ生成。BASE_URLは既定 api.tdm.socprime.com |
+| `RECORDEDFUTURE_API_KEY` / `RECORDEDFUTURE_BASE_URL` | プロキシ | △ | Recorded Future。`X-RFToken`認証。全種別にリスク/根拠/関連エンティティ＋Actor/Malware/Sandbox/Detection Rule。BASE_URLは既定 api.recordedfuture.com |
 | `ALLOWED_ORIGINS` | プロキシ(wrangler.toml / env) | ○ | 許可オリジン(カンマ区切り) |
 | `VT_RPM` / `VT_MAX_RPM` / `VT_DAILY` | プロキシ | △ | レート/日次上限 |
 | `SHODAN_RPM` / `DOMAINTOOLS_RPM` / `DNSLYTICS_RPM` / `INTEL471_RPM` / `CYFIRMA_RPM` / `THREATVISION_RPM` | プロキシ | △ | 各連携の毎分上限(既定 60/30/60/60/30/30) |

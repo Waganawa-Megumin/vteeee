@@ -33,6 +33,7 @@ id = "64fde3553d4b4272a3afa346945a0ce0"
 # INTEL471_RPM = "60"
 # CYFIRMA_RPM = "30"
 # THREATVISION_RPM = "30"   # IP/domain detail cost 1 AAP each; hashes (samples search) cost 0 AAP
+# RECORDEDFUTURE_RPM = "30"
 # Override only if your DNSLytics endpoint differs from the default:
 # DNSLYTICS_BASE_URL = "https://api.dnslytics.net/v1"
 # Override only if your DeCYFIR endpoint differs from the default:
@@ -41,6 +42,8 @@ id = "64fde3553d4b4272a3afa346945a0ce0"
 # THREATVISION_BASE_URL = "https://api.threatvision.org"
 # Override only if your SOC Prime endpoint differs from the default:
 # SOCPRIME_BASE_URL = "https://api.tdm.socprime.com"
+# Override only if your Recorded Future endpoint differs from the default:
+# RECORDEDFUTURE_BASE_URL = "https://api.recordedfuture.com"
 
 # Secrets are NOT stored here. Set them with:
 #   wrangler secret put VT_API_KEY
@@ -57,5 +60,6 @@ id = "64fde3553d4b4272a3afa346945a0ce0"
 #   wrangler secret put THREATVISION_CLIENT_ID    # optional (TeamT5 ThreatVision: OAuth client id)
 #   wrangler secret put THREATVISION_CLIENT_SECRET# optional (paired with the client id)
 #   wrangler secret put SOCPRIME_API_KEY          # optional (SOC Prime: Uncoder IOC→SIEM query)
+#   wrangler secret put RECORDEDFUTURE_API_KEY    # optional (Recorded Future: risk intel + pivots + rules)
 #   wrangler secret put ACCESS_TOKEN              # required on /api/*
 #   wrangler secret put ADMIN_TOKEN               # required on /api/admin/*

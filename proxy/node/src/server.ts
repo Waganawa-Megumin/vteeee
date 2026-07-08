@@ -11,6 +11,10 @@ import {
   threatvisionAdversary,
   socprimeGenerateQuery,
   socprimeSearchRules,
+  rfActorSearch,
+  rfMalwareLookup,
+  rfSandboxIntel,
+  rfDetectionRules,
   getUsers,
   putUsers,
   getSettings,
@@ -67,6 +71,9 @@ const env: ProxyEnv = {
   threatvisionAccessToken: process.env.THREATVISION_ACCESS_TOKEN || undefined,
   threatvisionBaseUrl: process.env.THREATVISION_BASE_URL || undefined,
   threatvisionRpm: process.env.THREATVISION_RPM ? Number(process.env.THREATVISION_RPM) : undefined,
+  recordedfutureApiKey: process.env.RECORDEDFUTURE_API_KEY || undefined,
+  recordedfutureBaseUrl: process.env.RECORDEDFUTURE_BASE_URL || undefined,
+  recordedfutureRpm: process.env.RECORDEDFUTURE_RPM ? Number(process.env.RECORDEDFUTURE_RPM) : undefined,
   socprimeApiKey: process.env.SOCPRIME_API_KEY || undefined,
   socprimeBaseUrl: process.env.SOCPRIME_BASE_URL || undefined,
   accessToken: process.env.ACCESS_TOKEN || undefined,
@@ -148,6 +155,7 @@ app.get('/health', (_req, res) => {
       env.threatvisionAccessToken || (env.threatvisionClientId && env.threatvisionClientSecret),
     ),
     socprime: Boolean(env.socprimeApiKey),
+    recordedfuture: Boolean(env.recordedfutureApiKey),
   });
 });
 
@@ -207,6 +215,68 @@ app.get('/api/threatvision/adversary', async (req, res) => {
     return;
   }
   res.json((await threatvisionAdversary(name, env)) ?? { error: 'unavailable' });
+});
+
+app.get('/api/rf/actor', async (req, res) => {
+  if (!requireAccess(req, res)) return;
+  if (!env.recordedfutureApiKey) {
+    res.status(400).json({ error: 'Recorded Future not configured' });
+    return;
+  }
+  const name = (req.query.name as string) || '';
+  if (!name) {
+    res.status(400).json({ error: 'name required' });
+    return;
+  }
+  res.json((await rfActorSearch(name, env)) ?? { error: 'unavailable' });
+});
+
+app.get('/api/rf/malware', async (req, res) => {
+  if (!requireAccess(req, res)) return;
+  if (!env.recordedfutureApiKey) {
+    res.status(400).json({ error: 'Recorded Future not configured' });
+    return;
+  }
+  const id = (req.query.id as string) || undefined;
+  const name = (req.query.name as string) || undefined;
+  if (!id && !name) {
+    res.status(400).json({ error: 'id or name required' });
+    return;
+  }
+  res.json((await rfMalwareLookup({ id, name }, env)) ?? { error: 'unavailable' });
+});
+
+app.get('/api/rf/sandbox', async (req, res) => {
+  if (!requireAccess(req, res)) return;
+  if (!env.recordedfutureApiKey) {
+    res.status(400).json({ error: 'Recorded Future not configured' });
+    return;
+  }
+  const hash = (req.query.hash as string) || '';
+  if (!hash) {
+    res.status(400).json({ error: 'hash required' });
+    return;
+  }
+  res.json((await rfSandboxIntel(hash, env)) ?? { error: 'unavailable' });
+});
+
+app.post('/api/rf/rules', async (req, res) => {
+  if (!requireAccess(req, res)) return;
+  if (!env.recordedfutureApiKey) {
+    res.status(400).json({ error: 'Recorded Future not configured' });
+    return;
+  }
+  res.json(
+    (await rfDetectionRules(
+      {
+        types: req.body?.types,
+        title: req.body?.title,
+        entities: req.body?.entities,
+        limit: req.body?.limit,
+      },
+      env,
+    )) ?? { error: 'unavailable' },
+  );
 });
 
 app.post('/api/socprime/ioc-query', async (req, res) => {
@@ -360,5 +430,5 @@ app.all('/api/history/:id', (req, res) => void handleHistory(req, res, req.param
 app.listen(PORT, () => {
   console.log(`vteeee proxy listening on :${PORT}`);
   console.log(`  allowed origins: ${allowedOrigins.join(', ')}`);
-  console.log(`  VT key: ${env.vtApiKey ? 'set' : 'MISSING'} · Claude: ${env.anthropicApiKey ? 'set' : 'off (regex fallback)'} · Shodan: ${env.shodanApiKey ? 'set' : 'off'} · MaxMind: ${env.maxmindAccountId && env.maxmindLicenseKey ? 'set' : 'off'} · DomainTools: ${env.domaintoolsApiUsername && env.domaintoolsApiKey ? 'set' : 'off'} · DNSLytics: ${env.dnslyticsApiKey ? 'set' : 'off'} · Intel471: ${env.intel471ApiUser && env.intel471ApiKey ? 'set' : 'off'} · CYFIRMA: ${env.cyfirmaApiKey ? 'set' : 'off'} · ThreatVision: ${env.threatvisionAccessToken || (env.threatvisionClientId && env.threatvisionClientSecret) ? 'set' : 'off'} · SOCPrime: ${env.socprimeApiKey ? 'set' : 'off'}`);
+  console.log(`  VT key: ${env.vtApiKey ? 'set' : 'MISSING'} · Claude: ${env.anthropicApiKey ? 'set' : 'off (regex fallback)'} · Shodan: ${env.shodanApiKey ? 'set' : 'off'} · MaxMind: ${env.maxmindAccountId && env.maxmindLicenseKey ? 'set' : 'off'} · DomainTools: ${env.domaintoolsApiUsername && env.domaintoolsApiKey ? 'set' : 'off'} · DNSLytics: ${env.dnslyticsApiKey ? 'set' : 'off'} · Intel471: ${env.intel471ApiUser && env.intel471ApiKey ? 'set' : 'off'} · CYFIRMA: ${env.cyfirmaApiKey ? 'set' : 'off'} · ThreatVision: ${env.threatvisionAccessToken || (env.threatvisionClientId && env.threatvisionClientSecret) ? 'set' : 'off'} · SOCPrime: ${env.socprimeApiKey ? 'set' : 'off'} · RecordedFuture: ${env.recordedfutureApiKey ? 'set' : 'off'}`);
 });

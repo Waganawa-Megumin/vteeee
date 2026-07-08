@@ -12,6 +12,11 @@ import {
   type NormalizedResult,
   type ParsedIndicator,
   type ProxyHealth,
+  type RfActorProfile,
+  type RfMalwareProfile,
+  type RfRuleSearchParams,
+  type RfRuleSearchResult,
+  type RfSandboxIntel,
   type Session,
   type SocPrimeQueryOptions,
   type SocPrimeQueryResult,
@@ -79,6 +84,10 @@ interface State {
   threatvisionAdversary: (name: string) => Promise<ThreatVisionAdversary>;
   socprimeQuery: (text: string, opts: SocPrimeQueryOptions) => Promise<SocPrimeQueryResult>;
   socprimeRules: (params: SocPrimeRuleSearchParams) => Promise<SocPrimeRuleSearchResult>;
+  rfActor: (name: string) => Promise<RfActorProfile>;
+  rfMalware: (ref: { id?: string; name?: string }) => Promise<RfMalwareProfile>;
+  rfSandbox: (hash: string) => Promise<RfSandboxIntel>;
+  rfRules: (params: RfRuleSearchParams) => Promise<RfRuleSearchResult>;
 }
 
 function defaultIncludes(parsed: ParsedIndicator[]): Record<string, boolean> {
@@ -91,7 +100,7 @@ export const useStore = create<State>((set, get) => ({
   booted: false,
   session: null,
   users: [],
-  settings: { proxyBaseUrl: null, rpm: 4, concurrency: 1, gti: false, submitUnknown: false, shodan: true, maxmind: true, domaintools: true, dnslytics: true, intel471: true, cyfirma: true, threatvision: true, tlp: 'AMBER' },
+  settings: { proxyBaseUrl: null, rpm: 4, concurrency: 1, gti: false, submitUnknown: false, shodan: true, maxmind: true, domaintools: true, dnslytics: true, intel471: true, cyfirma: true, threatvision: true, recordedfuture: true, tlp: 'AMBER' },
   mode: 'demo',
   health: null,
 
@@ -212,6 +221,7 @@ export const useStore = create<State>((set, get) => ({
       intel471: settings.intel471 ?? true,
       cyfirma: settings.cyfirma ?? true,
       threatvision: settings.threatvision ?? true,
+      recordedfuture: settings.recordedfuture ?? true,
     };
     set({
       running: true,
@@ -308,7 +318,7 @@ export const useStore = create<State>((set, get) => ({
     try {
       const res = await fetch(`${base}/health`, { cache: 'no-store' });
       if (!res.ok) {
-        set({ health: { ok: false, vtKey: false, claude: false, shodan: false, maxmind: false, domaintools: false, dnslytics: false, intel471: false, cyfirma: false, threatvision: false, socprime: false } });
+        set({ health: { ok: false, vtKey: false, claude: false, shodan: false, maxmind: false, domaintools: false, dnslytics: false, intel471: false, cyfirma: false, threatvision: false, socprime: false, recordedfuture: false } });
         return;
       }
       const h = (await res.json()) as Partial<ProxyHealth>;
@@ -325,10 +335,11 @@ export const useStore = create<State>((set, get) => ({
           cyfirma: Boolean(h.cyfirma),
           threatvision: Boolean(h.threatvision),
           socprime: Boolean(h.socprime),
+          recordedfuture: Boolean(h.recordedfuture),
         },
       });
     } catch {
-      set({ health: { ok: false, vtKey: false, claude: false, shodan: false, maxmind: false, domaintools: false, dnslytics: false, intel471: false, cyfirma: false, threatvision: false, socprime: false } });
+      set({ health: { ok: false, vtKey: false, claude: false, shodan: false, maxmind: false, domaintools: false, dnslytics: false, intel471: false, cyfirma: false, threatvision: false, socprime: false, recordedfuture: false } });
     }
   },
 
@@ -381,6 +392,42 @@ export const useStore = create<State>((set, get) => ({
     try {
       const client = await makeClient(get().settings);
       return await client.socprimeRules(params);
+    } catch (e) {
+      return { error: (e as Error).message };
+    }
+  },
+
+  async rfActor(name) {
+    try {
+      const client = await makeClient(get().settings);
+      return await client.rfActor(name);
+    } catch (e) {
+      return { error: (e as Error).message };
+    }
+  },
+
+  async rfMalware(ref) {
+    try {
+      const client = await makeClient(get().settings);
+      return await client.rfMalware(ref);
+    } catch (e) {
+      return { error: (e as Error).message };
+    }
+  },
+
+  async rfSandbox(hash) {
+    try {
+      const client = await makeClient(get().settings);
+      return await client.rfSandbox(hash);
+    } catch (e) {
+      return { error: (e as Error).message };
+    }
+  },
+
+  async rfRules(params) {
+    try {
+      const client = await makeClient(get().settings);
+      return await client.rfRules(params);
     } catch (e) {
       return { error: (e as Error).message };
     }

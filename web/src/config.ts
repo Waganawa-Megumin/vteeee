@@ -19,6 +19,7 @@ export const DEFAULT_SETTINGS: AppSettings = {
   intel471: true,
   cyfirma: true,
   threatvision: true,
+  recordedfuture: true,
   historyRetentionDays: 30,
   tlp: 'AMBER',
 };

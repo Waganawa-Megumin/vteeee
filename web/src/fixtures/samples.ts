@@ -5,6 +5,7 @@ import type {
   Intel471Context,
   IocType,
   MaxmindContext,
+  RecordedFutureContext,
   ResultStatus,
   ShodanContext,
   ThreatVisionContext,
@@ -30,6 +31,8 @@ export interface Fixture {
   cyfirma?: CyfirmaContext;
   /** Sample TeamT5 ThreatVision context. */
   threatvision?: ThreatVisionContext;
+  /** Sample Recorded Future Connect context (risk + evidence + related actors/malware). */
+  recordedfuture?: RecordedFutureContext;
 }
 
 const day = 86400;
@@ -122,6 +125,29 @@ export const FIXTURES: Fixture[] = [
       staticIpScore: 27.34,
       userType: 'hosting',
       userCount: 1,
+    },
+    recordedfuture: {
+      found: true,
+      riskScore: 12,
+      criticality: 0,
+      criticalityLabel: 'None',
+      riskString: '1/79',
+      riskSummary: '1 of 79 Risk Rules currently observed',
+      evidence: [
+        {
+          rule: 'Historically Linked to Cyber Attack',
+          criticality: 1,
+          criticalityLabel: 'Unusual',
+          evidence: 'Historic references describe scanning traffic sourced from this anycast range.',
+          timestamp: new Date((now - 400 * day) * 1000).toISOString(),
+        },
+      ],
+      firstSeen: '2018-04-01T00:00:00.000Z',
+      lastSeen: new Date((now - 3 * day) * 1000).toISOString(),
+      asn: 'AS13335',
+      organization: 'Cloudflare, Inc.',
+      country: 'Australia',
+      intelCard: 'https://app.recordedfuture.com/live/sc/entity/ip%3A1.1.1.1',
     },
   },
   {
@@ -296,6 +322,57 @@ export const FIXTURES: Fixture[] = [
         { factor: 'country', influence: 99 },
         { factor: 'city', influence: 40 },
       ],
+    },
+    recordedfuture: {
+      found: true,
+      riskScore: 92,
+      criticality: 4,
+      criticalityLabel: 'Very Malicious',
+      riskString: '9/79',
+      riskSummary: '9 of 79 Risk Rules currently observed',
+      evidence: [
+        {
+          rule: 'Actively Communicating C&C Server',
+          criticality: 4,
+          criticalityLabel: 'Very Malicious',
+          evidence: 'Recorded Future network traffic analysis identified active C2 communication on this host.',
+          timestamp: new Date((now - 2 * day) * 1000).toISOString(),
+          mitre: ['T1071'],
+        },
+        {
+          rule: 'Current Tor Node',
+          criticality: 2,
+          criticalityLabel: 'Suspicious',
+          evidence: 'This IP is a current Tor exit node per the Tor consensus.',
+          timestamp: new Date((now - 1 * day) * 1000).toISOString(),
+        },
+        {
+          rule: 'Recent Multicategory Blocklist',
+          criticality: 3,
+          criticalityLabel: 'Malicious',
+          evidence: 'Listed on 4 blocklists in the last 14 days.',
+          timestamp: new Date((now - 5 * day) * 1000).toISOString(),
+        },
+      ],
+      firstSeen: '2019-08-14T00:00:00.000Z',
+      lastSeen: new Date((now - 1 * day) * 1000).toISOString(),
+      threatLists: ['Tor Exit Nodes', 'C&C Servers — Network Traffic Analysis'],
+      relatedActors: [
+        { id: 'S9Gvql', name: 'BlueDelta', count: 12 },
+        { id: 'PD_NyL', name: 'UAC-0056', count: 3 },
+      ],
+      relatedMalware: [
+        { id: 'K5GvlA', name: 'X-Agent', count: 7 },
+        { id: 'MZycd3', name: 'RedLine Stealer', count: 2 },
+      ],
+      mitre: ['T1071', 'T1090'],
+      asn: 'AS60729',
+      organization: 'Zwiebelfreunde e.V.',
+      country: 'Germany',
+      city: 'Frankfurt am Main',
+      aiInsights:
+        'This Tor exit node has been repeatedly observed as active C2 infrastructure attributed to BlueDelta campaigns targeting European government mail servers. Blocking is recommended.',
+      intelCard: 'https://app.recordedfuture.com/live/sc/entity/ip%3A185.220.101.1',
     },
   },
   {
@@ -498,6 +575,28 @@ export const FIXTURES: Fixture[] = [
         severity: { value: 'SEVERITY_LOW' },
         threat_score: { value: 30 },
       },
+    },
+    recordedfuture: {
+      found: true,
+      riskScore: 65,
+      criticality: 3,
+      criticalityLabel: 'Malicious',
+      riskString: '3/26',
+      riskSummary: '3 of 26 Risk Rules currently observed',
+      evidence: [
+        {
+          rule: 'Positive Malware Verdict',
+          criticality: 3,
+          criticalityLabel: 'Malicious',
+          evidence: 'Multiple AV engines and the RF sandbox verdict this file as malware (EICAR test signature).',
+          timestamp: new Date((now - 6 * day) * 1000).toISOString(),
+        },
+      ],
+      firstSeen: '2016-01-05T00:00:00.000Z',
+      lastSeen: new Date((now - 1 * day) * 1000).toISOString(),
+      relatedMalware: [{ id: 'EIcArX', name: 'EICAR Test File', count: 44 }],
+      intelCard:
+        'https://app.recordedfuture.com/live/sc/entity/hash%3A275a021bbfb6489e54d471899f7db9d1663fc695ec2fe2a2c4538aabf651fd0f',
     },
   },
   {

@@ -124,6 +124,17 @@ export function IntegrationStatus({ onManage }: { onManage: () => void }) {
             }
           />
           <Chip
+            label="RecordedFuture"
+            on={Boolean(health?.recordedfuture) && settings.recordedfuture !== false}
+            title={
+              health?.recordedfuture
+                ? settings.recordedfuture !== false
+                  ? 'Recorded Future active — risk score/evidence on all IOC types + actor/malware pivots + Sigma rules'
+                  : 'Recorded Future token present, but enrichment is turned OFF in Settings'
+                : 'Optional — no RECORDEDFUTURE_API_KEY on the proxy'
+            }
+          />
+          <Chip
             label="SOC Prime"
             on={Boolean(health?.socprime)}
             title={

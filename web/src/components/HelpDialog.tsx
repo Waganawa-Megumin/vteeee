@@ -194,6 +194,27 @@ export function HelpDialog({ onClose }: { onClose: () => void }) {
                 <span className="help-en">All IOC types. IPs/domains: risk, adversary (APT) attribution, attributes (Malware C2/Hosting), geo/registrar, related counts. Hashes: adversary + malware family + risk via samples search. Click an adversary chip for that APT's aliases/origin/targets. ⚠ IP & domain detail cost 1 AAP each (hash search is 0 AAP). Upload endpoints intentionally not wired.</span>
               </IntegrationRow>
 
+              <IntegrationRow
+                name="Recorded Future"
+                env="RECORDEDFUTURE_API_KEY"
+                on={health?.recordedfuture ?? null}
+                live={live}
+              >
+                <span className="help-ja">
+                  <b>全種別</b>（IP/ドメイン/URL/ハッシュ）。Connect API で<b>リスクスコア(0-99)・発火リスクルール＋根拠(evidence)</b>・
+                  活動期間・脅威リスト・<b>関連する脅威アクター/マルウェア</b>・MITRE・AI Insights を付与。詳細で
+                  <b>アクター/マルウェアのチップ</b>を押すと Threat/Connect API でプロフィールをオンデマンド取得。
+                  <b>ハッシュ</b>は「Sandbox intel」でサンドボックス評価（<b>読み取りのみ・検体は送信しない</b>）、
+                  「Detection rules」で関連する <b>Sigma / YARA / Snort</b> ルールを検索・コピー。
+                </span>
+                <span className="help-en">
+                  All IOC types. Connect API adds risk score (0-99), triggered risk rules + evidence, activity window,
+                  threat lists, related threat actors/malware, MITRE and AI Insights. Click an actor/malware chip for an
+                  on-demand profile (Threat/Connect API); on hashes use “Sandbox intel” (read-only — nothing is submitted)
+                  and “Detection rules” to search related Sigma/YARA/Snort rules.
+                </span>
+              </IntegrationRow>
+
               <IntegrationRow name="Claude (smart-parse)" env="ANTHROPIC_API_KEY" on={health?.claude ?? null} live={live}>
                 <span className="help-ja">
                   レポート本文などの雑多なテキストからIOCを抽出（「Smart parse (Claude)」ボタン）。無ければ正規表現で代替。
@@ -212,7 +233,7 @@ export function HelpDialog({ onClose }: { onClose: () => void }) {
             </div>
             <p className="help-ja" style={{ marginTop: 8 }}>
               <b>種別で引き分け</b>：ドメイン→VT＋DomainTools(Enrich)＋DNSLytics(HostingHistory) ／ IP→VT＋Shodan＋MaxMind(位置/地図)＋DNSLytics(IPInfo)＋DomainTools(逆引き)
-              ／ URL→ホスト名をドメイン扱い ／ ハッシュ→VT＋ThreatVision(サンプル帰属)。<b>Intel 471 と CYFIRMA は全種別</b>、<b>ThreatVision も全種別</b>(IP/ドメイン=1 AAP, ハッシュ=0 AAP)に付与。各連携は Settings で個別ON/OFF可。
+              ／ URL→ホスト名をドメイン扱い ／ ハッシュ→VT＋ThreatVision(サンプル帰属)。<b>Intel 471・CYFIRMA・Recorded Future は全種別</b>、<b>ThreatVision も全種別</b>(IP/ドメイン=1 AAP, ハッシュ=0 AAP)に付与。各連携は Settings で個別ON/OFF可。
             </p>
             <p className="help-en" style={{ marginTop: 8 }}>
               <b>Enable an optional service (3 steps):</b> ① add the env var above as a repo secret /

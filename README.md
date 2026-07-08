@@ -60,6 +60,7 @@ single step, while keeping the API key off the browser entirely.
 - **GTI-aware** — surfaces `gti_assessment` verdict/severity/threat-score when a GTI key is used (sends the required `x-tool` header).
 - **Shodan OSINT** — drop a `SHODAN_API_KEY` on the proxy and every IP row gains open ports, running services, known CVEs and org/ISP/OS context, with a deep link to shodan.io. Key stays server-side; CVEs link out to NVD.
 - **MaxMind GeoIP geolocation** — add `MAXMIND_ACCOUNT_ID` + `MAXMIND_LICENSE_KEY` and IP rows gain geolocation (country/region/city/postal), ISP/ASN/domain, connection type and anonymizer (VPN/Tor/proxy) signals, plus an embedded **OpenStreetMap** — no map API key or JS dependency. An **Insights** license also surfaces confidence scores, static-IP score, IP risk, user counts/type and US demographics. Per MaxMind's ToS, coordinates are always shown with the **accuracy radius (km)** and made clear they mark an approximate area, not a precise address.
+- **Recorded Future** — set `RECORDEDFUTURE_API_KEY` and every IOC gains a risk score + triggered risk rules & evidence, related threat actors/malware (clickable → on-demand RF profiles), MITRE and AI Insights; hashes get a read-only sandbox summary, and you can pull related **Sigma/YARA/Snort** detection rules. Keys stay server-side; no data is ever submitted to RF.
 - **Optional Claude smart-parse** — pull IOCs out of free-form report prose; the regex engine still has the final say on typing.
 - **Shared-credential login + admin** — PBKDF2-gated, `admin`/`user` roles, in-app user & settings management with JSON export/import.
 - **Two themes** — a chalkboard dark theme and an off-white light theme, toggled in the top bar.
@@ -80,10 +81,11 @@ the proxy's `/health`), and each optional one is toggled in **Settings**.
 | **Intel 471 (Titan)** | CTI — all IOC types | optional | `INTEL471_API_USER` + `INTEL471_API_KEY` | **IOC search** (any type): active window · ISP · linked reports/actors · **malware family**. Click the malware-family chip for on-demand family details (malware reports · aka · MITRE · GIR + deep link to the Titan malware page). Plus a **Global Search** button (cross-entity counts: reports/posts/actors/events/credentials/data-leaks) |
 | **CYFIRMA (DeCYFIR)** | CTI — all IOC types | optional | `CYFIRMA_API_KEY` | **Risk Dossier** (any type): risk + external-threat scores · recommended action · ASN/org/country · correlated infrastructure (attack-infra side) — merged with the **STIX 2.1 IOC search** for threat-actor/campaign/malware attribution. Click a threat-actor chip for an on-demand **broad search** (that actor's campaigns/malware/targeted CVEs) |
 | **TeamT5 ThreatVision** | CTI — all IOC types | optional | `THREATVISION_CLIENT_ID` + `THREATVISION_CLIENT_SECRET` | APT-attribution CTI. **IP/domain**: risk · **adversary (APT) groups** · attributes (Malware C2 / Hosting) · geo/registrar · related-intel counts (**1 AAP each**). **Hash**: adversary + malware family + risk via samples search (**0 AAP**). Click an adversary chip for that APT's aliases/origin/targets. Upload endpoints intentionally not wired |
+| **Recorded Future** | CTI — all IOC types | optional | `RECORDEDFUTURE_API_KEY` | **Connect API** (any type): risk score (0-99) · triggered risk rules + **evidence** · activity window · threat lists · **related threat actors/malware** · MITRE · AI Insights · Intelligence Card link. Click an actor/malware chip for its **on-demand profile** (Threat / Connect API). **Hash**: "Sandbox intel" (Malware Intelligence, **read-only** — nothing is submitted). "Detection rules" searches related **Sigma / YARA / Snort** rules (Detection Rule API) |
 | **Claude (Anthropic)** | Smart-parse | optional | `ANTHROPIC_API_KEY` | extract IOCs from free-form report prose |
 | **SOC Prime (TDM)** | Detection content | optional | `SOCPRIME_API_KEY` | Not per-IOC enrichment. **Detection-rule search** (header **“Rules”**): find SOC Prime Sigma rules by keyword / ATT&CK actor / tool / technique / severity, translated into your SIEM (Splunk/Sentinel/QRadar/Elastic/CrowdStrike/…). Plus a **Results → “SIEM query”** action that turns the shown IOCs into a hunting query via Uncoder AI. Bridges triage → hunting |
 
-**Enrichment routes by IOC type:** domain → VT + DomainTools (Enrich) + DNSLytics (HostingHistory) · IP → VT + Shodan + MaxMind (geo/map) + DNSLytics (IPInfo) + DomainTools (reverse) · URL → host treated as a domain · hash → VT + ThreatVision (sample attribution). **Intel 471, CYFIRMA and ThreatVision apply to every type.** Each optional service toggles independently in **Settings**.
+**Enrichment routes by IOC type:** domain → VT + DomainTools (Enrich) + DNSLytics (HostingHistory) · IP → VT + Shodan + MaxMind (geo/map) + DNSLytics (IPInfo) + DomainTools (reverse) · URL → host treated as a domain · hash → VT + ThreatVision (sample attribution). **Intel 471, CYFIRMA, ThreatVision and Recorded Future apply to every type.** Each optional service toggles independently in **Settings**.
 
 **Enable an optional service — 3 steps:**
 1. Add the env var above as a **repo secret** (GitHub → Settings → Secrets) or a proxy env var.
@@ -154,7 +156,7 @@ Full, click-by-click instructions (GitHub Secrets, Cloudflare token, KV, connect
 ```
 shared/            defang/classify/extract · VT links + normalizer · PBKDF2  (browser + proxy)
 web/               Vite + React static SPA — input, parse preview, results, detail, login, admin
-proxy/shared-handler  rate limiting · NDJSON enrich · Shodan OSINT · MaxMind GeoIP · Claude parse · users/settings store
+proxy/shared-handler  rate limiting · NDJSON enrich · Shodan · MaxMind · Recorded Future · Claude parse · users/settings store
 proxy/node         Express adapter (local / self-host)
 proxy/cloudflare   Worker adapter (recommended deploy) + wrangler.toml
 .github/workflows  ci · pages · proxy-deploy
@@ -163,9 +165,9 @@ proxy/cloudflare   Worker adapter (recommended deploy) + wrangler.toml
 ## Tech & quality
 
 TypeScript (strict) · React + Vite · Zustand · Cloudflare Workers / Express · Vitest.
-**104 unit/integration tests** cover the refang/classifier, VT id+link helpers, the response
+**113 unit/integration tests** cover the refang/classifier, VT id+link helpers, the response
 normalizer, PBKDF2, every provider mapper (Shodan, MaxMind GeoIP, DomainTools, DNSLytics, Intel 471,
-CYFIRMA, ThreatVision, SOC Prime), the enrich orchestration (rate-limit, 429 retry, NDJSON streaming),
+CYFIRMA, ThreatVision, SOC Prime, Recorded Future), the enrich orchestration (rate-limit, 429 retry, NDJSON streaming),
 the daily-quota/model guards, KV history, and the end-to-end demo path. `pnpm -r typecheck && pnpm -r test`.
 
 ## Limitations
@@ -191,6 +193,7 @@ CTIアナリスト向けの **IOC一括検索ツール** です。IP・ドメイ
   ISP/ASN/ドメイン・接続種別・匿名化(VPN/Tor/プロキシ)判定**を付与し、詳細パネルに**地図(OpenStreetMap)**を表示（地図APIキーやJS依存なし）。
   ライセンスが **Insights** なら信頼度スコア・静的IPスコア・IPリスク・ユーザー数/種別・US人口統計まで。※MaxMind規約により、緯度経度は必ず
   **精度半径(km)**と共に表示し、正確な住所ではなく**“おおよその範囲”**である旨を明示します。
+- **Recorded Future**：`RECORDEDFUTURE_API_KEY` を登録すると全種別にリスクスコア・発火リスクルール＋根拠・関連アクター/マルウェア（クリックでRFプロフィール取得）・MITRE・AI Insights を付与。ハッシュはサンドボックス評価（読み取りのみ・検体送信なし）、関連する **Sigma/YARA/Snort** ルールも取得可能。
 - ログインは共有ID/PASSの簡易ゲート（PBKDF2、平文非保存）＋ admin/user ロールと管理画面。
 - テーマは**黒板**と**オフホワイト**を切替可能。
 - 詳しい手順（GitHub Secrets・Cloudflare・接続）→ **[docs/GUIDE.ja.md](docs/GUIDE.ja.md)**

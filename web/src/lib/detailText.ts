@@ -156,6 +156,25 @@ export function resultToText(r: NormalizedResult): string {
       push('Related CVEs', r.cyfirma.related.cves);
     }
   }
+  if (r.recordedfuture?.found) {
+    const rf = r.recordedfuture;
+    L.push('', '## Recorded Future');
+    push('Risk', rf.riskScore != null ? `${rf.riskScore}/99 (${rf.criticalityLabel ?? rf.criticality ?? '—'})` : undefined);
+    push('Summary', rf.riskSummary);
+    if (rf.evidence?.length)
+      push(
+        'Evidence',
+        rf.evidence.map((e) => `${e.criticalityLabel ?? e.criticality ?? ''} ${e.rule}`.trim()),
+      );
+    push('Threat lists', rf.threatLists);
+    push('Threat actors', rf.relatedActors?.map((a) => a.name));
+    push('Malware', rf.relatedMalware?.map((m) => m.name));
+    push('MITRE', rf.mitre);
+    push('ASN', [rf.asn, rf.organization].filter(Boolean).join(' · '));
+    push('Location', [rf.city, rf.country].filter(Boolean).join(', '));
+    push('AI Insights', rf.aiInsights);
+    push('Intelligence Card', rf.intelCard);
+  }
   if (r.threatvision?.found) {
     L.push('', '## ThreatVision (TeamT5)');
     push(

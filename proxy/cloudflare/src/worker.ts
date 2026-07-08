@@ -8,6 +8,10 @@ import {
   threatvisionAdversary,
   socprimeGenerateQuery,
   socprimeSearchRules,
+  rfActorSearch,
+  rfMalwareLookup,
+  rfSandboxIntel,
+  rfDetectionRules,
   getUsers,
   putUsers,
   getSettings,
@@ -51,6 +55,9 @@ interface Env {
   THREATVISION_ACCESS_TOKEN?: string;
   THREATVISION_BASE_URL?: string;
   THREATVISION_RPM?: string;
+  RECORDEDFUTURE_API_KEY?: string;
+  RECORDEDFUTURE_BASE_URL?: string;
+  RECORDEDFUTURE_RPM?: string;
   SOCPRIME_API_KEY?: string;
   SOCPRIME_BASE_URL?: string;
   ACCESS_TOKEN?: string;
@@ -103,6 +110,9 @@ function build(env: Env): { proxy: ProxyEnv; allowed: string[]; store: Storage }
     threatvisionAccessToken: env.THREATVISION_ACCESS_TOKEN,
     threatvisionBaseUrl: env.THREATVISION_BASE_URL,
     threatvisionRpm: env.THREATVISION_RPM ? Number(env.THREATVISION_RPM) : undefined,
+    recordedfutureApiKey: env.RECORDEDFUTURE_API_KEY,
+    recordedfutureBaseUrl: env.RECORDEDFUTURE_BASE_URL,
+    recordedfutureRpm: env.RECORDEDFUTURE_RPM ? Number(env.RECORDEDFUTURE_RPM) : undefined,
     socprimeApiKey: env.SOCPRIME_API_KEY,
     socprimeBaseUrl: env.SOCPRIME_BASE_URL,
     accessToken: env.ACCESS_TOKEN,
@@ -153,6 +163,7 @@ export default {
             proxy.threatvisionAccessToken || (proxy.threatvisionClientId && proxy.threatvisionClientSecret),
           ),
           socprime: Boolean(proxy.socprimeApiKey),
+          recordedfuture: Boolean(proxy.recordedfutureApiKey),
         });
 
       if (url.pathname === '/api/enrich' && request.method === 'POST') {
@@ -229,6 +240,54 @@ export default {
         const name = url.searchParams.get('name') ?? '';
         if (!name) return json({ error: 'name required' }, 400);
         return json((await threatvisionAdversary(name, proxy, request.signal)) ?? { error: 'unavailable' });
+      }
+
+      // On-demand Recorded Future threat-actor profile (Threat API) by actor name.
+      if (url.pathname === '/api/rf/actor' && request.method === 'GET') {
+        if (!checkAccess(auth, proxy)) return json({ error: 'unauthorized' }, 401);
+        if (!proxy.recordedfutureApiKey) return json({ error: 'Recorded Future not configured' }, 400);
+        const name = url.searchParams.get('name') ?? '';
+        if (!name) return json({ error: 'name required' }, 400);
+        return json((await rfActorSearch(name, proxy, request.signal)) ?? { error: 'unavailable' });
+      }
+
+      // On-demand Recorded Future malware profile (Connect API) by RF entity id or name.
+      if (url.pathname === '/api/rf/malware' && request.method === 'GET') {
+        if (!checkAccess(auth, proxy)) return json({ error: 'unauthorized' }, 401);
+        if (!proxy.recordedfutureApiKey) return json({ error: 'Recorded Future not configured' }, 400);
+        const id = url.searchParams.get('id') ?? undefined;
+        const name = url.searchParams.get('name') ?? undefined;
+        if (!id && !name) return json({ error: 'id or name required' }, 400);
+        return json((await rfMalwareLookup({ id, name }, proxy, request.signal)) ?? { error: 'unavailable' });
+      }
+
+      // On-demand Recorded Future sandbox summary (Malware Intelligence, read-only query) for a hash.
+      if (url.pathname === '/api/rf/sandbox' && request.method === 'GET') {
+        if (!checkAccess(auth, proxy)) return json({ error: 'unauthorized' }, 401);
+        if (!proxy.recordedfutureApiKey) return json({ error: 'Recorded Future not configured' }, 400);
+        const hash = url.searchParams.get('hash') ?? '';
+        if (!hash) return json({ error: 'hash required' }, 400);
+        return json((await rfSandboxIntel(hash, proxy, request.signal)) ?? { error: 'unavailable' });
+      }
+
+      // On-demand Recorded Future detection-rule search (Sigma / YARA / Snort).
+      if (url.pathname === '/api/rf/rules' && request.method === 'POST') {
+        if (origin && !originAllowed(origin, allowed)) return json({ error: 'origin not allowed' }, 403);
+        if (!checkAccess(auth, proxy)) return json({ error: 'unauthorized' }, 401);
+        if (!proxy.recordedfutureApiKey) return json({ error: 'Recorded Future not configured' }, 400);
+        const p = (await request.json()) as {
+          types?: string[];
+          title?: string;
+          entities?: string[];
+          limit?: number;
+        };
+        return json(
+          (await rfDetectionRules(
+            { types: p.types, title: p.title, entities: p.entities, limit: p.limit },
+            proxy,
+            request.signal,
+          )) ?? { error: 'unavailable' },
+        );
       }
 
       // On-demand SOC Prime Uncoder AI — generate a SIEM hunting query from a block of IOCs.

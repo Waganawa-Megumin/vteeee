@@ -1048,6 +1048,16 @@ a.i471-search-item:hover {
   flex-direction: column;
   gap: 6px;
 }
+/* Recorded Future evidence rows (triggered risk rule + its evidence sentence). */
+.rf-evidence {
+  font-size: 12.5px;
+  line-height: 1.4;
+  padding: 3px 0;
+}
+.rf-evidence + .rf-evidence {
+  border-top: 1px solid var(--line);
+  padding-top: 6px;
+}
 .rule-card-head {
   display: flex;
   align-items: baseline;

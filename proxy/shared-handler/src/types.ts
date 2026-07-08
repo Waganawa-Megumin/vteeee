@@ -48,6 +48,12 @@ export interface ProxyEnv {
   threatvisionBaseUrl?: string;
   /** Per-minute cap on ThreatVision lookups. Default 30. NOTE: IP/domain detail cost 1 AAP each. */
   threatvisionRpm?: number;
+  /** Recorded Future API token (sent as `X-RFToken`). Powers Connect enrichment + Threat/MalwareIntel/DetectionRule pivots. */
+  recordedfutureApiKey?: string;
+  /** Recorded Future API base URL. Default https://api.recordedfuture.com. */
+  recordedfutureBaseUrl?: string;
+  /** Per-minute cap on Recorded Future lookups. Default 30. */
+  recordedfutureRpm?: number;
   /** SOC Prime (TDM) personal API key — sent as the `client_secret_id` header. Powers on-demand IOC → SIEM query generation. */
   socprimeApiKey?: string;
   /** SOC Prime API base URL. Default https://api.tdm.socprime.com. */

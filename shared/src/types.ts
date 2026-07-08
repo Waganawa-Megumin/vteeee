@@ -567,6 +567,164 @@ export interface ThreatVisionAdversary {
   error?: string;
 }
 
+/** One triggered Recorded Future risk rule with its evidence sentence. */
+export interface RfEvidence {
+  /** Rule name, e.g. "Actively Communicating C&C Server". */
+  rule: string;
+  /** 1..4 (Unusual → Very Malicious). */
+  criticality?: number;
+  criticalityLabel?: string;
+  /** Human evidence sentence. */
+  evidence?: string;
+  timestamp?: string;
+  /** Associated MITRE ATT&CK codes, when the rule carries them. */
+  mitre?: string[];
+}
+
+/** A related entity (threat actor / malware / …) linked to an indicator, with its RF entity id for pivots. */
+export interface RfRelatedEntity {
+  /** Recorded Future entity id (e.g. "S9Gvql") — used for Detection Rule / malware pivots. */
+  id?: string;
+  name: string;
+  /** Reference count tying the entity to this indicator. */
+  count?: number;
+}
+
+/**
+ * Recorded Future Connect API context — automatic per-IOC enrichment (all IOC types).
+ * Risk score + triggered rules/evidence, activity window, threat lists, related
+ * actors/malware (clickable pivots), IP geo/ASN, AI Insights and the Intelligence Card link.
+ * `found: false` = no RF record (or lookup failed — see `error`).
+ */
+export interface RecordedFutureContext {
+  found: boolean;
+  /** 0..99. */
+  riskScore?: number;
+  /** 0..4 — None/Unusual/Suspicious/Malicious/Very Malicious. */
+  criticality?: number;
+  criticalityLabel?: string;
+  /** e.g. "5/79" — triggered/total risk rules. */
+  riskString?: string;
+  riskSummary?: string;
+  /** Triggered risk rules with evidence, most critical first. */
+  evidence?: RfEvidence[];
+  firstSeen?: string;
+  lastSeen?: string;
+  /** Names of RF threat lists the indicator appears on. */
+  threatLists?: string[];
+  /** Related threat actors (RelatedThreatActor) — clickable → Threat API profile. */
+  relatedActors?: RfRelatedEntity[];
+  /** Related malware families (RelatedMalware) — clickable → malware lookup. */
+  relatedMalware?: RfRelatedEntity[];
+  /** MITRE ATT&CK identifiers aggregated from risk rules (riskMapping). */
+  mitre?: string[];
+  // --- IP only (location) ---
+  asn?: string;
+  organization?: string;
+  country?: string;
+  city?: string;
+  /** Recorded Future AI Insights summary text, when returned. */
+  aiInsights?: string;
+  /** Deep link to the RF Intelligence Card. */
+  intelCard?: string;
+  error?: string;
+  raw?: unknown;
+}
+
+/**
+ * Recorded Future threat-actor profile — on demand from the Threat API (`POST /threat/actor/search`)
+ * when an actor chip is clicked in the detail panel.
+ */
+export interface RfActorProfile {
+  name?: string;
+  /** RF entity id. */
+  id?: string;
+  aliases?: string[];
+  /** Industry-common names (e.g. "UAC-0056"). */
+  commonNames?: string[];
+  /** Actor categories, e.g. "Nation State Sponsored". */
+  categories?: string[];
+  /** Deep link to the RF Intelligence Card for the actor. */
+  intelCard?: string;
+  error?: string;
+  raw?: unknown;
+}
+
+/**
+ * Recorded Future malware profile — on demand from the Connect API malware lookup/search
+ * when a malware chip is clicked in the detail panel.
+ */
+export interface RfMalwareProfile {
+  name?: string;
+  id?: string;
+  categories?: string[];
+  /** Related threat actors seen with this malware. */
+  relatedActors?: string[];
+  firstSeen?: string;
+  lastSeen?: string;
+  intelCard?: string;
+  error?: string;
+  raw?: unknown;
+}
+
+/**
+ * Recorded Future Malware Intelligence (sandbox) summary for one hash — on demand
+ * (`POST /malware-intelligence/v1/query`, read-only; nothing is submitted to RF).
+ */
+export interface RfSandboxIntel {
+  /** The matched sample hash (sha256). */
+  hash?: string;
+  /** RF risk score 0..99. */
+  riskScore?: number;
+  /** Sandbox maliciousness 0..10. */
+  sandboxScore?: number;
+  /** e.g. ["ransomware", "trojan", "family:redline"]. */
+  tags?: string[];
+  fileExtensions?: string[];
+  /** Deep links into the RF portal. */
+  universalReport?: string;
+  intelligenceCard?: string;
+  /** Total matching samples RF holds. */
+  total?: number;
+  error?: string;
+  raw?: unknown;
+}
+
+/** One Recorded Future detection rule (Sigma / YARA / Snort). */
+export interface RfDetectionRule {
+  id?: string;
+  title?: string;
+  /** sigma / yara / snort. */
+  type?: string;
+  description?: string;
+  created?: string;
+  updated?: string;
+  /** Rule body (Sigma YAML / YARA / Snort). */
+  content?: string;
+  fileName?: string;
+  /** Names of entities the rule is annotated with (malware/actor). */
+  entities?: string[];
+}
+
+/** Filters for the RF Detection Rule API search (`POST /detection-rule/search`). */
+export interface RfRuleSearchParams {
+  /** Restrict to rule types, e.g. ["sigma"]. Default all. */
+  types?: string[];
+  /** Free-text match on the rule title. */
+  title?: string;
+  /** RF entity ids (from relatedActors/relatedMalware) the rules must reference. */
+  entities?: string[];
+  limit?: number;
+}
+
+/** Result of an RF Detection Rule API search. Mapped defensively; `raw` kept. */
+export interface RfRuleSearchResult {
+  rules?: RfDetectionRule[];
+  total?: number;
+  error?: string;
+  raw?: unknown;
+}
+
 /** Options for SOC Prime Uncoder AI IOC → SIEM query generation. */
 export interface SocPrimeQueryOptions {
   /** Target SIEM/query format (Uncoder `siem_type`), e.g. `splunk`, `ala`, `qradar`. */
@@ -694,6 +852,9 @@ export interface NormalizedResult {
   /** TeamT5 ThreatVision context (IP/domain detail, or sample attribution) — all IOC types. */
   threatvision?: ThreatVisionContext;
 
+  /** Recorded Future Connect API context (risk + evidence + related actors/malware) — all IOC types. */
+  recordedfuture?: RecordedFutureContext;
+
   ip?: {
     country?: string;
     asn?: number;
@@ -750,6 +911,8 @@ export interface EnrichOptions {
   cyfirma?: boolean;
   /** Request TeamT5 ThreatVision lookups. Ignored if the proxy has no ThreatVision credentials. */
   threatvision?: boolean;
+  /** Request Recorded Future lookups. Ignored if the proxy has no RF token. */
+  recordedfuture?: boolean;
 }
 
 /** What the proxy `GET /health` reports — which integrations are configured server-side. */
@@ -775,6 +938,8 @@ export interface ProxyHealth {
   socprime: boolean;
   /** MaxMind GeoIP credentials present (optional — IP geolocation + map). */
   maxmind: boolean;
+  /** Recorded Future API token present (optional — risk intel + actor/malware pivots + detection rules). */
+  recordedfuture: boolean;
 }
 
 export interface EnrichRequest {
@@ -843,6 +1008,8 @@ export interface AppSettings {
   cyfirma?: boolean;
   /** Request TeamT5 ThreatVision enrichment (default true; only used if the proxy has ThreatVision creds). */
   threatvision?: boolean;
+  /** Request Recorded Future enrichment (default true; only used if the proxy has an RF token). */
+  recordedfuture?: boolean;
   /** Days to keep local search history (per browser). 0 = disabled. Default 30. */
   historyRetentionDays?: number;
   /** Traffic Light Protocol marking stamped on exported PDFs. Default AMBER. */

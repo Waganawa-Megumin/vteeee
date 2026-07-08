@@ -8,6 +8,11 @@ import {
   type Intel471Search,
   type NormalizedResult,
   type ParsedIndicator,
+  type RfActorProfile,
+  type RfMalwareProfile,
+  type RfRuleSearchParams,
+  type RfRuleSearchResult,
+  type RfSandboxIntel,
   type SocPrimeQueryOptions,
   type SocPrimeQueryResult,
   type SocPrimeRuleSearchParams,
@@ -52,6 +57,7 @@ export class DemoClient implements EnrichClient {
         if (fx.intel471) result.intel471 = fx.intel471;
         if (fx.cyfirma) result.cyfirma = fx.cyfirma;
         if (fx.threatvision) result.threatvision = fx.threatvision;
+        if (fx.recordedfuture) result.recordedfuture = fx.recordedfuture;
       } else {
         result = normalizeVt({
           input: ind.input,
@@ -188,6 +194,71 @@ export class DemoClient implements EnrichClient {
               ? 'DeviceProcessEvents | where FileName =~ "rundll32.exe" and ProcessCommandLine has "\\\\Temp\\\\"'
               : 'index=* Image="*\\\\rundll32.exe" CommandLine="*\\\\Temp\\\\*"',
           url: 'https://tdm.socprime.com/tdm/info/demo-rule-2',
+        },
+      ],
+    };
+  }
+
+  /** Sample Recorded Future threat-actor profile (demo). */
+  async rfActor(name: string): Promise<RfActorProfile> {
+    await sleep(300);
+    return {
+      name: name || 'BlueDelta',
+      id: 'S9Gvql',
+      aliases: ['Fancy Bear', 'Sofacy', 'Sednit', 'Forest Blizzard'],
+      commonNames: ['APT28'],
+      categories: ['Nation State Sponsored', 'Russia Nation State Sponsored'],
+      intelCard: 'https://app.recordedfuture.com/portal/intelligence-card/S9Gvql',
+    };
+  }
+
+  /** Sample Recorded Future malware profile (demo). */
+  async rfMalware(ref: { id?: string; name?: string }): Promise<RfMalwareProfile> {
+    await sleep(300);
+    return {
+      name: ref.name || 'X-Agent',
+      id: ref.id || 'K5GvlA',
+      categories: ['Backdoor', 'Remote Access Trojan'],
+      relatedActors: ['BlueDelta', 'APT28'],
+      firstSeen: '2015-02-11T00:00:00.000Z',
+      lastSeen: new Date().toISOString(),
+      intelCard: `https://app.recordedfuture.com/portal/intelligence-card/${ref.id || 'K5GvlA'}`,
+    };
+  }
+
+  /** Sample Recorded Future sandbox summary (demo). */
+  async rfSandbox(hash: string): Promise<RfSandboxIntel> {
+    await sleep(300);
+    return {
+      hash: hash.length === 64 ? hash : '275a021bbfb6489e54d471899f7db9d1663fc695ec2fe2a2c4538aabf651fd0f',
+      riskScore: 89,
+      sandboxScore: 8,
+      tags: ['trojan', 'family:redline', 'stealer'],
+      fileExtensions: ['.exe'],
+      universalReport: 'https://app.recordedfuture.com/portal/intelligence-card/hash:demo/sandbox-report',
+      intelligenceCard: 'https://app.recordedfuture.com/portal/intelligence-card/hash:demo',
+      total: 3,
+    };
+  }
+
+  /** Sample Recorded Future detection-rule search (demo). */
+  async rfRules(params: RfRuleSearchParams): Promise<RfRuleSearchResult> {
+    await sleep(400);
+    const type = params.types?.[0] ?? 'sigma';
+    return {
+      total: 1,
+      rules: [
+        {
+          id: 'doc:demo1',
+          title: `Possible X-Agent C2 beacon (${type})`,
+          type,
+          description: 'Detects the HTTP beacon pattern used by X-Agent implants.',
+          created: '2024-05-01T00:00:00.000Z',
+          updated: '2025-11-12T00:00:00.000Z',
+          fileName: 'xagent_c2_http.yml',
+          entities: ['X-Agent', 'BlueDelta'],
+          content:
+            'title: Possible X-Agent C2 beacon\nstatus: experimental\nlogsource:\n  category: proxy\ndetection:\n  selection:\n    c-uri|contains: "/watchcom/"\n  condition: selection\nlevel: high',
         },
       ],
     };

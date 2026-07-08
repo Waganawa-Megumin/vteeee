@@ -7,6 +7,11 @@ import type {
   Intel471Search,
   NormalizedResult,
   ParsedIndicator,
+  RfActorProfile,
+  RfMalwareProfile,
+  RfRuleSearchParams,
+  RfRuleSearchResult,
+  RfSandboxIntel,
   SocPrimeQueryOptions,
   SocPrimeQueryResult,
   SocPrimeRuleSearchParams,
@@ -40,6 +45,14 @@ export interface EnrichClient {
   socprimeQuery(text: string, opts: SocPrimeQueryOptions): Promise<SocPrimeQueryResult>;
   /** On-demand SOC Prime detection-rule search (Sigma rules → chosen SIEM format). */
   socprimeRules(params: SocPrimeRuleSearchParams): Promise<SocPrimeRuleSearchResult>;
+  /** On-demand Recorded Future threat-actor profile (Threat API) by name. */
+  rfActor(name: string): Promise<RfActorProfile>;
+  /** On-demand Recorded Future malware profile (Connect API) by RF entity id or name. */
+  rfMalware(ref: { id?: string; name?: string }): Promise<RfMalwareProfile>;
+  /** On-demand Recorded Future sandbox summary (Malware Intelligence, read-only) for a hash. */
+  rfSandbox(hash: string): Promise<RfSandboxIntel>;
+  /** On-demand Recorded Future detection-rule search (Sigma / YARA / Snort). */
+  rfRules(params: RfRuleSearchParams): Promise<RfRuleSearchResult>;
 }
 
 export function sleep(ms: number, signal?: AbortSignal): Promise<void> {

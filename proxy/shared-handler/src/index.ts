@@ -37,6 +37,19 @@ export {
   mapTvSample,
   mapTvAdversary,
 } from './threatvisionFetch';
+export {
+  rfLookup,
+  rfActorSearch,
+  rfMalwareLookup,
+  rfSandboxIntel,
+  rfDetectionRules,
+  rfPathType,
+  mapRfLookup,
+  mapRfActor,
+  mapRfMalware,
+  mapRfSandbox,
+  mapRfRules,
+} from './recordedfutureFetch';
 export { socprimeGenerateQuery, mapSocprimeQuery, socprimeSearchRules, mapSocprimeRules } from './socprimeFetch';
 export { smartParse } from './parse';
 export { RateLimiter } from './rateLimiter';

@@ -72,6 +72,11 @@ export function SettingsDialog({ onClose }: { onClose: () => void }) {
                 ThreatVision{' '}
                 {health?.threatvision ? (draft.threatvision !== false ? 'on' : 'creds set · off') : 'not configured'}
               </span>
+              <span className={`intg-chip ${health?.recordedfuture && draft.recordedfuture !== false ? 'on' : 'off'}`}>
+                <span className="intg-dot" />
+                Recorded Future{' '}
+                {health?.recordedfuture ? (draft.recordedfuture !== false ? 'on' : 'token set · off') : 'not configured'}
+              </span>
               <span className={`intg-chip ${health?.socprime ? 'on' : 'off'}`}>
                 <span className="intg-dot" />
                 SOC Prime {health?.socprime ? 'on' : 'not configured'}
@@ -249,6 +254,18 @@ export function SettingsDialog({ onClose }: { onClose: () => void }) {
             <InfoTip
               ja="全種別に TeamT5 ThreatVision を付与。IP/ドメインはリスク・攻撃グループ(APT)・属性(Malware C2/Hosting等)・地域/レジストラ・関連件数、ハッシュはサンプル検索で攻撃グループ+マルウェアファミリ+リスクを取得。詳細で攻撃グループのチップを押すと、その APT の別名・出身国・標的国/業種・概説を取得。⚠ IP/ドメインの詳細照会は 1件につき 1 AAP を消費します(ハッシュ検索は 0 AAP)。プロキシに THREATVISION_CLIENT_ID/SECRET(または ACCESS_TOKEN)がある時のみ。"
               en="Enrich every IOC type via TeamT5 ThreatVision. IPs/domains get risk, adversary (APT) attribution, attributes (Malware C2/Hosting), geo/registrar and related counts; hashes get adversary + malware-family + risk via samples search. Click an adversary chip for that APT's aliases/origin/targets. ⚠ IP & domain detail cost 1 AAP each (hash search is 0 AAP). Only if the proxy has ThreatVision creds."
+            />
+          </label>
+          <label className="chk">
+            <input
+              type="checkbox"
+              checked={draft.recordedfuture !== false}
+              onChange={(e) => up('recordedfuture', e.target.checked)}
+            />
+            🔮 Recorded Future (all IOC types)
+            <InfoTip
+              ja="全種別(IP/ドメイン/URL/ハッシュ)に Recorded Future のリスクスコア(0-99)・発火リスクルールと根拠(evidence)・活動期間・脅威リスト・関連する脅威アクター/マルウェアを付与。詳細では脅威アクターやマルウェアのチップを押すと Threat API/Connect API でプロフィール(別名・カテゴリ等)をオンデマンド取得、ハッシュは『Sandbox intel』でサンドボックス評価(読み取りのみ・検体送信なし)、『Detection rules』で関連する Sigma/YARA/Snort ルールを検索できます。プロキシに RECORDEDFUTURE_API_KEY がある時のみ。"
+              en="Enrich every IOC type with Recorded Future risk score (0-99), triggered risk rules + evidence, activity window, threat lists and related threat actors/malware. In the detail panel, click an actor/malware chip for an on-demand profile (Threat/Connect API), use 'Sandbox intel' on hashes (read-only — nothing is submitted) and 'Detection rules' to search related Sigma/YARA/Snort rules. Only if the proxy has RECORDEDFUTURE_API_KEY."
             />
           </label>
           <p className="hint shodan-hint">
