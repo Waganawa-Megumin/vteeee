@@ -222,6 +222,44 @@ async function fetchSharedMonitors(settings: AppSettings): Promise<Record<string
     return null;
   }
 }
+/** Merge a local + shared copy of the same IP, preferring whichever side actually has intel. */
+function mergeEntry(local: MonitorEntry | undefined, shared: MonitorEntry | undefined): MonitorEntry {
+  const a = (local ?? {}) as Partial<MonitorEntry>;
+  const b = (shared ?? {}) as Partial<MonitorEntry>;
+  const check = a.check && b.check ? ((b.check.at ?? 0) >= (a.check.at ?? 0) ? b.check : a.check) : (b.check ?? a.check);
+  return {
+    ...a,
+    ...b,
+    ip: (b.ip ?? a.ip) as string,
+    result: b.result ?? a.result, // keep the snapshot from whichever side has one
+    baseline: b.baseline ?? a.baseline,
+    check,
+    triggers: b.triggers ?? a.triggers,
+    alertId: b.alertId ?? a.alertId,
+    addedAt: Math.min(a.addedAt ?? Number.MAX_SAFE_INTEGER, b.addedAt ?? Number.MAX_SAFE_INTEGER),
+    updatedAt: Math.max(a.updatedAt ?? 0, b.updatedAt ?? 0),
+    enriching: false,
+    checking: false,
+  };
+}
+
+/** Replace the whole shared blob (raw stripped) — used to upload local-only snapshots to the team. */
+async function putSharedMonitorsAll(settings: AppSettings, map: Record<string, MonitorEntry>): Promise<void> {
+  if (!monitorSharingOn(settings)) return;
+  const base = settings.proxyBaseUrl!.replace(/\/$/, '');
+  const slim: Record<string, MonitorEntry> = {};
+  for (const [k, v] of Object.entries(map)) slim[k] = { ...v, result: stripRaw(v.result), enriching: false, checking: false };
+  try {
+    await fetch(`${base}/api/monitor`, {
+      method: 'PUT',
+      headers: { ...monitorAuth(settings), 'content-type': 'application/json' },
+      body: JSON.stringify(slim),
+    });
+  } catch {
+    /* offline */
+  }
+}
+
 /** Read-modify-write ONE entry into the shared blob (set, or delete when entry is null) so a stale
  *  client can't clobber the whole team list. Best-effort. */
 async function pushSharedMonitorEntry(settings: AppSettings, ip: string, entry: MonitorEntry | null): Promise<void> {
@@ -1011,8 +1049,10 @@ export const useStore = create<State>((set, get) => {
       /* Shodan Monitor list unavailable — still merge the shared snapshots below */
     }
     set((s) => {
-      // Shared snapshots (team truth) overlay local for overlapping IPs; local-only entries survive.
-      const monitors: Record<string, MonitorEntry> = { ...s.monitors, ...(shared ?? {}) };
+      // Two-way merge: union local + shared, keeping the snapshot from whichever side has one.
+      const keys = new Set([...Object.keys(s.monitors), ...Object.keys(shared ?? {})]);
+      const monitors: Record<string, MonitorEntry> = {};
+      for (const ip of keys) monitors[ip] = mergeEntry(s.monitors[ip], shared?.[ip]);
       if (list) {
         const serverIps = new Set(list.map((e) => e.ip).filter(Boolean) as string[]);
         for (const e of list) {
@@ -1035,6 +1075,8 @@ export const useStore = create<State>((set, get) => {
       saveMonitors(monitors);
       return { monitors };
     });
+    // Upload the merged view so local-only snapshots (e.g. added before sharing existed) reach the team.
+    if (shared !== null) void putSharedMonitorsAll(get().settings, get().monitors);
   },
 
   async reEnrichMonitor(ip) {
