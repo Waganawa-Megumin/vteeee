@@ -514,11 +514,12 @@ export const useStore = create<State>((set, get) => {
   },
 
   showResult(r) {
+    // Merge the snapshot in and open its detail as an overlay WITHOUT changing the view — so opening
+    // from the IP-Mon dashboard keeps you on IP-Mon (closing the detail returns you there).
     set((s) => ({
       results: { ...s.results, [r.value]: r },
       order: s.order.includes(r.value) ? s.order : [...s.order, r.value],
       selected: r.value,
-      view: 'app', // land in the search view with this indicator's detail open
     }));
   },
 

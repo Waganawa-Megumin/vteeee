@@ -1318,6 +1318,7 @@ a.i471-search-item:hover {
   background: var(--bg3, transparent);
 }
 .mon-main {
+  flex: 1 1 auto;
   min-width: 0;
   display: flex;
   flex-direction: column;
