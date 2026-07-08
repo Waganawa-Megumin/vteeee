@@ -173,9 +173,11 @@ interface LMapLike {
   setView(c: [number, number], z: number): LMapLike;
   invalidateSize(): void;
   remove(): void;
+  removeLayer(layer: LLayerLike): void;
 }
 interface LLayerLike {
   addTo(m: LMapLike): LLayerLike;
+  on(event: string, handler: () => void): LLayerLike;
 }
 interface LeafletApi {
   map(el: HTMLElement, opts?: Record<string, unknown>): LMapLike;
@@ -213,11 +215,20 @@ function zoomToFitRadius(lat: number, radiusKm: number): number {
  */
 function MaxmindMap({ lat, lon, radiusKm }: { lat: number; lon: number; radiusKm: number | null }) {
   const ref = useRef<HTMLDivElement>(null);
+  // 'loading' until a tile paints; 'error' if tiles never load (network/OSM block) so we can say so.
+  const [status, setStatus] = useState<'loading' | 'ok' | 'error'>('loading');
   useEffect(() => {
     let map: LMapLike | null = null;
     let cancelled = false;
+    let ro: ResizeObserver | null = null;
+    let noTileTimer: ReturnType<typeof setTimeout> | undefined;
+    let loaded = 0;
+    let errors = 0;
+    let swapped = false;
+    setStatus('loading');
     // Pick the zoom up front so the whole accuracy circle is framed regardless of layout timing.
     const zoom = zoomToFitRadius(lat, radiusKm && radiusKm > 0 ? radiusKm : 25);
+    const TILE_URL = 'https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png';
     void (async () => {
       const el = ref.current;
       if (!el) return;
@@ -227,13 +238,39 @@ function MaxmindMap({ lat, lon, radiusKm }: { lat: number; lon: number; radiusKm
         const L = ((mod as { default?: unknown }).default ?? mod) as unknown as LeafletApi;
         if (cancelled || !ref.current) return;
         map = L.map(el, { scrollWheelZoom: false, attributionControl: true }).setView([lat, lon], zoom);
-        L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
-          maxZoom: 19,
-          attribution: '© OpenStreetMap contributors',
-          // Load tiles cross-origin (OSM sends Access-Control-Allow-Origin) so the copy-image pass
-          // can rasterize them instead of tainting the canvas.
-          crossOrigin: true,
-        }).addTo(map);
+
+        // Tiles load cross-origin so the copy-image pass can rasterize them (OSM sends CORS headers).
+        // But if a CDN edge omits the ACAO header, a cross-origin tile is *blocked* and the map goes
+        // blank — a real "sometimes it doesn't show". So on repeated tile errors with nothing painted
+        // we transparently swap to a plain (non-cross-origin) layer: the map always displays; copy-image
+        // just falls back to dropping the map if that layer later taints the canvas.
+        const addTiles = (crossOrigin: boolean) => {
+          const layer = L.tileLayer(TILE_URL, {
+            maxZoom: 19,
+            attribution: '© OpenStreetMap contributors',
+            crossOrigin,
+          });
+          layer.on('tileload', () => {
+            loaded++;
+            if (!cancelled) setStatus('ok');
+          });
+          layer.on('tileerror', () => {
+            errors++;
+            if (!map) return;
+            if (!swapped && crossOrigin && loaded === 0 && errors >= 3) {
+              // Likely a missing CORS header — retry the same tiles without cross-origin so they paint.
+              swapped = true;
+              map.removeLayer(layer);
+              addTiles(false);
+            } else if (loaded === 0 && errors >= 8) {
+              if (!cancelled) setStatus('error');
+            }
+          });
+          layer.addTo(map!);
+          return layer;
+        };
+        addTiles(true);
+
         // The accuracy-radius area, shaded — the whole point is "this is an area, not an address".
         if (radiusKm && radiusKm > 0) {
           L.circle([lat, lon], {
@@ -263,18 +300,42 @@ function MaxmindMap({ lat, lon, radiusKm }: { lat: number; lon: number; radiusKm
         };
         setTimeout(settle, 80);
         setTimeout(settle, 400);
+        // Resizing the detail panel (width steps) changes the container — re-measure so tiles refill
+        // instead of leaving a grey strip. This is another common "the map half-disappeared" cause.
+        if (typeof ResizeObserver !== 'undefined') {
+          ro = new ResizeObserver(() => {
+            if (!cancelled && map) map.invalidateSize();
+          });
+          ro.observe(el);
+        }
+        // If nothing has painted after 7s it's almost certainly the network / OSM blocking tiles.
+        noTileTimer = setTimeout(() => {
+          if (!cancelled && loaded === 0) setStatus('error');
+        }, 7000);
       } catch {
-        /* offline / Leaflet failed to load — the coordinates + disclaimer text still convey the area */
+        // offline / Leaflet failed to load — surface it; the coordinates + disclaimer still convey the area.
+        if (!cancelled) setStatus('error');
       }
     })();
     return () => {
       cancelled = true;
+      if (noTileTimer) clearTimeout(noTileTimer);
+      ro?.disconnect();
       map?.remove();
     };
   }, [lat, lon, radiusKm]);
-  // No data-noimage: the map IS included in the copy-image (tiles load cross-origin so they
-  // rasterize; copyImage still falls back to dropping the map if a tile ever taints the canvas).
-  return <div className="maxmind-map" ref={ref} />;
+  // The map IS included in the copy-image (tiles load cross-origin so they rasterize; copyImage falls
+  // back to dropping the map if a tile ever taints the canvas).
+  return (
+    <div className="maxmind-map-wrap">
+      <div className="maxmind-map" ref={ref} />
+      {status === 'error' && (
+        <div className="maxmind-map-note" data-noimage="true">
+          🗺 地図タイルを取得できませんでした（ネットワーク / OSM 側の可能性）。緯度経度・精度半径は上に表示しています。
+        </div>
+      )}
+    </div>
+  );
 }
 
 /**

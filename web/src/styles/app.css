@@ -928,6 +928,16 @@ a.chip.shodan-vuln:hover {
   overflow: hidden;
   background: var(--bg3);
 }
+.maxmind-map-wrap {
+  position: relative;
+}
+/* Shown only when OSM tiles can't be fetched — a legible note over the empty frame, not a blank box. */
+.maxmind-map-note {
+  margin-top: 6px;
+  font-size: 12px;
+  color: var(--muted);
+  line-height: 1.4;
+}
 /* Leaflet fills its container; keep tiles/controls inside the rounded frame. */
 .maxmind-map .leaflet-container {
   width: 100%;
