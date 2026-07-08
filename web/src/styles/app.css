@@ -831,10 +831,67 @@ textarea:focus {
 .resize-btn.active .resize-bar {
   background: var(--accent);
 }
+/* ‹ N/total › navigation between indicators (prev/next result). Grouped as a segmented pill so it
+   reads as navigation — distinct from the copy/export action buttons — and never splits on wrap. */
+.detail-nav {
+  display: inline-flex;
+  align-items: center;
+  gap: 1px;
+  padding: 2px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: var(--bg3);
+  flex: none;
+}
+.nav-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 28px;
+  height: 26px;
+  border: none;
+  background: transparent;
+  color: var(--fg);
+  font-size: 19px;
+  line-height: 1;
+  border-radius: 6px;
+  cursor: pointer;
+}
+.nav-btn:hover:not(:disabled) {
+  background: var(--bg2);
+  color: var(--accent);
+}
+.nav-btn:disabled {
+  opacity: 0.3;
+  cursor: default;
+}
+.nav-pos {
+  min-width: 40px;
+  text-align: center;
+  font-size: 12px;
+  color: var(--muted);
+  padding: 0 3px;
+  user-select: none;
+  white-space: nowrap;
+}
+.nav-sep {
+  opacity: 0.5;
+  margin: 0 1px;
+}
 /* Width presets apply on desktop only; mobile keeps the full-width panel below. */
 @media (min-width: 721px) {
   .detail-panel[data-size='sm'] {
     width: 480px;
+  }
+  /* Compact width has little room for the header controls — stack the title above a full-width,
+     left-aligned action row so the ‹ / › navigation and buttons never crowd into the title. */
+  .detail-panel[data-size='sm'] .detail-head {
+    flex-direction: column;
+    align-items: stretch;
+    gap: 10px;
+  }
+  .detail-panel[data-size='sm'] .detail-actions {
+    justify-content: flex-start;
   }
   .detail-panel[data-size='md'] {
     width: 660px;
@@ -2329,6 +2386,15 @@ button.pv-monitored.link:hover {
   /* Width stepper is meaningless when the panel is full-width on phones. */
   .detail-resize {
     display: none;
+  }
+  /* Stack the title above a full-width action row so the ‹ / › navigation stays reachable on phones. */
+  .detail-head {
+    flex-direction: column;
+    align-items: stretch;
+    gap: 10px;
+  }
+  .detail-actions {
+    justify-content: flex-start;
   }
   .ind {
     max-width: 200px;

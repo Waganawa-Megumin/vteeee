@@ -298,6 +298,9 @@ interface State {
 
   results: Record<string, NormalizedResult>;
   order: string[];
+  /** The order the detail panel's ‹ / › navigation steps through — the table's currently VISIBLE
+   *  (sorted + filtered) row order, set by ResultsTable. Falls back to `order` when empty. */
+  navOrder: string[];
   progress: { done: number; total: number; inflight: number; rateLimitedUntil: number | null } | null;
   running: boolean;
   error: string | null;
@@ -318,6 +321,8 @@ interface State {
   stop: () => void;
   clearResults: () => void;
   select: (value: string | null) => void;
+  /** Set the ‹ / › navigation order (the table's visible row order). */
+  setNavOrder: (values: string[]) => void;
   /** Merge one result into the table (if absent) and open its detail — used by the monitor page. */
   showResult: (r: NormalizedResult) => void;
   restore: (results: NormalizedResult[], input: string) => void;
@@ -421,6 +426,7 @@ export const useStore = create<State>((set, get) => {
 
   results: {},
   order: [],
+  navOrder: [],
   progress: null,
   running: false,
   error: null,
@@ -575,6 +581,35 @@ export const useStore = create<State>((set, get) => {
             };
             void saveHistory(rec, s.settings, s.session);
           }
+
+          // If the batch re-investigated any IP that's already on the watchlist, refresh its saved
+          // snapshot and share it — so re-checking a monitored IP from the MAIN search (on any device)
+          // updates the team watchlist exactly like IP-Mon's "Re-enrich". Only successful enrichments
+          // overwrite the snapshot (a not_found/error must not wipe a good one). Shared per-entry and
+          // sequentially so concurrent finishes don't clobber the shared blob.
+          const monitoredHits = out.filter(
+            (r) =>
+              (r.type === 'ipv4' || r.type === 'ipv6') &&
+              r.status === 'success' &&
+              s.monitors[r.value],
+          );
+          if (monitoredHits.length) {
+            set((st) => {
+              const monitors = { ...st.monitors };
+              for (const r of monitoredHits) {
+                const cur = monitors[r.value];
+                if (cur) monitors[r.value] = { ...cur, result: r, updatedAt: Date.now() };
+              }
+              saveMonitors(monitors);
+              return { monitors };
+            });
+            void (async () => {
+              const st = get();
+              for (const r of monitoredHits) {
+                await pushSharedMonitorEntry(st.settings, r.value, st.monitors[r.value] ?? null);
+              }
+            })();
+          }
         },
         onError: (m) => set({ error: m, running: false }),
       },
@@ -592,6 +627,10 @@ export const useStore = create<State>((set, get) => {
 
   select(value) {
     set({ selected: value });
+  },
+
+  setNavOrder(values) {
+    set({ navOrder: values });
   },
 
   showResult(r) {

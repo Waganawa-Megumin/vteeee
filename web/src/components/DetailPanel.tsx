@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import type {
   AbuseIpdbContext,
   CyfirmaContext,
@@ -1816,10 +1816,10 @@ function SocPrimeSection({ r }: { r: NormalizedResult }) {
 
 type DetailSize = 'sm' | 'md' | 'lg' | 'xl';
 const SIZE_STEPS: { key: DetailSize; title: string }[] = [
-  { key: 'sm', title: '現在幅 · default' },
+  { key: 'sm', title: '最小 · compact' },
   { key: 'md', title: '中 · medium' },
   { key: 'lg', title: '中大 · large' },
-  { key: 'xl', title: '最大 · max (背景は残す)' },
+  { key: 'xl', title: '最大 · default (背景は残す)' },
 ];
 
 /**
@@ -2332,6 +2332,8 @@ export function DetailPanel() {
   const selected = useStore((s) => s.selected);
   const results = useStore((s) => s.results);
   const select = useStore((s) => s.select);
+  const order = useStore((s) => s.order);
+  const navOrder = useStore((s) => s.navOrder);
   const socprimeOn = useStore((s) => s.mode === 'demo' || Boolean(s.health?.socprime));
   const urlscanOn = useStore((s) => s.mode === 'demo' || Boolean(s.health?.urlscan));
   // InternetDB needs no key — live ports are available whenever the proxy is reachable (or in demo).
@@ -2346,7 +2348,9 @@ export function DetailPanel() {
   const [busy, setBusy] = useState(false);
   const [size, setSize] = useState<DetailSize>(() => {
     const s = localStorage.getItem('vteeee.detailSize');
-    return s === 'md' || s === 'lg' || s === 'xl' ? s : 'sm';
+    // Default to the LARGEST size — the wide panel shows the two-column grid and doesn't cover the
+    // reading area cramped-narrow. (The dimmed background stays clickable to close.)
+    return s === 'sm' || s === 'md' || s === 'lg' ? s : 'xl';
   });
   function changeSize(s: DetailSize): void {
     setSize(s);
@@ -2357,6 +2361,45 @@ export function DetailPanel() {
     }
   }
   const r = selected ? results[selected] : null;
+
+  // ‹ / › navigation between indicators. Step through the table's VISIBLE order (navOrder) when the
+  // selection is part of it, otherwise the canonical input order; filtered to values that actually
+  // have a result loaded so an arrow never lands on a blank panel. Essential now that the default
+  // (max-width) panel covers the results table, so rows can't be clicked to move between IOCs.
+  const sibs = useMemo(() => {
+    const base = selected && navOrder.includes(selected) ? navOrder : order;
+    return base.filter((v) => results[v]);
+  }, [navOrder, order, results, selected]);
+  const navIdx = selected ? sibs.indexOf(selected) : -1;
+  const prevVal = navIdx > 0 ? sibs[navIdx - 1] : null;
+  const nextVal = navIdx >= 0 && navIdx < sibs.length - 1 ? sibs[navIdx + 1] : null;
+
+  // Keyboard: ← / → step between indicators, Esc closes — but never while typing in a field.
+  useEffect(() => {
+    if (!r) return;
+    function onKey(e: KeyboardEvent): void {
+      const t = e.target as HTMLElement | null;
+      if (
+        t &&
+        (t.tagName === 'INPUT' ||
+          t.tagName === 'TEXTAREA' ||
+          t.tagName === 'SELECT' ||
+          t.isContentEditable)
+      )
+        return;
+      if (e.key === 'ArrowLeft' && prevVal) {
+        e.preventDefault();
+        select(prevVal);
+      } else if (e.key === 'ArrowRight' && nextVal) {
+        e.preventDefault();
+        select(nextVal);
+      } else if (e.key === 'Escape') {
+        select(null);
+      }
+    }
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+  }, [r, prevVal, nextVal, select]);
 
   function flash(kind: 'text' | 'image' | 'pdf' | 'err'): void {
     setCopied(kind);
@@ -2463,6 +2506,33 @@ export function DetailPanel() {
             </div>
           </div>
           <div className="detail-actions" data-noimage="true">
+            {sibs.length > 1 && (
+              <div className="detail-nav" role="group" aria-label="Move between indicators">
+                <button
+                  className="nav-btn"
+                  onClick={() => prevVal && select(prevVal)}
+                  disabled={!prevVal}
+                  title="Previous indicator (←)"
+                  aria-label="Previous indicator"
+                >
+                  ‹
+                </button>
+                <span className="nav-pos mono" title="Position in the results list">
+                  {navIdx >= 0 ? navIdx + 1 : '–'}
+                  <span className="nav-sep">/</span>
+                  {sibs.length}
+                </span>
+                <button
+                  className="nav-btn"
+                  onClick={() => nextVal && select(nextVal)}
+                  disabled={!nextVal}
+                  title="Next indicator (→)"
+                  aria-label="Next indicator"
+                >
+                  ›
+                </button>
+              </div>
+            )}
             <div className="detail-resize" role="group" aria-label="Panel width">
               {SIZE_STEPS.map((s, i) => (
                 <button

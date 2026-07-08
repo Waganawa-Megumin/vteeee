@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import type { NormalizedResult } from '@vteeee/shared';
 import { useStore } from '../state/store';
 import { GtiBadge, ShodanChips, VerdictBadge } from './Badges';
@@ -24,6 +24,7 @@ export function ResultsTable() {
   const results = useStore((s) => s.results);
   const select = useStore((s) => s.select);
   const selected = useStore((s) => s.selected);
+  const setNavOrder = useStore((s) => s.setNavOrder);
   // Live: only when SOC Prime is configured on the proxy. Demo: always (uses the sample stub).
   const socprimeOn = useStore((s) => s.mode === 'demo' || Boolean(s.health?.socprime));
   const monitorAvailable = useStore((s) => s.mode === 'demo' || Boolean(s.health?.shodan));
@@ -74,6 +75,12 @@ export function ResultsTable() {
       }
     });
   }, [order, results, filter, sortKey, asc]);
+
+  // Publish the VISIBLE row order so the detail panel's ‹ / › navigation (and ←/→ keys) step through
+  // exactly what the analyst sees here — respecting the current sort and filter, not raw input order.
+  useEffect(() => {
+    setNavOrder(rows.map((r) => r.value));
+  }, [rows, setNavOrder]);
 
   function header(key: SortKey, label: string) {
     return (
