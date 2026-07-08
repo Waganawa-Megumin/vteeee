@@ -1665,12 +1665,12 @@ const SIZE_STEPS: { key: DetailSize; title: string }[] = [
 ];
 
 /**
- * urlscan.io "web魚拓" (URL / domain). On demand: submit the target, urlscan renders it in ITS OWN
- * sandbox (our egress never touches the target), then we poll for the result — a screenshot, the
- * finally-resolved URL/IP, the server ASN, urlscan's malicious verdict, and every domain/IP the page
- * contacted. Submissions default to `unlisted` (configurable in Settings).
+ * Reusable urlscan.io capture for ONE target URL (used for URL/domain rows and for the web
+ * endpoints of an IP). Submits the target, urlscan renders it in ITS OWN sandbox (our egress never
+ * touches the target), then we poll for the screenshot + finally-resolved URL/IP + server ASN +
+ * malicious verdict + contacted hosts. Submissions default to `unlisted` (configurable in Settings).
  */
-function UrlscanSection({ r }: { r: NormalizedResult }) {
+function UrlscanCapture({ target, buttonLabel }: { target: string; buttonLabel?: string }) {
   const submit = useStore((s) => s.urlscanSubmit);
   const poll = useStore((s) => s.urlscanResult);
   const visibility = useStore((s) => s.settings.urlscanVisibility ?? 'unlisted');
@@ -1687,7 +1687,7 @@ function UrlscanSection({ r }: { r: NormalizedResult }) {
     setImgOk(true);
     setEffVis(null);
     setState({ phase: 'running', msg: 'Submitting to urlscan…' });
-    const sub = await submit(r.value, visibility);
+    const sub = await submit(target, visibility);
     if (!aliveRef.current) return;
     if (sub.error || !sub.uuid) {
       setState({ phase: 'error', msg: sub.error ?? 'urlscan did not return a scan id' });
@@ -1726,38 +1726,10 @@ function UrlscanSection({ r }: { r: NormalizedResult }) {
     : undefined;
 
   return (
-    <div className="shodan-block">
-      <div className="shodan-head">
-        <span className="shodan-logo" aria-hidden>
-          🎣
-        </span>
-        urlscan.io · 魚拓
-        <InfoTip
-          ja={
-            <>
-              対象URL/ドメインを <b>urlscan.io のサンドボックスで実際に開き</b>、今の状態を保全（魚拓）します。
-              スクリーンショット・最終URL・解決IP・サーバASN・接触した全ドメイン/IP・悪性判定を取得。
-              <br />
-              訪問するのは <b>urlscan 側のインフラ</b>なので、<b>こちらの出口IPは相手に晒れません</b>（OPSEC安全）。
-              既定は <b>unlisted</b>（公開フィードに出ない）。オンデマンド・完了まで10〜40秒ほど。
-            </>
-          }
-          en={
-            <>
-              Opens the URL/domain in urlscan.io's own sandbox to capture its current state: screenshot,
-              final URL, resolved IP, server ASN, every contacted host, and a malicious verdict. The visit
-              comes from urlscan's infrastructure, so your egress IP never touches the target. Unlisted by default.
-            </>
-          }
-        />
-        {state.phase === 'done' && d?.malicious != null && (
-          <span className="shodan-when">{d.malicious ? `malicious · ${d.score ?? '?'}` : 'no verdict'}</span>
-        )}
-      </div>
-
+    <div className="urlscan-capture">
       <div className="i471-actions">
         <button className="btn btn-ghost btn-sm" onClick={run} disabled={state.phase === 'running'}>
-          {state.phase === 'running' ? (state.msg ?? 'Scanning…') : d ? 'Re-scan' : `Scan now (${visibility})`}
+          {state.phase === 'running' ? (state.msg ?? 'Scanning…') : d ? 'Re-scan' : (buttonLabel ?? `Scan now (${visibility})`)}
         </button>
         {d?.resultUrl && (
           <a className="btn btn-ghost shodan-link" href={d.resultUrl} target="_blank" rel="noreferrer">
@@ -1774,6 +1746,9 @@ function UrlscanSection({ r }: { r: NormalizedResult }) {
                 : ''}
           </span>
         )}
+        {state.phase === 'done' && d?.malicious != null && (
+          <span className="hint">{d.malicious ? `⚠ malicious · ${d.score ?? '?'}` : 'no verdict'}</span>
+        )}
       </div>
 
       {state.phase === 'error' && <div className="detail-note">{state.msg}</div>}
@@ -1785,7 +1760,7 @@ function UrlscanSection({ r }: { r: NormalizedResult }) {
               <a href={d.resultUrl ?? d.screenshotUrl} target="_blank" rel="noreferrer">
                 <img
                   src={d.screenshotUrl}
-                  alt={`urlscan screenshot of ${d.finalUrl ?? r.value}`}
+                  alt={`urlscan screenshot of ${d.finalUrl ?? target}`}
                   crossOrigin="anonymous"
                   loading="lazy"
                   onError={() => setImgOk(false)}
@@ -1834,6 +1809,52 @@ function UrlscanSection({ r }: { r: NormalizedResult }) {
   );
 }
 
+/** urlscan.io "web魚拓" section for a URL / domain row. */
+function UrlscanSection({ r }: { r: NormalizedResult }) {
+  return (
+    <div className="shodan-block">
+      <div className="shodan-head">
+        <span className="shodan-logo" aria-hidden>
+          🎣
+        </span>
+        urlscan.io · 魚拓
+        <InfoTip
+          ja={
+            <>
+              対象URL/ドメインを <b>urlscan.io のサンドボックスで実際に開き</b>、今の状態を保全（魚拓）します。
+              スクリーンショット・最終URL・解決IP・サーバASN・接触した全ドメイン/IP・悪性判定を取得。
+              <br />
+              訪問するのは <b>urlscan 側のインフラ</b>なので、<b>こちらの出口IPは相手に晒れません</b>（OPSEC安全）。
+              既定は <b>unlisted</b>（公開フィードに出ない）。オンデマンド・完了まで10〜40秒ほど。
+            </>
+          }
+          en={
+            <>
+              Opens the URL/domain in urlscan.io's own sandbox to capture its current state: screenshot,
+              final URL, resolved IP, server ASN, every contacted host, and a malicious verdict. The visit
+              comes from urlscan's infrastructure, so your egress IP never touches the target. Unlisted by default.
+            </>
+          }
+        />
+      </div>
+      <UrlscanCapture target={r.value} />
+    </div>
+  );
+}
+
+/** Web ports → the browser URLs urlscan should capture for an IP (IPv6 gets bracketed). */
+function ipWebEndpoints(ip: string, ports: number[]): string[] {
+  const host = ip.includes(':') ? `[${ip}]` : ip;
+  const httpsPorts = new Set([443, 8443, 4443, 9443, 10443, 8444]);
+  const httpPorts = new Set([80, 8080, 8000, 8888, 8081, 8008, 5000, 3000, 8090]);
+  const out: string[] = [];
+  for (const p of ports) {
+    if (httpsPorts.has(p)) out.push(p === 443 ? `https://${host}` : `https://${host}:${p}`);
+    else if (httpPorts.has(p)) out.push(p === 80 ? `http://${host}` : `http://${host}:${p}`);
+  }
+  return [...new Set(out)].slice(0, 8);
+}
+
 type ScanPhase = 'idle' | 'submitting' | 'scanning' | 'fetching' | 'done' | 'timeout' | 'error';
 
 /**
@@ -1844,6 +1865,7 @@ type ScanPhase = 'idle' | 'submitting' | 'scanning' | 'fetching' | 'done' | 'tim
  */
 function LivePortsSection({ r }: { r: NormalizedResult }) {
   const shodanOn = useStore((s) => s.mode === 'demo' || Boolean(s.health?.shodan));
+  const urlscanOn = useStore((s) => s.mode === 'demo' || Boolean(s.health?.urlscan));
   const idbFn = useStore((s) => s.shodanInternetDb);
   const scanFn = useStore((s) => s.shodanScan);
   const statusFn = useStore((s) => s.shodanScanStatus);
@@ -1914,6 +1936,18 @@ function LivePortsSection({ r }: { r: NormalizedResult }) {
 
   const host = scan.host;
 
+  // Combine Shodan + urlscan: for a web-facing IP, capture a "魚拓" of the site it serves. Web
+  // endpoints are derived from whatever ports we know (batch Shodan, InternetDB, or a fresh re-scan);
+  // until any ports are known we offer the two common candidates (https/http) so it works immediately.
+  const knownPorts = [
+    ...new Set([...(r.shodan?.ports ?? []), ...(idb?.data?.ports ?? []), ...(host?.ports ?? [])]),
+  ];
+  const hasPortData = Boolean(r.shodan?.found || idb?.data?.found || host?.found);
+  const webBase = r.value.includes(':') ? `[${r.value}]` : r.value;
+  const webEndpoints = hasPortData
+    ? ipWebEndpoints(r.value, knownPorts)
+    : [`https://${webBase}`, `http://${webBase}`];
+
   return (
     <div className="shodan-block">
       <div className="shodan-head">
@@ -1931,6 +1965,9 @@ function LivePortsSection({ r }: { r: NormalizedResult }) {
               <b>Re-scan with Shodan</b>＝Shodan に <b>今すぐ再観測</b>を依頼（スキャンクレジット消費）。再スキャンは
               <b>非同期</b>なので、状態(QUEUE→PROCESSING→DONE)と経過秒を表示し、<b>DONE になったら自動で最新バナーを取得</b>します。
               いずれも <b>Shodan 側から</b>観測するのでこちらの出口IPは晒れません。
+              <br />
+              Web系ポート(80/443等)があれば、下の <b>「🎣 Web 魚拓」</b>で <b>そのIPが配信しているサイトを urlscan で保全</b>できます
+              （IPでも魚拓）。
             </>
           }
           en={
@@ -1938,7 +1975,8 @@ function LivePortsSection({ r }: { r: NormalizedResult }) {
               Shows this IP's current ports/services. “Current ports (InternetDB)” is free and needs no key
               (Shodan's latest known state, no active scan). “Re-scan with Shodan” asks Shodan to observe the
               host again (uses credits); since that's asynchronous, it shows the status (QUEUE → PROCESSING →
-              DONE) with elapsed time and auto-loads the fresh banners the moment it's DONE.
+              DONE) with elapsed time and auto-loads the fresh banners the moment it's DONE. If the host has web
+              ports, use “🎣 Web 魚拓” below to capture the site it serves via urlscan — a 魚拓 even for a bare IP.
             </>
           }
         />
@@ -2065,6 +2103,27 @@ function LivePortsSection({ r }: { r: NormalizedResult }) {
               {host.lastUpdate && <Field k="Shodan last saw" v={new Date(host.lastUpdate).toLocaleString()} />}
             </div>
           </>
+        ))}
+
+      {/* Combined Shodan × urlscan: capture a "魚拓" of the web service(s) this IP is serving. */}
+      {urlscanOn &&
+        (hasPortData && webEndpoints.length === 0 ? (
+          <div className="detail-note">No web ports (80 / 443 / 8080 / …) detected on this host.</div>
+        ) : (
+          <div className="ip-web-capture">
+            <div className="fk ip-web-title">🎣 Web 魚拓 (urlscan) — capture the site served on this IP</div>
+            {!hasPortData && (
+              <span className="hint">
+                Run “Current ports (InternetDB)” for the exact web ports; showing the common ones for now.
+              </span>
+            )}
+            {webEndpoints.map((ep) => (
+              <div key={ep} className="ip-web-ep">
+                <span className="mono ip-web-url">{ep}</span>
+                <UrlscanCapture target={ep} buttonLabel="🎣 魚拓" />
+              </div>
+            ))}
+          </div>
         ))}
     </div>
   );
