@@ -1,4 +1,10 @@
-import type { ShodanContext, ShodanInternetDb, ShodanScanRequest, ShodanService } from '@vteeee/shared';
+import type {
+  ShodanContext,
+  ShodanInternetDb,
+  ShodanScanRequest,
+  ShodanScanStatus,
+  ShodanService,
+} from '@vteeee/shared';
 import type { ProxyEnv } from './types';
 
 /* eslint-disable @typescript-eslint/no-explicit-any */
@@ -200,5 +206,44 @@ export async function shodanScanRequest(
     };
   } catch {
     return { error: 'Shodan: malformed scan response' };
+  }
+}
+
+/**
+ * Poll the status of a submitted Shodan scan (`GET /shodan/scan/{id}`). Status progresses
+ * SUBMITTING → QUEUE → PROCESSING → DONE; on DONE the fresh banners are in the host dataset.
+ * Never throws; needs a Shodan key.
+ */
+export async function shodanScanStatus(
+  id: string,
+  env: ProxyEnv,
+  signal?: AbortSignal,
+): Promise<ShodanScanStatus | undefined> {
+  if (!env.shodanApiKey) return undefined;
+  if (signal?.aborted) return undefined;
+  let res: Response;
+  try {
+    res = await fetch(`${SHODAN_SCAN_API}/${encodeURIComponent(id)}?key=${encodeURIComponent(env.shodanApiKey)}`, {
+      headers: { accept: 'application/json' },
+      signal,
+    });
+  } catch (e) {
+    if ((e as Error).name === 'AbortError') return undefined;
+    return { id, error: `Shodan unreachable: ${(e as Error).message}` };
+  }
+  if (res.status === 401) return { id, error: 'Shodan: invalid API key' };
+  if (res.status === 404) return { id, error: 'Shodan: scan id not found' };
+  if (res.status === 429) return { id, error: 'Shodan: rate limited' };
+  if (!res.ok) return { id, error: `Shodan scan-status error ${res.status}` };
+  try {
+    const j = (await res.json()) as any;
+    return {
+      id: typeof j?.id === 'string' ? j.id : id,
+      status: typeof j?.status === 'string' ? j.status : undefined,
+      count: typeof j?.count === 'number' ? j.count : undefined,
+      created: typeof j?.created === 'string' ? j.created : undefined,
+    };
+  } catch {
+    return { id, error: 'Shodan: malformed scan-status response' };
   }
 }

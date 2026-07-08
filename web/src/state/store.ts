@@ -21,6 +21,7 @@ import {
   type ShodanContext,
   type ShodanInternetDb,
   type ShodanScanRequest,
+  type ShodanScanStatus,
   type UrlscanResult,
   type UrlscanSubmission,
   type SocPrimeQueryOptions,
@@ -97,6 +98,7 @@ interface State {
   urlscanResult: (uuid: string) => Promise<UrlscanResult>;
   shodanInternetDb: (ip: string) => Promise<ShodanInternetDb>;
   shodanScan: (ip: string) => Promise<ShodanScanRequest>;
+  shodanScanStatus: (id: string) => Promise<ShodanScanStatus>;
   shodanHost: (ip: string) => Promise<ShodanContext>;
 }
 
@@ -477,6 +479,15 @@ export const useStore = create<State>((set, get) => ({
       return await client.shodanScan(ip);
     } catch (e) {
       return { error: (e as Error).message };
+    }
+  },
+
+  async shodanScanStatus(id) {
+    try {
+      const client = await makeClient(get().settings);
+      return await client.shodanScanStatus(id);
+    } catch (e) {
+      return { id, error: (e as Error).message };
     }
   },
 

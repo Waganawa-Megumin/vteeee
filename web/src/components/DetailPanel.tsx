@@ -20,7 +20,6 @@ import type {
   RfSandboxIntel,
   ShodanContext,
   ShodanInternetDb,
-  ShodanScanRequest,
   ShodanService,
   SocPrimeQueryResult,
   SocPrimeRuleSearchResult,
@@ -1835,32 +1834,85 @@ function UrlscanSection({ r }: { r: NormalizedResult }) {
   );
 }
 
+type ScanPhase = 'idle' | 'submitting' | 'scanning' | 'fetching' | 'done' | 'timeout' | 'error';
+
 /**
  * Live ports / services (IPs). On demand: Shodan InternetDB gives the current *known* open ports/CVEs
- * for free (no key, no active scan); with a Shodan key you can also request a fresh re-scan (consumes
- * credits) and re-fetch the host banners once Shodan has re-observed the host.
+ * for free (no key, no active scan). With a Shodan key, "Re-scan" is a self-driving flow — it asks
+ * Shodan to re-observe the host, polls the scan status (QUEUE → PROCESSING → DONE) so you can see the
+ * progress, then automatically pulls the fresh banners the moment it finishes.
  */
 function LivePortsSection({ r }: { r: NormalizedResult }) {
   const shodanOn = useStore((s) => s.mode === 'demo' || Boolean(s.health?.shodan));
   const idbFn = useStore((s) => s.shodanInternetDb);
   const scanFn = useStore((s) => s.shodanScan);
+  const statusFn = useStore((s) => s.shodanScanStatus);
   const hostFn = useStore((s) => s.shodanHost);
   const [idb, setIdb] = useState<{ loading: boolean; data?: ShodanInternetDb } | null>(null);
-  const [scan, setScan] = useState<{ loading: boolean; data?: ShodanScanRequest } | null>(null);
-  const [host, setHost] = useState<{ loading: boolean; data?: ShodanContext } | null>(null);
+  const [scan, setScan] = useState<{
+    phase: ScanPhase;
+    msg?: string;
+    id?: string;
+    creditsLeft?: number;
+    host?: ShodanContext;
+  }>({ phase: 'idle' });
+  const aliveRef = useRef(true);
+  useEffect(() => () => void (aliveRef.current = false), []);
+
+  const scanning = scan.phase === 'submitting' || scan.phase === 'scanning' || scan.phase === 'fetching';
 
   async function runIdb() {
     setIdb({ loading: true });
     setIdb({ loading: false, data: await idbFn(r.value) });
   }
+
+  async function fetchHost(creditsLeft?: number) {
+    setScan({ phase: 'fetching', msg: 'Scan complete — fetching fresh banners…', creditsLeft });
+    const host = await hostFn(r.value);
+    if (!aliveRef.current) return;
+    setScan({ phase: 'done', creditsLeft, host });
+  }
+
   async function runScan() {
-    setScan({ loading: true });
-    setScan({ loading: false, data: await scanFn(r.value) });
+    const started = Date.now();
+    setScan({ phase: 'submitting', msg: 'Requesting a Shodan re-scan…' });
+    const req = await scanFn(r.value);
+    if (!aliveRef.current) return;
+    if (req.error || !req.id) {
+      setScan({ phase: 'error', msg: req.error ?? 'Shodan did not accept the scan (no id returned)' });
+      return;
+    }
+    const id = req.id;
+    const credits = req.creditsLeft;
+    // Shodan queues scans server-side — poll status until DONE (typically ~10s to a couple of minutes).
+    for (let i = 0; i < 24; i++) {
+      const elapsed0 = Math.round((Date.now() - started) / 1000);
+      setScan({ phase: 'scanning', id, creditsLeft: credits, msg: `Scanning… ${elapsed0}s` });
+      await new Promise((res) => setTimeout(res, 5000));
+      if (!aliveRef.current) return;
+      const st = await statusFn(id);
+      if (!aliveRef.current) return;
+      if (st.error) {
+        setScan({ phase: 'error', id, creditsLeft: credits, msg: st.error });
+        return;
+      }
+      const s = (st.status ?? '').toUpperCase();
+      const elapsed = Math.round((Date.now() - started) / 1000);
+      setScan({ phase: 'scanning', id, creditsLeft: credits, msg: `Scanning… ${elapsed}s${s ? ` · ${s}` : ''}` });
+      if (s === 'DONE') {
+        await fetchHost(credits);
+        return;
+      }
+    }
+    setScan({
+      phase: 'timeout',
+      id,
+      creditsLeft: credits,
+      msg: 'Still queued at Shodan after ~2 min — it finishes server-side. Fetch the banners in a moment.',
+    });
   }
-  async function runHost() {
-    setHost({ loading: true });
-    setHost({ loading: false, data: await hostFn(r.value) });
-  }
+
+  const host = scan.host;
 
   return (
     <div className="shodan-block">
@@ -1876,15 +1928,17 @@ function LivePortsSection({ r }: { r: NormalizedResult }) {
               <br />
               <b>Current ports (InternetDB)</b>＝無料・鍵不要・<b>再スキャンなし</b>で Shodan の最新既知ポート/CVEを即取得。
               <br />
-              <b>Re-scan (Shodan)</b>＝Shodan に <b>今すぐ再観測</b>を依頼（スキャンクレジット消費）。少し待って
-              <b>Refresh host banners</b> で最新バナーを取得。いずれも <b>Shodan 側から</b>観測するのでこちらの出口IPは晒れません。
+              <b>Re-scan with Shodan</b>＝Shodan に <b>今すぐ再観測</b>を依頼（スキャンクレジット消費）。再スキャンは
+              <b>非同期</b>なので、状態(QUEUE→PROCESSING→DONE)と経過秒を表示し、<b>DONE になったら自動で最新バナーを取得</b>します。
+              いずれも <b>Shodan 側から</b>観測するのでこちらの出口IPは晒れません。
             </>
           }
           en={
             <>
-              Checks this IP's current ports/services. “Current ports (InternetDB)” is free and needs no
-              key (Shodan's latest known state, no active scan). With a Shodan key, “Re-scan” asks Shodan
-              to observe the host again (uses credits); “Refresh host banners” then re-fetches the result.
+              Shows this IP's current ports/services. “Current ports (InternetDB)” is free and needs no key
+              (Shodan's latest known state, no active scan). “Re-scan with Shodan” asks Shodan to observe the
+              host again (uses credits); since that's asynchronous, it shows the status (QUEUE → PROCESSING →
+              DONE) with elapsed time and auto-loads the fresh banners the moment it's DONE.
             </>
           }
         />
@@ -1895,24 +1949,19 @@ function LivePortsSection({ r }: { r: NormalizedResult }) {
           {idb?.loading ? 'Checking…' : 'Current ports (InternetDB)'}
         </button>
         {shodanOn && (
-          <>
-            <button
-              className="btn btn-ghost btn-sm"
-              onClick={runScan}
-              disabled={scan?.loading}
-              title="Ask Shodan to re-scan this host now (consumes scan credits)"
-            >
-              {scan?.loading ? 'Requesting…' : 'Re-scan (Shodan)'}
-            </button>
-            <button
-              className="btn btn-ghost btn-sm"
-              onClick={runHost}
-              disabled={host?.loading}
-              title="Re-fetch Shodan host banners (after a re-scan)"
-            >
-              {host?.loading ? 'Loading…' : 'Refresh host banners'}
-            </button>
-          </>
+          <button
+            className="btn btn-ghost btn-sm"
+            onClick={runScan}
+            disabled={scanning}
+            title="Ask Shodan to re-scan this host now (consumes scan credits). Progress + fresh banners appear automatically."
+          >
+            {scanning ? (scan.msg ?? 'Scanning…') : 'Re-scan with Shodan'}
+          </button>
+        )}
+        {scan.phase === 'timeout' && (
+          <button className="btn btn-ghost btn-sm" onClick={() => fetchHost(scan.creditsLeft)}>
+            Fetch banners now
+          </button>
         )}
       </div>
 
@@ -1957,39 +2006,65 @@ function LivePortsSection({ r }: { r: NormalizedResult }) {
           </div>
         ))}
 
-      {scan?.data &&
-        (scan.data.error ? (
-          <div className="detail-note">{scan.data.error}</div>
-        ) : (
-          <div className="detail-note">
-            Re-scan requested{scan.data.id ? ` (id ${scan.data.id})` : ''}
-            {scan.data.creditsLeft != null ? ` · ${scan.data.creditsLeft} scan credits left` : ''}. Fresh banners
-            land shortly — use “Refresh host banners”.
-          </div>
-        ))}
+      {/* Re-scan progress — live status line so you can see it running and when it finishes. */}
+      {scanning && (
+        <div className="detail-note live-scan">
+          <span className="live-dot" aria-hidden />
+          {scan.msg}
+          {scan.creditsLeft != null ? ` · ${scan.creditsLeft} credits left` : ''}
+        </div>
+      )}
+      {scan.phase === 'timeout' && <div className="detail-note">{scan.msg}</div>}
+      {scan.phase === 'error' && <div className="detail-note">{scan.msg}</div>}
 
-      {host?.data &&
-        (host.data.error ? (
-          <div className="detail-note">{host.data.error}</div>
-        ) : !host.data.found ? (
-          <div className="detail-note">No fresh Shodan host record yet — try again in a moment.</div>
-        ) : (
-          <div className="detail-grid">
-            {host.data.ports && host.data.ports.length > 0 && <Field k="Open ports" v={host.data.ports.join(', ')} mono />}
-            {host.data.services && host.data.services.length > 0 && (
-              <div className="field">
-                <div className="fk">Services</div>
-                <div className="fv chips">
-                  {host.data.services.map((svc, i) => (
-                    <span key={`${svc.port}-${i}`} className="chip shodan mono">
-                      {serviceLabel(svc)}
-                    </span>
-                  ))}
-                </div>
-              </div>
-            )}
-            {host.data.lastUpdate && <Field k="Shodan last saw" v={new Date(host.data.lastUpdate).toLocaleString()} />}
+      {scan.phase === 'done' &&
+        host &&
+        (host.error ? (
+          <div className="detail-note">{host.error}</div>
+        ) : !host.found ? (
+          <div className="detail-note">
+            Re-scan finished, but Shodan has no fresh host record yet — try “Current ports (InternetDB)”.
           </div>
+        ) : (
+          <>
+            <div className="detail-note live-done">
+              ✓ Re-scan complete{scan.creditsLeft != null ? ` · ${scan.creditsLeft} credits left` : ''}
+            </div>
+            <div className="detail-grid">
+              {host.ports && host.ports.length > 0 && <Field k="Open ports (fresh)" v={host.ports.join(', ')} mono />}
+              {host.services && host.services.length > 0 && (
+                <div className="field">
+                  <div className="fk">Services</div>
+                  <div className="fv chips">
+                    {host.services.map((svc, i) => (
+                      <span key={`${svc.port}-${i}`} className="chip shodan mono">
+                        {serviceLabel(svc)}
+                      </span>
+                    ))}
+                  </div>
+                </div>
+              )}
+              {host.vulns && host.vulns.length > 0 && (
+                <div className="field">
+                  <div className="fk">CVEs</div>
+                  <div className="fv chips">
+                    {host.vulns.map((cve) => (
+                      <a
+                        key={cve}
+                        className="chip shodan-vuln mono"
+                        href={`https://nvd.nist.gov/vuln/detail/${cve}`}
+                        target="_blank"
+                        rel="noreferrer"
+                      >
+                        {cve}
+                      </a>
+                    ))}
+                  </div>
+                </div>
+              )}
+              {host.lastUpdate && <Field k="Shodan last saw" v={new Date(host.lastUpdate).toLocaleString()} />}
+            </div>
+          </>
         ))}
     </div>
   );

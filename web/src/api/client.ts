@@ -15,6 +15,7 @@ import type {
   ShodanContext,
   ShodanInternetDb,
   ShodanScanRequest,
+  ShodanScanStatus,
   SocPrimeQueryOptions,
   SocPrimeQueryResult,
   SocPrimeRuleSearchParams,
@@ -66,6 +67,8 @@ export interface EnrichClient {
   shodanInternetDb(ip: string): Promise<ShodanInternetDb>;
   /** Request an on-demand Shodan re-scan of an IP (consumes scan credits). */
   shodanScan(ip: string): Promise<ShodanScanRequest>;
+  /** Poll the status of a submitted Shodan scan (SUBMITTING → QUEUE → PROCESSING → DONE). */
+  shodanScanStatus(id: string): Promise<ShodanScanStatus>;
   /** Re-fetch Shodan host banners on demand (e.g. after a re-scan). */
   shodanHost(ip: string): Promise<ShodanContext>;
 }

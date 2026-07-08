@@ -1,6 +1,6 @@
 import { describe, it, expect, vi, afterEach } from 'vitest';
 import { mapUrlscanResult, urlscanSubmit, urlscanResult } from '../urlscanFetch';
-import { mapInternetDb, shodanInternetDb, shodanScanRequest } from '../shodanFetch';
+import { mapInternetDb, shodanInternetDb, shodanScanRequest, shodanScanStatus } from '../shodanFetch';
 import type { ProxyEnv } from '../types';
 
 const env: ProxyEnv = {
@@ -191,5 +191,30 @@ describe('shodanScanRequest', () => {
   it('surfaces "no credits" (403)', async () => {
     vi.stubGlobal('fetch', vi.fn(async () => resp(403, { error: 'no credits' })));
     expect((await shodanScanRequest('1.1.1.1', env))?.error).toMatch(/no scan credits|plan/);
+  });
+});
+
+describe('shodanScanStatus', () => {
+  it('returns undefined without a Shodan key', async () => {
+    expect(await shodanScanStatus('R2X', { ...env, shodanApiKey: undefined })).toBeUndefined();
+  });
+
+  it('reports the scan status (SUBMITTING → … → DONE) and hits /shodan/scan/{id}', async () => {
+    const f = vi.fn(async (url: string) => {
+      expect(url).toContain('/shodan/scan/R2X');
+      expect(url).toContain('key=shodan');
+      return resp(200, { id: 'R2X', status: 'PROCESSING', count: 1 });
+    });
+    vi.stubGlobal('fetch', f);
+    const st = await shodanScanStatus('R2X', env);
+    expect(st).toEqual({ id: 'R2X', status: 'PROCESSING', count: 1, created: undefined });
+
+    vi.stubGlobal('fetch', vi.fn(async () => resp(200, { id: 'R2X', status: 'DONE' })));
+    expect((await shodanScanStatus('R2X', env))?.status).toBe('DONE');
+  });
+
+  it('surfaces an unknown scan id (404)', async () => {
+    vi.stubGlobal('fetch', vi.fn(async () => resp(404, '{}')));
+    expect((await shodanScanStatus('nope', env))?.error).toMatch(/not found/);
   });
 });

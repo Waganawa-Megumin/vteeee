@@ -19,6 +19,7 @@ import {
   urlscanResult,
   shodanInternetDb,
   shodanScanRequest,
+  shodanScanStatus,
   shodanHostLookup,
   getUsers,
   putUsers,
@@ -340,6 +341,20 @@ app.post('/api/shodan/scan', async (req, res) => {
     return;
   }
   res.json((await shodanScanRequest(ip, env)) ?? { error: 'unavailable' });
+});
+
+app.get('/api/shodan/scan-status', async (req, res) => {
+  if (!requireAccess(req, res)) return;
+  if (!env.shodanApiKey) {
+    res.status(400).json({ error: 'Shodan not configured' });
+    return;
+  }
+  const id = (req.query.id as string) || '';
+  if (!id) {
+    res.status(400).json({ error: 'id required' });
+    return;
+  }
+  res.json((await shodanScanStatus(id, env)) ?? { error: 'unavailable' });
 });
 
 app.get('/api/shodan/host', async (req, res) => {

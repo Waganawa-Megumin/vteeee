@@ -16,6 +16,7 @@ import {
   type ShodanContext,
   type ShodanInternetDb,
   type ShodanScanRequest,
+  type ShodanScanStatus,
   type SocPrimeQueryOptions,
   type SocPrimeQueryResult,
   type SocPrimeRuleSearchParams,
@@ -323,6 +324,12 @@ export class DemoClient implements EnrichClient {
   async shodanScan(): Promise<ShodanScanRequest> {
     await sleep(400);
     return { id: 'DEMOSCAN1A2B3C', count: 1, creditsLeft: 100 };
+  }
+
+  /** Sample Shodan scan status (demo) — reports DONE so the flow auto-refreshes. */
+  async shodanScanStatus(id: string): Promise<ShodanScanStatus> {
+    await sleep(400);
+    return { id, status: 'DONE', count: 1 };
   }
 
   /** Sample fresh Shodan host banners (demo). */

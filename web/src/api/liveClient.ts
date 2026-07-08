@@ -16,6 +16,7 @@ import type {
   ShodanContext,
   ShodanInternetDb,
   ShodanScanRequest,
+  ShodanScanStatus,
   SocPrimeQueryOptions,
   SocPrimeQueryResult,
   SocPrimeRuleSearchParams,
@@ -262,6 +263,14 @@ export class LiveClient implements EnrichClient {
     });
     if (!res.ok) return { error: `Shodan scan request failed: ${res.status}` };
     return (await res.json()) as ShodanScanRequest;
+  }
+
+  async shodanScanStatus(id: string): Promise<ShodanScanStatus> {
+    const res = await fetch(`${this.base}/api/shodan/scan-status?id=${encodeURIComponent(id)}`, {
+      headers: this.headers(false),
+    });
+    if (!res.ok) return { id, error: `Shodan scan-status failed: ${res.status}` };
+    return (await res.json()) as ShodanScanStatus;
   }
 
   async shodanHost(ip: string): Promise<ShodanContext> {

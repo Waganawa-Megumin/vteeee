@@ -1067,6 +1067,35 @@ a.i471-search-item:hover {
   border-radius: 8px;
   background: #fff;
 }
+/* Live Shodan re-scan progress: a pulsing dot signals the async scan is still running. */
+.live-scan {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.live-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: var(--accent, #7c9);
+  flex: 0 0 auto;
+  animation: live-pulse 1s ease-in-out infinite;
+}
+@keyframes live-pulse {
+  0%,
+  100% {
+    opacity: 0.35;
+    transform: scale(0.8);
+  }
+  50% {
+    opacity: 1;
+    transform: scale(1.15);
+  }
+}
+.live-done {
+  color: var(--good, #6c9);
+  font-weight: 600;
+}
 .rf-evidence + .rf-evidence {
   border-top: 1px solid var(--line);
   padding-top: 6px;

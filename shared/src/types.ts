@@ -911,6 +911,20 @@ export interface ShodanScanRequest {
   error?: string;
 }
 
+/**
+ * Status of a submitted Shodan on-demand scan (`GET /shodan/scan/{id}`) — lets the UI show when the
+ * scan actually finishes. `status` progresses SUBMITTING → QUEUE → PROCESSING → DONE; on DONE the
+ * fresh banners are in the host dataset (re-fetch the host to see them).
+ */
+export interface ShodanScanStatus {
+  id?: string;
+  /** SUBMITTING | QUEUE | PROCESSING | DONE. */
+  status?: string;
+  count?: number;
+  created?: string;
+  error?: string;
+}
+
 /** The single shape the results table & detail panel consume, for all IOC types. */
 export interface NormalizedResult {
   input: string;

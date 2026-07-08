@@ -6,6 +6,7 @@ export {
   mapShodanHost,
   shodanInternetDb,
   shodanScanRequest,
+  shodanScanStatus,
   mapInternetDb,
 } from './shodanFetch';
 export { urlscanSubmit, urlscanResult, mapUrlscanResult } from './urlscanFetch';

@@ -16,6 +16,7 @@ import {
   urlscanResult,
   shodanInternetDb,
   shodanScanRequest,
+  shodanScanStatus,
   shodanHostLookup,
   getUsers,
   putUsers,
@@ -341,6 +342,15 @@ export default {
         const b = (await request.json()) as { ip?: string };
         if (!b.ip) return json({ error: 'ip required' }, 400);
         return json((await shodanScanRequest(b.ip, proxy, request.signal)) ?? { error: 'unavailable' });
+      }
+
+      // Poll the status of a submitted Shodan scan (SUBMITTING → QUEUE → PROCESSING → DONE).
+      if (url.pathname === '/api/shodan/scan-status' && request.method === 'GET') {
+        if (!checkAccess(auth, proxy)) return json({ error: 'unauthorized' }, 401);
+        if (!proxy.shodanApiKey) return json({ error: 'Shodan not configured' }, 400);
+        const id = url.searchParams.get('id') ?? '';
+        if (!id) return json({ error: 'id required' }, 400);
+        return json((await shodanScanStatus(id, proxy, request.signal)) ?? { error: 'unavailable' });
       }
 
       // Re-fetch Shodan host banners on demand (e.g. after a re-scan).
