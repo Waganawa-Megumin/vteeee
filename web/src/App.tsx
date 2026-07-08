@@ -11,7 +11,7 @@ import { IntegrationStatus } from './components/IntegrationStatus';
 import { ScanTracker } from './components/ScanTracker';
 import { HelpDialog } from './components/HelpDialog';
 import { HistoryDialog } from './components/HistoryDialog';
-import { MonitorDialog } from './components/MonitorDialog';
+import { MonitorPage } from './components/MonitorPage';
 import { RuleSearchDialog } from './components/RuleSearchDialog';
 import { EmptyState } from './components/EmptyState';
 import { AdminPanel } from './admin/AdminPanel';
@@ -34,7 +34,6 @@ export default function App() {
   const [settingsOpen, setSettingsOpen] = useState(false);
   const [helpOpen, setHelpOpen] = useState(false);
   const [historyOpen, setHistoryOpen] = useState(false);
-  const [monitorOpen, setMonitorOpen] = useState(false);
   const [rulesOpen, setRulesOpen] = useState(false);
   const [theme, setTheme] = useState<Theme>(
     () => ((localStorage.getItem('vteeee.theme') as Theme) || 'chalk'),
@@ -73,8 +72,12 @@ export default function App() {
           History
         </button>
         {monitorAvailable && (
-          <button className="btn btn-sm" onClick={() => setMonitorOpen(true)} title="Shodan Monitor watchlist (IPs + saved enrichment)">
-            📡 Monitor{monitorCount ? ` (${monitorCount})` : ''}
+          <button
+            className={`btn btn-sm${view === 'monitor' ? ' active' : ''}`}
+            onClick={() => setView(view === 'monitor' ? 'app' : 'monitor')}
+            title="IP Monitor — Shodan watchlist + dashboard (IPs + saved enrichment)"
+          >
+            📡 IP Monitor{monitorCount ? ` (${monitorCount})` : ''}
           </button>
         )}
         {rulesAvailable && (
@@ -105,6 +108,8 @@ export default function App() {
 
       {view === 'admin' ? (
         <AdminPanel />
+      ) : view === 'monitor' ? (
+        <MonitorPage />
       ) : (
         <main className="layout">
           <div className="col-left">
@@ -121,7 +126,6 @@ export default function App() {
       {settingsOpen && <SettingsDialog onClose={() => setSettingsOpen(false)} />}
       {helpOpen && <HelpDialog onClose={() => setHelpOpen(false)} />}
       {historyOpen && <HistoryDialog onClose={() => setHistoryOpen(false)} />}
-      {monitorOpen && <MonitorDialog onClose={() => setMonitorOpen(false)} />}
       {rulesOpen && <RuleSearchDialog onClose={() => setRulesOpen(false)} />}
       <DetailPanel />
     </div>

@@ -204,7 +204,7 @@ interface State {
   running: boolean;
   error: string | null;
   selected: string | null;
-  view: 'app' | 'admin';
+  view: 'app' | 'admin' | 'monitor';
 
   boot: () => Promise<void>;
   login: (username: string, password: string) => Promise<boolean>;
@@ -224,7 +224,7 @@ interface State {
   showResult: (r: NormalizedResult) => void;
   restore: (results: NormalizedResult[], input: string) => void;
 
-  setView: (v: 'app' | 'admin') => void;
+  setView: (v: 'app' | 'admin' | 'monitor') => void;
   applySettings: (s: AppSettings) => void;
   applyUsers: (u: UserRecord[]) => void;
   refreshHealth: () => Promise<void>;
@@ -499,6 +499,7 @@ export const useStore = create<State>((set, get) => {
       results: { ...s.results, [r.value]: r },
       order: s.order.includes(r.value) ? s.order : [...s.order, r.value],
       selected: r.value,
+      view: 'app', // land in the search view with this indicator's detail open
     }));
   },
 

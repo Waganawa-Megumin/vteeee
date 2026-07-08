@@ -26,6 +26,9 @@ export function ResultsTable() {
   const selected = useStore((s) => s.selected);
   // Live: only when SOC Prime is configured on the proxy. Demo: always (uses the sample stub).
   const socprimeOn = useStore((s) => s.mode === 'demo' || Boolean(s.health?.socprime));
+  const monitorAvailable = useStore((s) => s.mode === 'demo' || Boolean(s.health?.shodan));
+  const addMonitor = useStore((s) => s.addMonitor);
+  const monitors = useStore((s) => s.monitors);
   const [sortKey, setSortKey] = useState<SortKey>('verdict');
   const [asc, setAsc] = useState(false);
   const [filter, setFilter] = useState('');
@@ -101,6 +104,22 @@ export function ResultsTable() {
     });
   }
 
+  const isIp = (r: NormalizedResult) => r.type === 'ipv4' || r.type === 'ipv6';
+  const checkedIps = rows.filter((r) => checked.has(r.value) && isIp(r));
+  /** Tick the IP rows Shodan has no data on — the best monitor candidates (Shodan will start scanning them). */
+  function selectNoShodanIps() {
+    setChecked((prev) => {
+      const next = new Set(prev);
+      rows.forEach((r) => {
+        if (isIp(r) && !r.shodan?.found && !monitors[r.value]) next.add(r.value);
+      });
+      return next;
+    });
+  }
+  function bulkMonitor() {
+    checkedIps.forEach((r) => void addMonitor(r.value, r));
+  }
+
   if (!order.length) return null;
 
   return (
@@ -128,6 +147,29 @@ export function ResultsTable() {
           >
             SIEM query{selectedIocs.length ? ` (${selectedIocs.length})` : ''}
           </button>
+        )}
+        {monitorAvailable && (
+          <>
+            <button
+              className="btn btn-sm"
+              onClick={selectNoShodanIps}
+              title="Tick the IP rows Shodan has no data on — the best monitor candidates"
+            >
+              No-Shodan IPs
+            </button>
+            <button
+              className="btn btn-sm"
+              disabled={!checkedIps.length}
+              onClick={bulkMonitor}
+              title={
+                checkedIps.length
+                  ? `Register the ${checkedIps.length} checked IP(s) to Shodan Monitor + snapshot their enrichment`
+                  : 'Tick IP rows, then bulk-register them to Shodan Monitor'
+              }
+            >
+              📡 Monitor{checkedIps.length ? ` (${checkedIps.length})` : ''}
+            </button>
+          </>
         )}
         <button
           className="btn btn-sm"
@@ -197,6 +239,18 @@ export function ResultsTable() {
                 <td className="context">
                   {contextCell(r)}
                   <ShodanChips r={r} />
+                  {monitors[r.value] ? (
+                    <span className="ctx-mon" title="In the IP Monitor watchlist">
+                      📡 monitored
+                    </span>
+                  ) : (
+                    isIp(r) &&
+                    !r.shodan?.found && (
+                      <span className="ctx-hint" title="Shodan has no data — a good monitor candidate">
+                        no Shodan data
+                      </span>
+                    )
+                  )}
                 </td>
                 <td onClick={(e) => e.stopPropagation()}>
                   <a className="vt-link" href={r.links.gui} target="_blank" rel="noreferrer" title="Open in VirusTotal">
