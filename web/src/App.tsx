@@ -75,9 +75,9 @@ export default function App() {
           <button
             className={`btn btn-sm${view === 'monitor' ? ' active' : ''}`}
             onClick={() => setView(view === 'monitor' ? 'app' : 'monitor')}
-            title="IP Monitor — Shodan watchlist + dashboard (IPs + saved enrichment)"
+            title="IP-Mon — Shodan IP Monitor watchlist + dashboard (IPs + saved enrichment)"
           >
-            📡 IP Monitor{monitorCount ? ` (${monitorCount})` : ''}
+            IP-Mon{monitorCount ? ` (${monitorCount})` : ''}
           </button>
         )}
         {rulesAvailable && (

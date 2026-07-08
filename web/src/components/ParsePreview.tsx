@@ -73,11 +73,11 @@ export function ParsePreview() {
                       if (saved) showResult(saved);
                     }}
                   >
-                    📡 monitored · open
+                    monitored · open
                   </button>
                 ) : (
-                  <span className="pv-monitored" title="Already in the Shodan Monitor watchlist">
-                    📡 monitored
+                  <span className="pv-monitored" title="Already in the IP-Mon watchlist">
+                    monitored
                   </span>
                 ))}
               {i.private && <span className="flag flag-private">private · not sent</span>}

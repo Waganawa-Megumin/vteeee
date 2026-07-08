@@ -218,7 +218,7 @@ export function MonitorPage() {
         <button className="btn btn-sm" onClick={() => setView('app')} title="Back to search">
           ← Back
         </button>
-        <h2>📡 IP Monitor — dashboard</h2>
+        <h2>IP-Mon — dashboard</h2>
         <div className="spacer" />
         <a className="btn btn-sm" href="https://monitor.shodan.io/dashboard" target="_blank" rel="noreferrer">
           Shodan Monitor ↗
@@ -236,9 +236,9 @@ export function MonitorPage() {
 
       {total === 0 ? (
         <div className="empty-state">
-          まだ監視IPはありません。検索結果テーブルの <b>📡 Monitor</b> か、詳細ページの <b>☆ Monitor</b> で登録してください。
+          まだ監視IPはありません。検索結果テーブルの <b>Monitor</b> か、詳細ページの <b>☆ Monitor</b> で登録してください。
           <br />
-          No monitored IPs yet — tick “📡 Monitor” in the results table, or ☆ Monitor from an IP's detail.
+          No monitored IPs yet — tick “Monitor” in the results table, or ☆ Monitor from an IP's detail.
         </div>
       ) : (
         <>

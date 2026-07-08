@@ -210,6 +210,8 @@ textarea:focus {
 .topbar {
   display: flex;
   align-items: center;
+  flex-wrap: wrap;
+  row-gap: 8px;
   gap: 10px;
   padding: 10px 16px;
   background: var(--bg2);
@@ -298,6 +300,88 @@ textarea:focus {
 /* Chips are status only — keep them inert so hover reads as a single control. */
 .intg-cluster .intg-chip {
   pointer-events: none;
+}
+/* Collapsible integration readout: mode pill + active count, expands to a dropdown. */
+.intg-wrap {
+  position: relative;
+  display: inline-flex;
+}
+.intg-summary {
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--muted);
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+  white-space: nowrap;
+}
+.intg-summary.warn {
+  color: var(--sus);
+}
+.intg-caret {
+  font-size: 9px;
+}
+.intg-cluster.open .intg-caret {
+  transform: rotate(180deg);
+}
+.intg-backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 40;
+}
+.intg-menu {
+  position: absolute;
+  left: 0;
+  top: calc(100% + 6px);
+  z-index: 41;
+  width: min(340px, 92vw);
+  max-height: 72vh;
+  overflow-y: auto;
+  background: var(--bg2);
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  box-shadow: 0 10px 30px rgba(0, 0, 0, 0.35);
+  padding: 6px;
+}
+.intg-menu-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 4px 6px 8px;
+  font-size: 12px;
+  color: var(--muted);
+  border-bottom: 1px solid var(--line);
+}
+.intg-menu-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 6px;
+  font-size: 12px;
+  border-radius: 6px;
+}
+.intg-menu-row .intg-dot {
+  background: var(--undet);
+}
+.intg-menu-row.on .intg-dot {
+  background: var(--harm);
+  box-shadow: 0 0 5px rgba(134, 217, 143, 0.55);
+}
+.intg-menu-row.on .intg-menu-label {
+  color: var(--harm);
+}
+.intg-menu-row.off {
+  opacity: 0.72;
+}
+.intg-menu-label {
+  font-weight: 600;
+  flex: 0 0 auto;
+}
+.intg-menu-state {
+  margin-left: auto;
+  color: var(--muted);
+  font-size: 11px;
+  text-align: right;
 }
 .intg-status {
   display: flex;

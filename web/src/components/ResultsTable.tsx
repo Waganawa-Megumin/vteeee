@@ -167,7 +167,7 @@ export function ResultsTable() {
                   : 'Tick IP rows, then bulk-register them to Shodan Monitor'
               }
             >
-              📡 Monitor{checkedIps.length ? ` (${checkedIps.length})` : ''}
+              Monitor{checkedIps.length ? ` (${checkedIps.length})` : ''}
             </button>
           </>
         )}
@@ -240,8 +240,8 @@ export function ResultsTable() {
                   {contextCell(r)}
                   <ShodanChips r={r} />
                   {monitors[r.value] ? (
-                    <span className="ctx-mon" title="In the IP Monitor watchlist">
-                      📡 monitored
+                    <span className="ctx-mon" title="In the IP-Mon watchlist">
+                      monitored
                     </span>
                   ) : (
                     isIp(r) &&
