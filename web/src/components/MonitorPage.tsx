@@ -143,7 +143,30 @@ export function MonitorPage() {
   const remove = useStore((s) => s.removeMonitor);
   const check = useStore((s) => s.checkMonitor);
   const showResult = useStore((s) => s.showResult);
+  const setGroup = useStore((s) => s.setMonitorGroup);
   const [checked, setChecked] = useState<Set<string>>(new Set());
+  const [groupInput, setGroupInput] = useState('');
+  const [collapsed, setCollapsed] = useState<Set<string>>(() => {
+    try {
+      const raw = localStorage.getItem('vteeee.monGroupsCollapsed');
+      return new Set(raw ? (JSON.parse(raw) as string[]) : []);
+    } catch {
+      return new Set();
+    }
+  });
+  function toggleCollapse(key: string) {
+    setCollapsed((prev) => {
+      const next = new Set(prev);
+      if (next.has(key)) next.delete(key);
+      else next.add(key);
+      try {
+        localStorage.setItem('vteeee.monGroupsCollapsed', JSON.stringify([...next]));
+      } catch {
+        /* ignore */
+      }
+      return next;
+    });
+  }
 
   useEffect(() => {
     void refresh();
@@ -217,6 +240,203 @@ export function MonitorPage() {
     checkedList.forEach((e) => void check(e.ip));
   }
 
+  // --- Grouping: named groups become top-level sections with the IPs nested underneath. ----------
+  const UNGROUPED = '__vteeee_ungrouped__';
+  const groupNames = [...new Set(list.map((e) => e.group).filter((g): g is string => !!g))].sort((a, b) =>
+    a.localeCompare(b),
+  );
+  const hasGroups = groupNames.length > 0;
+  const buckets: { key: string; name: string | null; entries: MonitorEntry[] }[] = groupNames.map((g) => ({
+    key: g,
+    name: g,
+    entries: list.filter((e) => e.group === g),
+  }));
+  const ungrouped = list.filter((e) => !e.group);
+  if (ungrouped.length) buckets.push({ key: UNGROUPED, name: null, entries: ungrouped });
+
+  /** Select / deselect every IP in one group at once (drives the per-group checkbox). */
+  function groupToggle(entries: MonitorEntry[]) {
+    setChecked((prev) => {
+      const next = new Set(prev);
+      const all = entries.length > 0 && entries.every((e) => next.has(e.ip));
+      entries.forEach((e) => (all ? next.delete(e.ip) : next.add(e.ip)));
+      return next;
+    });
+  }
+  /** Assign the checked IPs to the typed group (blank = ungroup). */
+  function assignGroup() {
+    if (!checkedList.length) return;
+    void setGroup(
+      checkedList.map((e) => e.ip),
+      groupInput,
+    );
+    setGroupInput('');
+    setChecked(new Set());
+  }
+  function renameGroup(name: string) {
+    const nn = window.prompt(`Rename group “${name}” → (blank = ungroup):`, name);
+    if (nn == null) return;
+    void setGroup(
+      list.filter((e) => e.group === name).map((e) => e.ip),
+      nn,
+    );
+  }
+  function ungroupAll(name: string) {
+    void setGroup(
+      list.filter((e) => e.group === name).map((e) => e.ip),
+      undefined,
+    );
+  }
+
+  function renderRow(e: MonitorEntry) {
+    const r = e.result;
+    const abuse = r?.abuseipdb?.abuseConfidenceScore;
+    const abuseCls = abuse == null ? '' : abuse >= 75 ? 'sev-high' : abuse >= 25 ? 'sev-med' : 'sev-low';
+    const cc = countryOf(e);
+    return (
+      <li key={e.ip} className="monitor-row">
+        <input
+          type="checkbox"
+          className="mon-cb"
+          checked={checked.has(e.ip)}
+          onChange={() => toggle(e.ip)}
+          aria-label={`Select ${e.ip}`}
+        />
+        <div className="mon-main">
+          <div className="mon-top">
+            <span className="mon-ip mono">{e.ip}</span>
+            {e.live ? (
+              <span className="mon-badge live">● monitoring</span>
+            ) : e.error ? (
+              <span className="mon-badge err" title={e.error}>
+                ⚠ not registered
+              </span>
+            ) : (
+              <span className="mon-badge">…</span>
+            )}
+            {e.triggers?.length ? <span className="mon-trig">triggers: {e.triggers.join(', ')}</span> : null}
+            <span className="mon-when">added {new Date(e.addedAt).toLocaleDateString()}</span>
+          </div>
+          {r ? (
+            <span className="mon-summary">
+              <VerdictBadge verdict={r.verdict} status={r.status} />
+              {r.detection && <span className="mon-chip">det {detectionRatio(r)}</span>}
+              {r.shodan?.ports?.length ? <span className="mon-chip mono">{r.shodan.ports.length} ports</span> : null}
+              {r.shodan?.vulns?.length ? <span className="mon-chip sev-high">{r.shodan.vulns.length} CVE</span> : null}
+              {abuse != null && <span className={`mon-chip ${abuseCls}`}>abuse {abuse}</span>}
+              {r.recordedfuture?.riskScore != null && <span className="mon-chip">RF {r.recordedfuture.riskScore}</span>}
+              {cc && <span className="mon-chip">{cc}</span>}
+            </span>
+          ) : (
+            <span className="mon-nointel">no enrichment yet — press “Re-enrich”</span>
+          )}
+          {e.check && (
+            <div className={`mon-check${e.check.changed ? ' changed' : ''}`}>
+              {e.check.error
+                ? `check failed: ${e.check.error}`
+                : e.check.changed
+                  ? `▲ change — ${[
+                      e.check.newPorts.length ? `+ports ${e.check.newPorts.join(', ')}` : '',
+                      e.check.gonePorts.length ? `−ports ${e.check.gonePorts.join(', ')}` : '',
+                      e.check.newVulns.length
+                        ? `+CVE ${e.check.newVulns.slice(0, 4).join(', ')}${e.check.newVulns.length > 4 ? '…' : ''}`
+                        : '',
+                    ]
+                      .filter(Boolean)
+                      .join(' · ')}`
+                  : '✓ no change since baseline'}
+              <span className="mon-check-when"> · checked {new Date(e.check.at).toLocaleString()}</span>
+            </div>
+          )}
+          {e.error && <div className="mon-err">{e.error}</div>}
+        </div>
+        <div className="mon-actions">
+          <button className="btn btn-sm" disabled={!r} onClick={() => r && showResult(r)}>
+            Open
+          </button>
+          <button
+            className="btn btn-sm"
+            disabled={e.checking}
+            onClick={() => void check(e.ip)}
+            title="Re-observe on Shodan now and diff vs. baseline (the monitoring result)"
+          >
+            {e.checking ? 'Checking…' : 'Check'}
+          </button>
+          <button className="btn btn-sm" disabled={e.enriching} onClick={() => void reEnrich(e.ip)}>
+            {e.enriching ? 'Enriching…' : 'Re-enrich'}
+          </button>
+          <a
+            className="btn btn-sm"
+            href={`https://www.shodan.io/host/${encodeURIComponent(e.ip)}`}
+            target="_blank"
+            rel="noreferrer"
+          >
+            Shodan ↗
+          </a>
+          <button className="btn btn-sm btn-danger" onClick={() => void remove(e.ip)}>
+            Remove
+          </button>
+        </div>
+      </li>
+    );
+  }
+
+  /** One group section: a collapsible header (checkbox · name · roll-up) with the IP rows nested. */
+  function renderGroup(b: { key: string; name: string | null; entries: MonitorEntry[] }) {
+    const all = b.entries.length > 0 && b.entries.every((e) => checked.has(e.ip));
+    const some = b.entries.some((e) => checked.has(e.ip));
+    const isCol = collapsed.has(b.key);
+    const mal = b.entries.filter((e) => e.result?.verdict === 'malicious').length;
+    const sus = b.entries.filter((e) => e.result?.verdict === 'suspicious').length;
+    const chg = b.entries.filter((e) => e.check?.changed).length;
+    return (
+      <div className="mon-group" key={b.key}>
+        <div className="mon-group-head">
+          <input
+            type="checkbox"
+            className="mon-cb"
+            checked={all}
+            ref={(el) => {
+              if (el) el.indeterminate = some && !all;
+            }}
+            onChange={() => groupToggle(b.entries)}
+            aria-label={b.name ? `Select all in ${b.name}` : 'Select all ungrouped'}
+          />
+          <button
+            className="mon-group-toggle"
+            onClick={() => toggleCollapse(b.key)}
+            aria-label={isCol ? 'Expand group' : 'Collapse group'}
+            title={isCol ? 'Expand' : 'Collapse'}
+          >
+            {isCol ? '▸' : '▾'}
+          </button>
+          <span className={`mon-group-name${b.name ? '' : ' ungrouped'}`}>{b.name ?? 'Ungrouped'}</span>
+          <span className="mon-group-count">{b.entries.length} IP{b.entries.length === 1 ? '' : 's'}</span>
+          <span className="mon-group-sum">
+            {mal > 0 && <span className="mon-chip sev-high">{mal} mal</span>}
+            {sus > 0 && <span className="mon-chip sev-med">{sus} susp</span>}
+            {chg > 0 && <span className="mon-chip sev-med">{chg} changed</span>}
+          </span>
+          {b.name && (
+            <span className="mon-group-actions">
+              <button className="btn btn-sm btn-ghost" onClick={() => renameGroup(b.name!)} title="Rename this group">
+                Rename
+              </button>
+              <button
+                className="btn btn-sm btn-ghost"
+                onClick={() => ungroupAll(b.name!)}
+                title="Remove every IP from this group"
+              >
+                Ungroup
+              </button>
+            </span>
+          )}
+        </div>
+        {!isCol && <ul className="monitor-list">{b.entries.map(renderRow)}</ul>}
+      </div>
+    );
+  }
+
   return (
     <section className="panel monitor-page">
       <div className="panel-head">
@@ -241,6 +461,8 @@ export function MonitorPage() {
         監視IPは Shodan の<b>ネットワークアラート（サーバ側）</b>として登録され、Shodan が変化を監視し続けます。ここには
         <b>各IPの最新 vteeee エンリッチ結果</b>も保存されるので、<b>翌日でも intel ごと</b>確認できます（地図・国別・脆弱性の集計付き）。
         各行の <b>Check</b>（または一括）で、<b>監視開始時からの Shodan の変化</b>（新規ポート／閉じたポート／新規CVE）＝<b>監視結果</b>を表示します。
+        IPが増えたら、行をチェックして下の <b>group name… → Set group</b> で<b>任意の名称のグループ</b>にまとめられます（グループ見出しの
+        チェックボックスで<b>グループ単位の選択</b>・折りたたみ、Rename／Ungroup も可能）。グループはチームにも共有されます。
         {mode !== 'demo' && (
           <>
             {' '}
@@ -297,6 +519,34 @@ export function MonitorPage() {
               <input type="checkbox" checked={allChecked} onChange={toggleAll} />
               select all
             </label>
+            <div className="mon-group-assign">
+              <input
+                className="filter mon-group-input"
+                list="mon-group-names"
+                placeholder="group name…"
+                value={groupInput}
+                onChange={(e) => setGroupInput(e.target.value)}
+                onKeyDown={(e) => e.key === 'Enter' && assignGroup()}
+                aria-label="Group name for the checked IPs"
+              />
+              <datalist id="mon-group-names">
+                {groupNames.map((g) => (
+                  <option key={g} value={g} />
+                ))}
+              </datalist>
+              <button
+                className="btn btn-sm"
+                disabled={!checkedList.length}
+                onClick={assignGroup}
+                title={
+                  checkedList.length
+                    ? 'Assign the checked IP(s) to this group (blank = ungroup)'
+                    : 'Tick IP rows first, then group them'
+                }
+              >
+                Set group{checkedList.length ? ` (${checkedList.length})` : ''}
+              </button>
+            </div>
             <span className="spacer" />
             <button
               className="btn btn-sm"
@@ -314,100 +564,11 @@ export function MonitorPage() {
             </button>
           </div>
 
-          <ul className="monitor-list">
-            {list.map((e) => {
-              const r = e.result;
-              const abuse = r?.abuseipdb?.abuseConfidenceScore;
-              const abuseCls = abuse == null ? '' : abuse >= 75 ? 'sev-high' : abuse >= 25 ? 'sev-med' : 'sev-low';
-              const cc = countryOf(e);
-              return (
-                <li key={e.ip} className="monitor-row">
-                  <input
-                    type="checkbox"
-                    className="mon-cb"
-                    checked={checked.has(e.ip)}
-                    onChange={() => toggle(e.ip)}
-                    aria-label={`Select ${e.ip}`}
-                  />
-                  <div className="mon-main">
-                    <div className="mon-top">
-                      <span className="mon-ip mono">{e.ip}</span>
-                      {e.live ? (
-                        <span className="mon-badge live">● monitoring</span>
-                      ) : e.error ? (
-                        <span className="mon-badge err" title={e.error}>
-                          ⚠ not registered
-                        </span>
-                      ) : (
-                        <span className="mon-badge">…</span>
-                      )}
-                      {e.triggers?.length ? <span className="mon-trig">triggers: {e.triggers.join(', ')}</span> : null}
-                      <span className="mon-when">added {new Date(e.addedAt).toLocaleDateString()}</span>
-                    </div>
-                    {r ? (
-                      <span className="mon-summary">
-                        <VerdictBadge verdict={r.verdict} status={r.status} />
-                        {r.detection && <span className="mon-chip">det {detectionRatio(r)}</span>}
-                        {r.shodan?.ports?.length ? <span className="mon-chip mono">{r.shodan.ports.length} ports</span> : null}
-                        {r.shodan?.vulns?.length ? <span className="mon-chip sev-high">{r.shodan.vulns.length} CVE</span> : null}
-                        {abuse != null && <span className={`mon-chip ${abuseCls}`}>abuse {abuse}</span>}
-                        {r.recordedfuture?.riskScore != null && <span className="mon-chip">RF {r.recordedfuture.riskScore}</span>}
-                        {cc && <span className="mon-chip">{cc}</span>}
-                      </span>
-                    ) : (
-                      <span className="mon-nointel">no enrichment yet — press “Re-enrich”</span>
-                    )}
-                    {e.check && (
-                      <div className={`mon-check${e.check.changed ? ' changed' : ''}`}>
-                        {e.check.error
-                          ? `check failed: ${e.check.error}`
-                          : e.check.changed
-                            ? `▲ change — ${[
-                                e.check.newPorts.length ? `+ports ${e.check.newPorts.join(', ')}` : '',
-                                e.check.gonePorts.length ? `−ports ${e.check.gonePorts.join(', ')}` : '',
-                                e.check.newVulns.length
-                                  ? `+CVE ${e.check.newVulns.slice(0, 4).join(', ')}${e.check.newVulns.length > 4 ? '…' : ''}`
-                                  : '',
-                              ]
-                                .filter(Boolean)
-                                .join(' · ')}`
-                            : '✓ no change since baseline'}
-                        <span className="mon-check-when"> · checked {new Date(e.check.at).toLocaleString()}</span>
-                      </div>
-                    )}
-                    {e.error && <div className="mon-err">{e.error}</div>}
-                  </div>
-                  <div className="mon-actions">
-                    <button className="btn btn-sm" disabled={!r} onClick={() => r && showResult(r)}>
-                      Open
-                    </button>
-                    <button
-                      className="btn btn-sm"
-                      disabled={e.checking}
-                      onClick={() => void check(e.ip)}
-                      title="Re-observe on Shodan now and diff vs. baseline (the monitoring result)"
-                    >
-                      {e.checking ? 'Checking…' : 'Check'}
-                    </button>
-                    <button className="btn btn-sm" disabled={e.enriching} onClick={() => void reEnrich(e.ip)}>
-                      {e.enriching ? 'Enriching…' : 'Re-enrich'}
-                    </button>
-                    <a
-                      className="btn btn-sm"
-                      href={`https://www.shodan.io/host/${encodeURIComponent(e.ip)}`}
-                      target="_blank"
-                      rel="noreferrer"
-                    >
-                      Shodan ↗
-                    </a>
-                    <button className="btn btn-sm btn-danger" onClick={() => void remove(e.ip)}>
-                      Remove
-                    </button>
-                  </div>
-                </li>
-              );
-            })}
-          </ul>
+          {hasGroups ? (
+            <div className="mon-groups">{buckets.map(renderGroup)}</div>
+          ) : (
+            <ul className="monitor-list">{list.map(renderRow)}</ul>
+          )}
         </>
       )}
     </section>

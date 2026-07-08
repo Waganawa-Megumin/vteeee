@@ -129,6 +129,8 @@ export interface MonitorEntry {
   enriching?: boolean;
   error?: string;
   note?: string;
+  /** Analyst-assigned group label for organising the watchlist (arbitrary name; empty = ungrouped). */
+  group?: string;
   /** Shodan state when monitoring began — the reference the "monitoring result" diffs against. */
   baseline?: { ports?: number[]; vulns?: string[]; lastUpdate?: string };
   /** Latest Shodan re-observation vs. the baseline — this IS the "what did monitoring find" result. */
@@ -232,6 +234,7 @@ function mergeEntry(local: MonitorEntry | undefined, shared: MonitorEntry | unde
     ...b,
     ip: (b.ip ?? a.ip) as string,
     result: b.result ?? a.result, // keep the snapshot from whichever side has one
+    group: b.group ?? a.group, // group label — prefer the shared (latest-pushed) side, else local
     baseline: b.baseline ?? a.baseline,
     check,
     triggers: b.triggers ?? a.triggers,
@@ -373,6 +376,8 @@ interface State {
   reEnrichMonitor: (ip: string) => Promise<void>;
   /** Re-observe a monitored IP on Shodan and diff it vs. the baseline (the "monitoring result"). */
   checkMonitor: (ip: string) => Promise<void>;
+  /** Assign (or clear, when group is blank/undefined) a group label on the given monitored IPs. */
+  setMonitorGroup: (ips: string[], group: string | undefined) => Promise<void>;
 }
 
 function defaultIncludes(parsed: ParsedIndicator[]): Record<string, boolean> {
@@ -1187,6 +1192,27 @@ export const useStore = create<State>((set, get) => {
       return { monitors };
     });
     void pushSharedMonitorEntry(get().settings, ip, get().monitors[ip] ?? null);
+  },
+
+  async setMonitorGroup(ips, group) {
+    const g = group && group.trim() ? group.trim() : undefined;
+    const now = Date.now();
+    set((s) => {
+      const monitors = { ...s.monitors };
+      for (const ip of ips) {
+        const cur = monitors[ip];
+        if (cur) monitors[ip] = { ...cur, group: g, updatedAt: now };
+      }
+      saveMonitors(monitors);
+      return { monitors };
+    });
+    // Share each changed entry sequentially (per-entry read-modify-write) so the group assignment
+    // propagates to the team without concurrent writes clobbering the shared blob.
+    const st = get();
+    for (const ip of ips) {
+      const e = st.monitors[ip];
+      if (e) await pushSharedMonitorEntry(st.settings, ip, e);
+    }
   },
   };
 });

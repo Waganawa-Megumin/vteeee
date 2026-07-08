@@ -1623,6 +1623,7 @@ button.pv-monitored.link:hover {
   margin: 8px 0;
   padding-top: 8px;
   border-top: 1px solid var(--line);
+  flex-wrap: wrap;
 }
 .mon-selall {
   display: inline-flex;
@@ -1634,6 +1635,74 @@ button.pv-monitored.link:hover {
 .mon-cb {
   flex: 0 0 auto;
   margin-top: 3px;
+}
+/* Bulk group-assign control (type a new name or pick an existing one from the datalist). */
+.mon-group-assign {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+.mon-group-input {
+  width: 150px;
+  max-width: 42vw;
+}
+/* Watchlist groups — named sections ("大項目") with the IP rows nested underneath. */
+.mon-groups {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  margin-top: 8px;
+}
+.mon-group {
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  overflow: hidden;
+}
+.mon-group-head {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 9px 12px;
+  background: var(--bg3);
+  border-bottom: 1px solid var(--line);
+  flex-wrap: wrap;
+}
+.mon-group-toggle {
+  border: none;
+  background: transparent;
+  color: var(--muted);
+  cursor: pointer;
+  font-size: 13px;
+  line-height: 1;
+  padding: 0 2px;
+}
+.mon-group-name {
+  font-weight: 700;
+  font-size: 14px;
+}
+.mon-group-name.ungrouped {
+  color: var(--muted);
+  font-weight: 600;
+  font-style: italic;
+}
+.mon-group-count {
+  font-size: 12px;
+  color: var(--muted);
+}
+.mon-group-sum {
+  display: inline-flex;
+  gap: 6px;
+  align-items: center;
+  flex-wrap: wrap;
+}
+.mon-group-actions {
+  margin-left: auto;
+  display: inline-flex;
+  gap: 6px;
+}
+.mon-group .monitor-list {
+  margin: 0;
+  padding: 10px 10px 12px;
 }
 /* Results-table monitor indicators. */
 .ctx-mon {
