@@ -10,6 +10,8 @@ export function ParsePreview() {
   const setAllIncluded = useStore((s) => s.setAllIncluded);
   const enrich = useStore((s) => s.enrich);
   const running = useStore((s) => s.running);
+  const monitors = useStore((s) => s.monitors);
+  const showResult = useStore((s) => s.showResult);
 
   if (!stats) return null;
   const selectedCount = parsed.filter((i) => includeMap[indKey(i)]).length;
@@ -57,6 +59,27 @@ export function ParsePreview() {
               />
               <TypeBadge type={i.type} />
               <span className="pv-value">{i.value || i.input}</span>
+              {(i.type === 'ipv4' || i.type === 'ipv6') &&
+                monitors[i.value] &&
+                (monitors[i.value].result ? (
+                  <button
+                    type="button"
+                    className="pv-monitored link"
+                    title="Already in Shodan Monitor — open its saved vteeee enrichment"
+                    onClick={(e) => {
+                      e.preventDefault();
+                      e.stopPropagation();
+                      const saved = monitors[i.value].result;
+                      if (saved) showResult(saved);
+                    }}
+                  >
+                    📡 monitored · open
+                  </button>
+                ) : (
+                  <span className="pv-monitored" title="Already in the Shodan Monitor watchlist">
+                    📡 monitored
+                  </span>
+                ))}
               {i.private && <span className="flag flag-private">private · not sent</span>}
               {i.type === 'unknown' && <span className="flag flag-unknown">unrecognized</span>}
               {i.input !== i.value && i.type !== 'unknown' && (

@@ -40,6 +40,15 @@ export function MonitorDialog({ onClose }: { onClose: () => void }) {
 
   const list = Object.values(monitors).sort((a, b) => b.addedAt - a.addedAt);
 
+  // Dashboard roll-up across the watchlist's saved enrichment snapshots.
+  const total = list.length;
+  const live = list.filter((e) => e.live).length;
+  const withIntel = list.filter((e) => e.result).length;
+  const malicious = list.filter((e) => e.result?.verdict === 'malicious').length;
+  const suspicious = list.filter((e) => e.result?.verdict === 'suspicious').length;
+  const highAbuse = list.filter((e) => (e.result?.abuseipdb?.abuseConfidenceScore ?? -1) >= 75).length;
+  const withCves = list.filter((e) => (e.result?.shodan?.vulns?.length ?? 0) > 0).length;
+
   return (
     <div className="modal-overlay" onClick={onClose}>
       <div className="modal help-modal" onClick={(e) => e.stopPropagation()}>
@@ -56,6 +65,47 @@ export function MonitorDialog({ onClose }: { onClose: () => void }) {
             <b>各IPの最新 vteeee エンリッチ結果</b>も一緒に保存されるので、<b>翌日でも intel ごと確認</b>できます。
             {mode === 'demo' && ' （デモ：サンプル表示）'}
           </p>
+
+          {total > 0 && (
+            <div className="mon-stats" role="group" aria-label="watchlist summary">
+              <div className="mon-stat">
+                <b>{total}</b>
+                <span>monitored</span>
+              </div>
+              <div className="mon-stat">
+                <b>{live}</b>
+                <span>live on Shodan</span>
+              </div>
+              <div className="mon-stat">
+                <b>{withIntel}</b>
+                <span>with intel</span>
+              </div>
+              {malicious > 0 && (
+                <div className="mon-stat bad">
+                  <b>{malicious}</b>
+                  <span>malicious</span>
+                </div>
+              )}
+              {suspicious > 0 && (
+                <div className="mon-stat warn">
+                  <b>{suspicious}</b>
+                  <span>suspicious</span>
+                </div>
+              )}
+              {highAbuse > 0 && (
+                <div className="mon-stat bad">
+                  <b>{highAbuse}</b>
+                  <span>abuse ≥75</span>
+                </div>
+              )}
+              {withCves > 0 && (
+                <div className="mon-stat warn">
+                  <b>{withCves}</b>
+                  <span>with CVEs</span>
+                </div>
+              )}
+            </div>
+          )}
 
           {list.length === 0 ? (
             <p className="hint">
@@ -105,10 +155,10 @@ export function MonitorDialog({ onClose }: { onClose: () => void }) {
                     </button>
                     <a
                       className="btn btn-sm"
-                      href="https://monitor.shodan.io/dashboard"
+                      href={`https://www.shodan.io/host/${encodeURIComponent(e.ip ?? '')}`}
                       target="_blank"
                       rel="noreferrer"
-                      title="Open Shodan Monitor dashboard"
+                      title="Open this host on Shodan"
                     >
                       Shodan ↗
                     </a>
@@ -126,6 +176,15 @@ export function MonitorDialog({ onClose }: { onClose: () => void }) {
           <span className="hint" style={{ marginRight: 'auto' }}>
             {list.length} monitored · 監視は Shodan 側で継続、intel は端末内に保存
           </span>
+          <a
+            className="btn"
+            href="https://monitor.shodan.io/dashboard"
+            target="_blank"
+            rel="noreferrer"
+            title="Open the Shodan Monitor dashboard"
+          >
+            Shodan Monitor ↗
+          </a>
           <button className="btn" onClick={() => void refresh()}>
             Refresh
           </button>

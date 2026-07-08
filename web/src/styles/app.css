@@ -1311,6 +1311,52 @@ a.i471-search-item:hover {
   flex: 0 0 auto;
   justify-content: flex-end;
 }
+/* Monitor dashboard roll-up tiles. */
+.mon-stats {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin: 8px 0 4px;
+}
+.mon-stat {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  min-width: 78px;
+  padding: 6px 12px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: var(--bg3, transparent);
+}
+.mon-stat b {
+  font-size: 20px;
+  line-height: 1.1;
+}
+.mon-stat span {
+  font-size: 11px;
+  color: var(--muted);
+}
+.mon-stat.bad b {
+  color: var(--bad, #d66);
+}
+.mon-stat.warn b {
+  color: var(--warn, #f59e0b);
+}
+/* "Already monitored" marker in the parse preview. */
+.pv-monitored {
+  font-size: 11px;
+  padding: 1px 7px;
+  border-radius: 999px;
+  border: 1px solid var(--accent, #7c9);
+  color: var(--accent, #7c9);
+  background: transparent;
+}
+button.pv-monitored.link {
+  cursor: pointer;
+}
+button.pv-monitored.link:hover {
+  background: color-mix(in srgb, var(--accent, #7c9) 15%, transparent);
+}
 /* Combined Shodan × urlscan: web-魚拓 endpoints for an IP. */
 .ip-web-capture {
   margin-top: 10px;
