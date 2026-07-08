@@ -1409,6 +1409,26 @@ a.i471-search-item:hover {
   flex: 0 0 auto;
   justify-content: flex-end;
 }
+/* Narrow screens: stack each row so the IP is readable and the buttons don't overlap it. */
+@media (max-width: 720px) {
+  .monitor-row {
+    flex-direction: column;
+    align-items: stretch;
+  }
+  .monitor-row .mon-cb {
+    align-self: flex-start;
+  }
+  .mon-actions {
+    justify-content: flex-start;
+  }
+  .mon-actions .btn {
+    flex: 1 1 auto;
+    text-align: center;
+  }
+  .mon-stat {
+    flex: 1 1 40%;
+  }
+}
 /* Monitor dashboard roll-up tiles. */
 .mon-stats {
   display: flex;

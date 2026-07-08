@@ -228,8 +228,12 @@ export function MonitorPage() {
         <a className="btn btn-sm" href="https://monitor.shodan.io/dashboard" target="_blank" rel="noreferrer">
           Shodan Monitor ↗
         </a>
-        <button className="btn btn-sm" onClick={() => void refresh()}>
-          Refresh
+        <button
+          className="btn btn-sm"
+          onClick={() => void refresh()}
+          title="Two-way sync: upload THIS browser's saved intel to the shared team watchlist + pull the team's"
+        >
+          ⇪ Sync / Share all
         </button>
       </div>
 
@@ -237,6 +241,13 @@ export function MonitorPage() {
         監視IPは Shodan の<b>ネットワークアラート（サーバ側）</b>として登録され、Shodan が変化を監視し続けます。ここには
         <b>各IPの最新 vteeee エンリッチ結果</b>も保存されるので、<b>翌日でも intel ごと</b>確認できます（地図・国別・脆弱性の集計付き）。
         各行の <b>Check</b>（または一括）で、<b>監視開始時からの Shodan の変化</b>（新規ポート／閉じたポート／新規CVE）＝<b>監視結果</b>を表示します。
+        {mode !== 'demo' && (
+          <>
+            {' '}
+            共有ON時は<b>このページを開く／⇪ Sync で双方向同期</b>され、<b>この端末に保存済みの intel がチームへ共有</b>されます
+            （intel を持つ端末で一度開いてください）。
+          </>
+        )}
         {mode === 'demo' && ' （デモ：サンプル表示）'}
       </p>
 
