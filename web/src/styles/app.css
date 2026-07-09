@@ -1704,6 +1704,49 @@ button.pv-monitored.link:hover {
   margin: 0;
   padding: 10px 10px 12px;
 }
+/* Click-to-rename group header name. */
+.mon-group-name-btn {
+  border: none;
+  background: transparent;
+  color: var(--fg);
+  font-weight: 700;
+  font-size: 14px;
+  cursor: pointer;
+  padding: 2px 4px;
+  border-radius: 6px;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+.mon-group-name-btn:hover {
+  background: var(--bg2);
+  color: var(--accent);
+}
+.mon-group-edit {
+  font-size: 11px;
+  opacity: 0.6;
+}
+/* Per-row group selector — assign / move / clear one IP inline (＋ New group… creates one). */
+.mon-row-grouping {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  margin-left: auto;
+}
+.mon-row-group-label {
+  font-size: 11px;
+  color: var(--muted);
+}
+.mon-row-group {
+  font-size: 12px;
+  padding: 2px 6px;
+  border: 1px solid var(--line);
+  border-radius: 6px;
+  background: var(--bg3);
+  color: var(--fg);
+  max-width: 170px;
+  cursor: pointer;
+}
 /* Results-table monitor indicators. */
 .ctx-mon {
   display: inline-block;

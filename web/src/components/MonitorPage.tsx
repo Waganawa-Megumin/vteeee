@@ -316,6 +316,35 @@ export function MonitorPage() {
             )}
             {e.triggers?.length ? <span className="mon-trig">triggers: {e.triggers.join(', ')}</span> : null}
             <span className="mon-when">added {new Date(e.addedAt).toLocaleDateString()}</span>
+            <span className="mon-row-grouping">
+              <span className="mon-row-group-label">group:</span>
+              <select
+                className="mon-row-group"
+                value={e.group ?? ''}
+                onChange={(ev) => {
+                  const sel = ev.currentTarget;
+                  const v = sel.value;
+                  if (v === '__new__') {
+                    const name = window.prompt(`New group name for ${e.ip}:`, '');
+                    if (name != null) void setGroup([e.ip], name);
+                  } else {
+                    void setGroup([e.ip], v || undefined);
+                  }
+                  // Resync the control to the source of truth so a cancelled "＋ New group…" doesn't stick.
+                  sel.value = e.group ?? '';
+                }}
+                title="Put this IP in a group (＋ New group… to create one)"
+                aria-label={`Group for ${e.ip}`}
+              >
+                <option value="">— none —</option>
+                {groupNames.map((g) => (
+                  <option key={g} value={g}>
+                    {g}
+                  </option>
+                ))}
+                <option value="__new__">＋ New group…</option>
+              </select>
+            </span>
           </div>
           {r ? (
             <span className="mon-summary">
@@ -410,7 +439,17 @@ export function MonitorPage() {
           >
             {isCol ? '▸' : '▾'}
           </button>
-          <span className={`mon-group-name${b.name ? '' : ' ungrouped'}`}>{b.name ?? 'Ungrouped'}</span>
+          {b.name ? (
+            <button
+              className="mon-group-name mon-group-name-btn"
+              onClick={() => renameGroup(b.name!)}
+              title="クリックで名称変更 / rename this group"
+            >
+              {b.name} <span className="mon-group-edit" aria-hidden>✎</span>
+            </button>
+          ) : (
+            <span className="mon-group-name ungrouped">Ungrouped</span>
+          )}
           <span className="mon-group-count">{b.entries.length} IP{b.entries.length === 1 ? '' : 's'}</span>
           <span className="mon-group-sum">
             {mal > 0 && <span className="mon-chip sev-high">{mal} mal</span>}
@@ -419,9 +458,6 @@ export function MonitorPage() {
           </span>
           {b.name && (
             <span className="mon-group-actions">
-              <button className="btn btn-sm btn-ghost" onClick={() => renameGroup(b.name!)} title="Rename this group">
-                Rename
-              </button>
               <button
                 className="btn btn-sm btn-ghost"
                 onClick={() => ungroupAll(b.name!)}
@@ -461,8 +497,8 @@ export function MonitorPage() {
         監視IPは Shodan の<b>ネットワークアラート（サーバ側）</b>として登録され、Shodan が変化を監視し続けます。ここには
         <b>各IPの最新 vteeee エンリッチ結果</b>も保存されるので、<b>翌日でも intel ごと</b>確認できます（地図・国別・脆弱性の集計付き）。
         各行の <b>Check</b>（または一括）で、<b>監視開始時からの Shodan の変化</b>（新規ポート／閉じたポート／新規CVE）＝<b>監視結果</b>を表示します。
-        IPが増えたら、行をチェックして下の <b>group name… → Set group</b> で<b>任意の名称のグループ</b>にまとめられます（グループ見出しの
-        チェックボックスで<b>グループ単位の選択</b>・折りたたみ、Rename／Ungroup も可能）。グループはチームにも共有されます。
+        IPが増えたら<b>任意の名称でグループ分け</b>できます。各行の <b>group:</b> セレクトで1件ずつ割当／移動／解除（<b>＋ New group…</b> で新規作成）、
+        または複数行をチェックして下の <b>Set group</b> で一括。グループ見出しは<b>名前クリックで改名</b>、見出しのチェックで<b>グループ単位の選択</b>・折りたたみ・Ungroup。グループはチームにも共有されます。
         {mode !== 'demo' && (
           <>
             {' '}
