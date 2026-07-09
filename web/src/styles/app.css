@@ -1815,6 +1815,143 @@ button.pv-monitored.link:hover {
   color: var(--sus);
   font-family: var(--mono);
 }
+/* Enrichment analysis full page (trends · metrics matrix · A/B compare · timeline). */
+.ana-section-title {
+  font-size: 13px;
+  font-weight: 700;
+  color: var(--muted);
+  margin: 16px 0 8px;
+  padding-top: 10px;
+  border-top: 1px solid var(--line);
+}
+.ana-trends {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+  gap: 10px;
+}
+.ana-trend {
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  padding: 8px 10px;
+  color: var(--accent);
+}
+.ana-trend-top {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 6px;
+}
+.ana-trend-label {
+  font-size: 12px;
+  color: var(--muted);
+}
+.ana-trend-val {
+  font-size: 18px;
+  color: var(--text);
+}
+.ana-spark {
+  display: block;
+  width: 100%;
+  height: 30px;
+}
+.ana-trend-delta {
+  font-size: 11px;
+  color: var(--muted);
+}
+.ana-trend-delta.up {
+  color: var(--mal);
+}
+.ana-trend-delta.down {
+  color: var(--harm);
+}
+.ana-matrix-wrap {
+  overflow-x: auto;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  /* Inside the flex-column .panel, an overflow child gets min-height:0 and would be shrunk to
+     nothing — keep it at its content height. */
+  flex: none;
+}
+.ana-matrix {
+  border-collapse: collapse;
+  font-size: 12px;
+  width: 100%;
+}
+.ana-matrix th,
+.ana-matrix td {
+  padding: 6px 10px;
+  border-bottom: 1px solid var(--line);
+  white-space: nowrap;
+  text-align: left;
+}
+.ana-matrix thead th {
+  color: var(--muted);
+  font-weight: 600;
+}
+.ana-metric-col {
+  position: sticky;
+  left: 0;
+  background: var(--bg2);
+  font-weight: 600;
+  color: var(--text);
+}
+.ana-spark-col {
+  color: var(--accent);
+  width: 132px;
+}
+.ana-latest-col {
+  color: var(--accent);
+}
+.ana-matrix td.ana-changed {
+  background: rgba(240, 187, 96, 0.18);
+  font-weight: 600;
+}
+.ana-compare-controls {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
+  margin-bottom: 8px;
+  font-size: 12px;
+}
+.ana-compare-controls select {
+  max-width: 280px;
+}
+.ana-arrow {
+  color: var(--muted);
+}
+.ana-compare {
+  border-collapse: collapse;
+  width: 100%;
+  font-size: 12px;
+}
+.ana-compare th,
+.ana-compare td {
+  padding: 6px 10px;
+  border-bottom: 1px solid var(--line);
+  text-align: left;
+  vertical-align: top;
+}
+.ana-compare thead th {
+  color: var(--muted);
+}
+.ana-compare-group td {
+  font-weight: 700;
+  color: var(--accent);
+  background: var(--bg3);
+}
+.ana-changed-row td {
+  background: rgba(240, 187, 96, 0.14);
+}
+.ana-chg-dot {
+  display: inline-block;
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: var(--sus);
+  margin-left: 6px;
+  vertical-align: middle;
+}
 /* Results-table monitor indicators. */
 .ctx-mon {
   display: inline-block;

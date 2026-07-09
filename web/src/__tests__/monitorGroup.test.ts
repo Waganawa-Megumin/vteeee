@@ -53,6 +53,25 @@ describe('monitor grouping', () => {
     expect(useStore.getState().monitors['3.3.3.3'].group).toBeUndefined();
   });
 
+  it('setAutoEnrich persists the flag to localStorage', async () => {
+    const s = useStore.getState();
+    await s.addMonitor('9.9.9.9');
+    await useStore.getState().setAutoEnrich(['9.9.9.9'], true);
+    expect(useStore.getState().monitors['9.9.9.9'].autoEnrich).toBe(true);
+    const saved = JSON.parse(localStorage.getItem('vteeee.monitors')!);
+    expect(saved['9.9.9.9'].autoEnrich).toBe(true);
+  });
+
+  it('refreshMonitors preserves autoEnrich', async () => {
+    const s = useStore.getState();
+    await s.addMonitor('7.7.7.7');
+    await useStore.getState().setAutoEnrich(['7.7.7.7'], true);
+    await useStore.getState().refreshMonitors();
+    expect(useStore.getState().monitors['7.7.7.7']?.autoEnrich).toBe(true);
+    const saved = JSON.parse(localStorage.getItem('vteeee.monitors')!);
+    expect(saved['7.7.7.7']?.autoEnrich).toBe(true);
+  });
+
   it('bulk-assigns several IPs at once', async () => {
     const s = useStore.getState();
     await s.addMonitor('4.4.4.4');

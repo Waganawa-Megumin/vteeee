@@ -12,6 +12,7 @@ import { ScanTracker } from './components/ScanTracker';
 import { HelpDialog } from './components/HelpDialog';
 import { HistoryDialog } from './components/HistoryDialog';
 import { MonitorPage } from './components/MonitorPage';
+import { MonitorAnalysisPage } from './components/MonitorAnalysisPage';
 import { RuleSearchDialog } from './components/RuleSearchDialog';
 import { EmptyState } from './components/EmptyState';
 import { AdminPanel } from './admin/AdminPanel';
@@ -39,9 +40,20 @@ export default function App() {
     () => ((localStorage.getItem('vteeee.theme') as Theme) || 'chalk'),
   );
 
+  const runAutoEnrichDue = useStore((s) => s.runAutoEnrichDue);
+
   useEffect(() => {
     void boot();
   }, [boot]);
+
+  // Client-side auto re-enrich scheduler: while signed in, run one "due" pass every few minutes
+  // (the action itself no-ops in demo mode and only touches IPs opted into auto-enrich).
+  useEffect(() => {
+    if (!session) return;
+    void runAutoEnrichDue();
+    const id = setInterval(() => void runAutoEnrichDue(), 5 * 60 * 1000);
+    return () => clearInterval(id);
+  }, [session, runAutoEnrichDue]);
 
   useEffect(() => {
     document.documentElement.dataset.theme = theme;
@@ -110,6 +122,8 @@ export default function App() {
         <AdminPanel />
       ) : view === 'monitor' ? (
         <MonitorPage />
+      ) : view === 'analysis' ? (
+        <MonitorAnalysisPage />
       ) : (
         <main className="layout">
           <div className="col-left">

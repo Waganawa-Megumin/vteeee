@@ -149,6 +149,10 @@ export interface MonitorEntry {
   note?: string;
   /** Analyst-assigned group label for organising the watchlist (arbitrary name; empty = ungrouped). */
   group?: string;
+  /** Auto re-enrich this IP on a cadence aligned to its age (client-side, while vteeee is open). */
+  autoEnrich?: boolean;
+  /** When this IP was last enriched (auto OR manual) — drives the auto-enrich "due" check. */
+  lastEnrichAt?: number;
   /** Shodan state when monitoring began — the reference the "monitoring result" diffs against. */
   baseline?: { ports?: number[]; vulns?: string[]; lastUpdate?: string };
   /** Latest Shodan re-observation vs. the baseline — this IS the "what did monitoring find" result. */
@@ -252,6 +256,18 @@ export function appendSnapshot(
   if (last && snapSig(last.result) === snapSig(snap.result)) return prev; // no state change → unchanged
   return downsampleHistory([...prev, snap], now);
 }
+/** Auto-enrich cadence, aligned to the history tiers so it captures ~1 point per downsample bucket:
+ *  week 1 daily · week 2 ≈ 1.5d · weeks 3–4 weekly · weeks 5–6 biweekly · older monthly (定点観測).
+ *  Exported for testing. */
+export function autoEnrichInterval(ageMs: number): number {
+  const day = 86_400_000;
+  const ageDays = ageMs / day;
+  if (ageDays < 7) return day;
+  if (ageDays < 14) return 1.5 * day;
+  if (ageDays < 28) return 7 * day;
+  if (ageDays < 42) return 14 * day;
+  return 30 * day;
+}
 /** Trim an entry for persistence/sharing: strip raw VT payloads from the latest result AND every snapshot. */
 function slimEntry(v: MonitorEntry): MonitorEntry {
   return {
@@ -345,6 +361,8 @@ function mergeEntry(local: MonitorEntry | undefined, shared: MonitorEntry | unde
     result: latest ?? b.result ?? a.result, // newest snapshot wins; else whichever side has one
     history: history.length ? history : undefined,
     group: b.group ?? a.group, // group label — prefer the shared (latest-pushed) side, else local
+    autoEnrich: b.autoEnrich ?? a.autoEnrich,
+    lastEnrichAt: Math.max(a.lastEnrichAt ?? 0, b.lastEnrichAt ?? 0) || undefined,
     baseline: b.baseline ?? a.baseline,
     check,
     triggers: b.triggers ?? a.triggers,
@@ -418,7 +436,9 @@ interface State {
   running: boolean;
   error: string | null;
   selected: string | null;
-  view: 'app' | 'admin' | 'monitor';
+  view: 'app' | 'admin' | 'monitor' | 'analysis';
+  /** IP whose enrichment-analysis page is open (view === 'analysis'). */
+  analysisIp: string | null;
 
   boot: () => Promise<void>;
   login: (username: string, password: string) => Promise<boolean>;
@@ -440,7 +460,9 @@ interface State {
   showResult: (r: NormalizedResult) => void;
   restore: (results: NormalizedResult[], input: string) => void;
 
-  setView: (v: 'app' | 'admin' | 'monitor') => void;
+  setView: (v: 'app' | 'admin' | 'monitor' | 'analysis') => void;
+  /** Open the full-page enrichment analysis for one monitored IP. */
+  openAnalysis: (ip: string) => void;
   applySettings: (s: AppSettings) => void;
   applyUsers: (u: UserRecord[]) => void;
   refreshHealth: () => Promise<void>;
@@ -488,6 +510,10 @@ interface State {
   checkMonitor: (ip: string) => Promise<void>;
   /** Assign (or clear, when group is blank/undefined) a group label on the given monitored IPs. */
   setMonitorGroup: (ips: string[], group: string | undefined) => Promise<void>;
+  /** Turn the age-tiered auto re-enrich on/off for the given monitored IPs. */
+  setAutoEnrich: (ips: string[], on: boolean) => Promise<void>;
+  /** Run one pass of auto re-enrichment for any monitored IP that is "due" (called on an interval). */
+  runAutoEnrichDue: () => Promise<void>;
 }
 
 function defaultIncludes(parsed: ParsedIndicator[]): Record<string, boolean> {
@@ -547,6 +573,7 @@ export const useStore = create<State>((set, get) => {
   error: null,
   selected: null,
   view: 'app',
+  analysisIp: null,
 
   async boot() {
     void requestPersistentStorage(); // ask the browser not to evict our storage
@@ -726,6 +753,7 @@ export const useStore = create<State>((set, get) => {
                     result: r,
                     history: appendSnapshot(cur.history, { at, by, result: r }, at),
                     updatedAt: at,
+                    lastEnrichAt: at,
                   };
               }
               saveMonitors(monitors);
@@ -783,6 +811,10 @@ export const useStore = create<State>((set, get) => {
 
   setView(v) {
     set({ view: v });
+  },
+
+  openAnalysis(ip) {
+    set({ analysisIp: ip, view: 'analysis' });
   },
 
   applySettings(s) {
@@ -1143,6 +1175,7 @@ export const useStore = create<State>((set, get) => {
           updatedAt: now,
           result: result ?? cur?.result,
           history: result ? appendSnapshot(cur?.history, { at: now, by, result }, now) : cur?.history,
+          lastEnrichAt: result ? now : cur?.lastEnrichAt,
           live: cur?.live,
           alertId: cur?.alertId,
           triggers: cur?.triggers,
@@ -1269,7 +1302,7 @@ export const useStore = create<State>((set, get) => {
       const history = result ? appendSnapshot(cur.history, { at, by, result }, at) : cur.history;
       const monitors = {
         ...s.monitors,
-        [ip]: { ...cur, enriching: false, result: result ?? cur.result, history, updatedAt: at },
+        [ip]: { ...cur, enriching: false, result: result ?? cur.result, history, updatedAt: at, lastEnrichAt: at },
       };
       saveMonitors(monitors);
       return { monitors };
@@ -1341,6 +1374,43 @@ export const useStore = create<State>((set, get) => {
     for (const ip of ips) {
       const e = st.monitors[ip];
       if (e) await pushSharedMonitorEntry(st.settings, ip, e);
+    }
+  },
+
+  async setAutoEnrich(ips, on) {
+    set((s) => {
+      const monitors = { ...s.monitors };
+      for (const ip of ips) {
+        const cur = monitors[ip];
+        if (cur) monitors[ip] = { ...cur, autoEnrich: on };
+      }
+      saveMonitors(monitors);
+      return { monitors };
+    });
+    const st = get();
+    for (const ip of ips) {
+      const e = st.monitors[ip];
+      if (e) await pushSharedMonitorEntry(st.settings, ip, e);
+    }
+  },
+
+  async runAutoEnrichDue() {
+    const s = get();
+    // Client-side scheduler: only meaningful against a real proxy, and only for opted-in IPs.
+    if (s.mode !== 'live') return;
+    const now = Date.now();
+    const due = Object.values(s.monitors)
+      .filter(
+        (e) =>
+          e.autoEnrich &&
+          !e.enriching &&
+          now - (e.lastEnrichAt ?? e.addedAt) >= autoEnrichInterval(now - e.addedAt),
+      )
+      .sort((a, b) => (a.lastEnrichAt ?? a.addedAt) - (b.lastEnrichAt ?? b.addedAt));
+    if (!due.length) return;
+    // Cap per pass so a large watchlist doesn't burst the API; the rest run on the next tick.
+    for (const e of due.slice(0, 4)) {
+      await get().reEnrichMonitor(e.ip);
     }
   },
   };

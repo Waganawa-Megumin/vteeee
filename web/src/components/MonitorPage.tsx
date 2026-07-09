@@ -2,7 +2,6 @@ import { useEffect, useRef, useState } from 'react';
 import { useStore, type MonitorEntry } from '../state/store';
 import { VerdictBadge } from './Badges';
 import { detectionRatio } from '../lib/verdict';
-import { MonitorHistoryDialog } from './MonitorHistoryDialog';
 
 // Minimal Leaflet surface (dynamic import keeps it lazy) — mirrors the detail-panel map shim.
 interface LMap {
@@ -145,9 +144,10 @@ export function MonitorPage() {
   const check = useStore((s) => s.checkMonitor);
   const showResult = useStore((s) => s.showResult);
   const setGroup = useStore((s) => s.setMonitorGroup);
+  const openAnalysis = useStore((s) => s.openAnalysis);
+  const setAutoEnrich = useStore((s) => s.setAutoEnrich);
   const [checked, setChecked] = useState<Set<string>>(new Set());
   const [groupInput, setGroupInput] = useState('');
-  const [histIp, setHistIp] = useState<string | null>(null);
   const [collapsed, setCollapsed] = useState<Set<string>>(() => {
     try {
       const raw = localStorage.getItem('vteeee.monGroupsCollapsed');
@@ -388,10 +388,10 @@ export function MonitorPage() {
           {((e.history?.length ?? 0) > 0 || !!e.result) && (
             <button
               className="btn btn-sm"
-              onClick={() => setHistIp(e.ip)}
-              title="Enrichment history & change analysis — 過去のエンリッチ時系列・前回からの変化比較"
+              onClick={() => openAnalysis(e.ip)}
+              title="Enrichment analysis — トレンド・指標マトリクス・2点比較・タイムライン"
             >
-              🕓 History{(e.history?.length ?? 0) > 1 ? ` (${e.history!.length})` : ''}
+              📈 Analysis{(e.history?.length ?? 0) > 1 ? ` (${e.history!.length})` : ''}
             </button>
           )}
           <button
@@ -404,6 +404,17 @@ export function MonitorPage() {
           </button>
           <button className="btn btn-sm" disabled={e.enriching} onClick={() => void reEnrich(e.ip)}>
             {e.enriching ? 'Enriching…' : 'Re-enrich'}
+          </button>
+          <button
+            className={`btn btn-sm${e.autoEnrich ? ' btn-primary' : ''}`}
+            onClick={() => void setAutoEnrich([e.ip], !e.autoEnrich)}
+            title={
+              e.autoEnrich
+                ? '自動エンリッチ ON（週1→2週→月次…と年代連動の間隔で自動Re-enrich・vteeeeを開いている間）— クリックでOFF'
+                : '自動エンリッチ OFF — クリックでON（監視期間に応じた間隔で定点観測）'
+            }
+          >
+            ⚡ Auto{e.autoEnrich ? ' ✓' : ''}
           </button>
           <a
             className="btn btn-sm"
@@ -510,6 +521,8 @@ export function MonitorPage() {
         各行の <b>Check</b>（または一括）で、<b>監視開始時からの Shodan の変化</b>（新規ポート／閉じたポート／新規CVE）＝<b>監視結果</b>を表示します。
         IPが増えたら<b>任意の名称でグループ分け</b>できます。各行の <b>group:</b> セレクトで1件ずつ割当／移動／解除（<b>＋ New group…</b> で新規作成）、
         または複数行をチェックして下の <b>Set group</b> で一括。グループ見出しは<b>名前クリックで改名</b>、見出しのチェックで<b>グループ単位の選択</b>・折りたたみ・Ungroup。グループはチームにも共有されます。
+        各行の <b>📈 Analysis</b> でエンリッチ履歴のトレンド・指標マトリクス・2点比較。各行の <b>⚡ Auto</b>（複数は <b>⚡ Auto on</b>）で
+        <b>自動エンリッチ</b>＝監視期間に応じた間隔（直近1週≒日次→2週→3–4週→5–6週→以降は月次の定点観測）で自動Re-enrich（<b>Liveモードで vteeee を開いている間</b>）。
         {mode !== 'demo' && (
           <>
             {' '}
@@ -614,6 +627,22 @@ export function MonitorPage() {
             <button className="btn btn-sm" disabled={!checkedList.length} onClick={bulkReEnrich}>
               Re-enrich selected{checkedList.length ? ` (${checkedList.length})` : ''}
             </button>
+            <button
+              className="btn btn-sm"
+              disabled={!checkedList.length}
+              onClick={() => void setAutoEnrich(checkedList.map((e) => e.ip), true)}
+              title="選択IPの自動エンリッチをON（年代連動の間隔で自動Re-enrich）"
+            >
+              ⚡ Auto on{checkedList.length ? ` (${checkedList.length})` : ''}
+            </button>
+            <button
+              className="btn btn-sm"
+              disabled={!checkedList.length}
+              onClick={() => void setAutoEnrich(checkedList.map((e) => e.ip), false)}
+              title="選択IPの自動エンリッチをOFF"
+            >
+              Auto off
+            </button>
             <button className="btn btn-sm btn-danger" disabled={!checkedList.length} onClick={bulkRemove}>
               Remove selected{checkedList.length ? ` (${checkedList.length})` : ''}
             </button>
@@ -625,9 +654,6 @@ export function MonitorPage() {
             <ul className="monitor-list">{list.map(renderRow)}</ul>
           )}
         </>
-      )}
-      {histIp && monitors[histIp] && (
-        <MonitorHistoryDialog entry={monitors[histIp]} onClose={() => setHistIp(null)} />
       )}
     </section>
   );

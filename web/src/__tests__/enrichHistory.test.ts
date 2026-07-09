@@ -14,7 +14,7 @@ const _mem = new Map<string, string>();
   setItem: (k: string, v: string) => void _mem.set(k, String(v)),
 };
 
-const { appendSnapshot, downsampleHistory } = await import('../state/store');
+const { appendSnapshot, downsampleHistory, autoEnrichInterval } = await import('../state/store');
 type Snap = { at: number; by?: string; result: NormalizedResult };
 
 const DAY = 86_400_000;
@@ -74,5 +74,20 @@ describe('enrichment history downsampling (avoids unbounded log growth)', () => 
     // A real change two days later → the timeline grows.
     const h3 = appendSnapshot(h2, { at: T0 + 2 * DAY, by: 'x', result: snap(0, 9).result }, T0 + 2 * DAY);
     expect(h3.length).toBe(2);
+  });
+
+  it('auto-enrich cadence lengthens with monitoring age (daily → monthly)', () => {
+    expect(autoEnrichInterval(1 * DAY)).toBe(DAY); // week 1 → daily
+    expect(autoEnrichInterval(10 * DAY)).toBe(1.5 * DAY); // week 2
+    expect(autoEnrichInterval(20 * DAY)).toBe(7 * DAY); // weeks 3–4 → weekly
+    expect(autoEnrichInterval(35 * DAY)).toBe(14 * DAY); // weeks 5–6
+    expect(autoEnrichInterval(90 * DAY)).toBe(30 * DAY); // older → monthly
+    // Monotonically non-decreasing with age.
+    let prev = 0;
+    for (let d = 0; d <= 120; d += 3) {
+      const iv = autoEnrichInterval(d * DAY);
+      expect(iv).toBeGreaterThanOrEqual(prev);
+      prev = iv;
+    }
   });
 });
