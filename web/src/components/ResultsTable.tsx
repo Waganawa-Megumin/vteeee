@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from 'react';
-import type { NormalizedResult } from '@vteeee/shared';
+import type { EnrichableType, NormalizedResult } from '@vteeee/shared';
 import { useStore } from '../state/store';
 import { GtiBadge, ShodanChips, VerdictBadge } from './Badges';
 import { detectionRatio, verdictRank } from '../lib/verdict';
@@ -30,11 +30,14 @@ export function ResultsTable() {
   const monitorAvailable = useStore((s) => s.mode === 'demo' || Boolean(s.health?.shodan));
   const addMonitor = useStore((s) => s.addMonitor);
   const monitors = useStore((s) => s.monitors);
+  const campaigns = useStore((s) => s.campaigns);
+  const addCampaignIocs = useStore((s) => s.addCampaignIocs);
   const [sortKey, setSortKey] = useState<SortKey>('verdict');
   const [asc, setAsc] = useState(false);
   const [filter, setFilter] = useState('');
   const [siemOpen, setSiemOpen] = useState(false);
   const [checked, setChecked] = useState<Set<string>>(new Set());
+  const [campaignSel, setCampaignSel] = useState('');
 
   function toggle(value: string) {
     setChecked((prev) => {
@@ -101,6 +104,14 @@ export function ResultsTable() {
   }
 
   const selectedIocs = rows.filter((r) => checked.has(r.value)).map((r) => r.value);
+  const checkedRows = rows.filter((r) => checked.has(r.value));
+  function addToCampaign() {
+    if (!campaignSel || !checkedRows.length) return;
+    const iocs = checkedRows
+      .filter((r) => r.type !== 'unknown')
+      .map((r) => ({ value: r.value, type: r.type as EnrichableType }));
+    if (iocs.length) void addCampaignIocs(campaignSel, iocs);
+  }
   const allShownChecked = rows.length > 0 && rows.every((r) => checked.has(r.value));
   function toggleAll() {
     setChecked((prev) => {
@@ -175,6 +186,38 @@ export function ResultsTable() {
               }
             >
               Monitor{checkedIps.length ? ` (${checkedIps.length})` : ''}
+            </button>
+          </>
+        )}
+        {Object.keys(campaigns).length > 0 && (
+          <>
+            <select
+              className="filter"
+              value={campaignSel}
+              onChange={(e) => setCampaignSel(e.target.value)}
+              title="Add the checked IOCs to a pre-registered CP-Mon campaign"
+              aria-label="Campaign"
+            >
+              <option value="">Campaign…</option>
+              {Object.values(campaigns)
+                .sort((a, b) => a.name.localeCompare(b.name))
+                .map((c) => (
+                  <option key={c.id} value={c.id}>
+                    {c.name}
+                  </option>
+                ))}
+            </select>
+            <button
+              className="btn btn-sm"
+              disabled={!campaignSel || !checkedRows.length}
+              onClick={addToCampaign}
+              title={
+                checkedRows.length
+                  ? 'Register the checked IOCs to the selected campaign (CP-Mon)'
+                  : 'Tick rows, pick a campaign, then add'
+              }
+            >
+              ＋ Campaign{checkedRows.length ? ` (${checkedRows.length})` : ''}
             </button>
           </>
         )}
