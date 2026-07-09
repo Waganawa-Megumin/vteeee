@@ -1939,10 +1939,18 @@ button.pv-monitored.link:hover {
 .modal {
   width: 460px;
   max-width: 94vw;
+  /* Never exceed the viewport: header + footer stay pinned, the body scrolls. */
+  max-height: 92vh;
   background: var(--panel);
   border: 1px solid var(--line);
   border-radius: 12px;
-  overflow: visible;
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+}
+/* Settings has many rows — give it a little more width so labels/chips breathe. */
+.modal.settings-modal {
+  width: 600px;
 }
 .modal-head,
 .modal-foot {
@@ -1950,6 +1958,7 @@ button.pv-monitored.link:hover {
   align-items: center;
   padding: 12px 16px;
   border-bottom: 1px solid var(--line);
+  flex: 0 0 auto;
 }
 .modal-head h2 {
   font-size: 15px;
@@ -1966,6 +1975,10 @@ button.pv-monitored.link:hover {
   display: flex;
   flex-direction: column;
   gap: 12px;
+  /* Take the space between the pinned header/footer and scroll when content is tall. */
+  flex: 1 1 auto;
+  min-height: 0;
+  overflow-y: auto;
 }
 .fld {
   display: flex;

@@ -31,7 +31,7 @@ export function SettingsDialog({ onClose }: { onClose: () => void }) {
 
   return (
     <div className="modal-overlay" onClick={onClose}>
-      <div className="modal" onClick={(e) => e.stopPropagation()}>
+      <div className="modal settings-modal" onClick={(e) => e.stopPropagation()}>
         <div className="modal-head">
           <h2>Settings</h2>
           <button className="btn btn-ghost" onClick={onClose}>
