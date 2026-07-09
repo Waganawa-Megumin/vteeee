@@ -50,6 +50,8 @@ import { authenticate, persistSession, restoreSession } from '../auth/session';
 import { makeClient, type EnrichClient } from '../api/client';
 import { saveHistory } from '../lib/historySource';
 import { requestPersistentStorage } from '../lib/durable';
+import { loadCampaigns, saveCampaigns, slimCampaign, mergeCampaigns, type Campaign } from './campaigns';
+export type { Campaign, CampaignIoc } from './campaigns';
 
 export const indKey = (i: { type: string; value: string }) => `${i.type}|${i.value}`;
 
@@ -214,9 +216,12 @@ function saveMonitors(m: Record<string, MonitorEntry>): void {
   }
 }
 
-/** Run a full vteeee enrichment for ONE IP and return the normalized result (for monitor snapshots). */
-async function enrichOneIp(settings: AppSettings, ip: string): Promise<NormalizedResult | undefined> {
-  const type: EnrichableType = ip.includes(':') ? 'ipv6' : 'ipv4';
+/** Run a full vteeee enrichment for ONE indicator (any type) and return the normalized result. */
+async function enrichOne(
+  settings: AppSettings,
+  value: string,
+  type: EnrichableType,
+): Promise<NormalizedResult | undefined> {
   const client = await makeClient(settings);
   let out: NormalizedResult | undefined;
   const options: EnrichOptions = {
@@ -236,10 +241,14 @@ async function enrichOneIp(settings: AppSettings, ip: string): Promise<Normalize
     abuseipdb: settings.abuseipdb ?? true,
   };
   await client.enrich(
-    { indicators: [{ value: ip, type, input: ip }], options },
+    { indicators: [{ value, type, input: value }], options },
     { onResult: (r) => (out = r), onProgress: () => {}, onDone: () => {}, onError: () => {} },
   );
   return out;
+}
+/** Run a full vteeee enrichment for ONE IP (monitor snapshots). */
+async function enrichOneIp(settings: AppSettings, ip: string): Promise<NormalizedResult | undefined> {
+  return enrichOne(settings, ip, ip.includes(':') ? 'ipv6' : 'ipv4');
 }
 
 // ---- Shared watchlist sync (proxy KV) ----
@@ -330,6 +339,57 @@ async function pushSharedMonitorEntry(settings: AppSettings, ip: string, entry: 
   }
 }
 
+// ---- Shared campaigns sync (proxy KV) ----
+// CP-Mon is an all-shared model too (avoid redundant enrichment): campaigns + their IOC timelines sync
+// via the proxy KV under the same on/off flag as the watchlist.
+async function fetchSharedCampaigns(settings: AppSettings): Promise<Record<string, Campaign> | null> {
+  if (!monitorSharingOn(settings)) return null;
+  const base = settings.proxyBaseUrl!.replace(/\/$/, '');
+  try {
+    const res = await fetch(`${base}/api/campaigns`, { headers: monitorAuth(settings), cache: 'no-store' });
+    if (!res.ok) return null;
+    const j = await res.json();
+    return j && typeof j === 'object' ? (j as Record<string, Campaign>) : {};
+  } catch {
+    return null;
+  }
+}
+/** Replace the whole shared campaigns blob (raw stripped). */
+async function putSharedCampaignsAll(settings: AppSettings, map: Record<string, Campaign>): Promise<void> {
+  if (!monitorSharingOn(settings)) return;
+  const base = settings.proxyBaseUrl!.replace(/\/$/, '');
+  const slim: Record<string, Campaign> = {};
+  for (const [k, v] of Object.entries(map)) slim[k] = slimCampaign(v);
+  try {
+    await fetch(`${base}/api/campaigns`, {
+      method: 'PUT',
+      headers: { ...monitorAuth(settings), 'content-type': 'application/json' },
+      body: JSON.stringify(slim),
+    });
+  } catch {
+    /* offline */
+  }
+}
+/** Read-modify-write ONE campaign into the shared blob (set, or delete when null). Best-effort. */
+async function pushSharedCampaign(settings: AppSettings, id: string, campaign: Campaign | null): Promise<void> {
+  if (!monitorSharingOn(settings)) return;
+  const base = settings.proxyBaseUrl!.replace(/\/$/, '');
+  try {
+    const res = await fetch(`${base}/api/campaigns`, { headers: monitorAuth(settings), cache: 'no-store' });
+    const j = res.ok ? await res.json() : {};
+    const map = (j && typeof j === 'object' ? j : {}) as Record<string, Campaign>;
+    if (campaign) map[id] = slimCampaign(campaign);
+    else delete map[id];
+    await fetch(`${base}/api/campaigns`, {
+      method: 'PUT',
+      headers: { ...monitorAuth(settings), 'content-type': 'application/json' },
+      body: JSON.stringify(map),
+    });
+  } catch {
+    /* offline — local copy keeps it; a later refresh reconciles */
+  }
+}
+
 interface State {
   booted: boolean;
   session: Session | null;
@@ -354,9 +414,14 @@ interface State {
   running: boolean;
   error: string | null;
   selected: string | null;
-  view: 'app' | 'admin' | 'monitor' | 'analysis';
+  view: 'app' | 'admin' | 'monitor' | 'analysis' | 'campaigns' | 'campaign';
   /** IP whose enrichment-analysis page is open (view === 'analysis'). */
   analysisIp: string | null;
+
+  /** CP-Mon campaigns (attack-campaign-organised IOC watchlists), keyed by campaign id. */
+  campaigns: Record<string, Campaign>;
+  /** Selected campaign (view === 'campaign'). */
+  campaignId: string | null;
 
   boot: () => Promise<void>;
   login: (username: string, password: string) => Promise<boolean>;
@@ -378,7 +443,7 @@ interface State {
   showResult: (r: NormalizedResult) => void;
   restore: (results: NormalizedResult[], input: string) => void;
 
-  setView: (v: 'app' | 'admin' | 'monitor' | 'analysis') => void;
+  setView: (v: 'app' | 'admin' | 'monitor' | 'analysis' | 'campaigns' | 'campaign') => void;
   /** Open the full-page enrichment analysis for one monitored IP. */
   openAnalysis: (ip: string) => void;
   applySettings: (s: AppSettings) => void;
@@ -432,6 +497,28 @@ interface State {
   setAutoEnrich: (ips: string[], on: boolean) => Promise<void>;
   /** Run one pass of auto re-enrichment for any monitored IP that is "due" (called on an interval). */
   runAutoEnrichDue: () => Promise<void>;
+
+  // ---- CP-Mon (campaigns) ----
+  /** Create a campaign and return its id. */
+  createCampaign: (name: string) => Promise<string>;
+  renameCampaign: (id: string, name: string) => Promise<void>;
+  removeCampaign: (id: string) => Promise<void>;
+  /** Open the CP-Mon overview (list of campaigns). */
+  openCampaigns: () => void;
+  /** Open one campaign's detail page. */
+  openCampaign: (id: string) => void;
+  /** Add IOCs (any type) to a campaign, optionally under a group, and enrich them. */
+  addCampaignIocs: (id: string, iocs: { value: string; type: EnrichableType }[], group?: string) => Promise<void>;
+  /** Assign (or clear) a group label on IOCs within a campaign. */
+  setCampaignIocGroup: (id: string, values: string[], group: string | undefined) => Promise<void>;
+  /** Remove IOCs from a campaign. */
+  removeCampaignIocs: (id: string, values: string[]) => Promise<void>;
+  /** Re-enrich one IOC in a campaign (appends a timeline snapshot). */
+  reEnrichCampaignIoc: (id: string, value: string) => Promise<void>;
+  /** Turn auto re-enrich on/off for IOCs in a campaign. */
+  setCampaignIocAuto: (id: string, values: string[], on: boolean) => Promise<void>;
+  /** Pull the shared campaigns (KV) + two-way merge. */
+  refreshCampaigns: () => Promise<void>;
 }
 
 function defaultIncludes(parsed: ParsedIndicator[]): Record<string, boolean> {
@@ -492,6 +579,8 @@ export const useStore = create<State>((set, get) => {
   selected: null,
   view: 'app',
   analysisIp: null,
+  campaigns: loadCampaigns(),
+  campaignId: null,
 
   async boot() {
     void requestPersistentStorage(); // ask the browser not to evict our storage
@@ -1331,6 +1420,173 @@ export const useStore = create<State>((set, get) => {
     for (const e of due.slice(0, 4)) {
       await get().reEnrichMonitor(e.ip);
     }
+  },
+
+  // ---- CP-Mon (campaigns) ----
+  async createCampaign(name) {
+    const id = Math.random().toString(36).slice(2) + Date.now().toString(36);
+    const now = Date.now();
+    const campaign: Campaign = {
+      id,
+      name: name.trim() || 'Untitled campaign',
+      createdAt: now,
+      updatedAt: now,
+      iocs: {},
+    };
+    set((s) => {
+      const campaigns = { ...s.campaigns, [id]: campaign };
+      saveCampaigns(campaigns);
+      return { campaigns };
+    });
+    void pushSharedCampaign(get().settings, id, campaign);
+    return id;
+  },
+
+  async renameCampaign(id, name) {
+    const nm = name.trim();
+    if (!nm) return;
+    set((s) => {
+      const cur = s.campaigns[id];
+      if (!cur) return {};
+      const campaigns = { ...s.campaigns, [id]: { ...cur, name: nm, updatedAt: Date.now() } };
+      saveCampaigns(campaigns);
+      return { campaigns };
+    });
+    void pushSharedCampaign(get().settings, id, get().campaigns[id] ?? null);
+  },
+
+  async removeCampaign(id) {
+    set((s) => {
+      if (!s.campaigns[id]) return {};
+      const campaigns = { ...s.campaigns };
+      delete campaigns[id];
+      saveCampaigns(campaigns);
+      return { campaigns, ...(s.campaignId === id ? { campaignId: null, view: 'campaigns' as const } : {}) };
+    });
+    void pushSharedCampaign(get().settings, id, null);
+  },
+
+  openCampaigns() {
+    set({ view: 'campaigns', campaignId: null });
+    void get().refreshCampaigns();
+  },
+
+  openCampaign(id) {
+    set({ view: 'campaign', campaignId: id });
+  },
+
+  async addCampaignIocs(id, iocs, group) {
+    const now = Date.now();
+    const by = get().session?.username;
+    const g = group && group.trim() ? group.trim() : undefined;
+    set((s) => {
+      const cur = s.campaigns[id];
+      if (!cur) return {};
+      const nextIocs = { ...cur.iocs };
+      for (const { value, type } of iocs) {
+        const ex = nextIocs[value];
+        nextIocs[value] = ex
+          ? { ...ex, group: g ?? ex.group, updatedAt: now }
+          : { value, type, group: g, addedAt: now, updatedAt: now, addedBy: by, autoEnrich: true };
+      }
+      const campaigns = { ...s.campaigns, [id]: { ...cur, iocs: nextIocs, updatedAt: now } };
+      saveCampaigns(campaigns);
+      return { campaigns };
+    });
+    void pushSharedCampaign(get().settings, id, get().campaigns[id] ?? null);
+    // Enrich the newly-added IOCs (sequential to respect the free-tier rate limit).
+    for (const { value } of iocs) await get().reEnrichCampaignIoc(id, value);
+  },
+
+  async setCampaignIocGroup(id, values, group) {
+    const g = group && group.trim() ? group.trim() : undefined;
+    const now = Date.now();
+    set((s) => {
+      const cur = s.campaigns[id];
+      if (!cur) return {};
+      const nextIocs = { ...cur.iocs };
+      for (const v of values) if (nextIocs[v]) nextIocs[v] = { ...nextIocs[v], group: g, updatedAt: now };
+      const campaigns = { ...s.campaigns, [id]: { ...cur, iocs: nextIocs, updatedAt: now } };
+      saveCampaigns(campaigns);
+      return { campaigns };
+    });
+    void pushSharedCampaign(get().settings, id, get().campaigns[id] ?? null);
+  },
+
+  async removeCampaignIocs(id, values) {
+    set((s) => {
+      const cur = s.campaigns[id];
+      if (!cur) return {};
+      const nextIocs = { ...cur.iocs };
+      for (const v of values) delete nextIocs[v];
+      const campaigns = { ...s.campaigns, [id]: { ...cur, iocs: nextIocs, updatedAt: Date.now() } };
+      saveCampaigns(campaigns);
+      return { campaigns };
+    });
+    void pushSharedCampaign(get().settings, id, get().campaigns[id] ?? null);
+  },
+
+  async reEnrichCampaignIoc(id, value) {
+    const cur0 = get().campaigns[id]?.iocs[value];
+    if (!cur0) return;
+    set((s) => {
+      const c = s.campaigns[id];
+      if (!c?.iocs[value]) return {};
+      const iocs = { ...c.iocs, [value]: { ...c.iocs[value], enriching: true } };
+      return { campaigns: { ...s.campaigns, [id]: { ...c, iocs } } };
+    });
+    let result: NormalizedResult | undefined;
+    try {
+      result = await enrichOne(get().settings, value, cur0.type);
+    } catch {
+      /* leave the previous snapshot */
+    }
+    const by = get().session?.username;
+    const at = Date.now();
+    set((s) => {
+      const c = s.campaigns[id];
+      const ioc = c?.iocs[value];
+      if (!c || !ioc) return {};
+      // Seed the pre-existing result as the first point so the next enrich always has a baseline.
+      const seed = ioc.history?.length
+        ? ioc.history
+        : ioc.result
+          ? [{ at: ioc.lastEnrichAt ?? ioc.updatedAt, result: ioc.result }]
+          : undefined;
+      const history = result ? appendSnapshot(seed, { at, by, result }, at) : ioc.history;
+      const iocs = {
+        ...c.iocs,
+        [value]: { ...ioc, enriching: false, result: result ?? ioc.result, history, updatedAt: at, lastEnrichAt: at },
+      };
+      const campaigns = { ...s.campaigns, [id]: { ...c, iocs, updatedAt: at } };
+      saveCampaigns(campaigns);
+      return { campaigns };
+    });
+    void pushSharedCampaign(get().settings, id, get().campaigns[id] ?? null);
+  },
+
+  async setCampaignIocAuto(id, values, on) {
+    const now = Date.now();
+    set((s) => {
+      const c = s.campaigns[id];
+      if (!c) return {};
+      const iocs = { ...c.iocs };
+      for (const v of values) if (iocs[v]) iocs[v] = { ...iocs[v], autoEnrich: on };
+      const campaigns = { ...s.campaigns, [id]: { ...c, iocs, updatedAt: now } };
+      saveCampaigns(campaigns);
+      return { campaigns };
+    });
+    void pushSharedCampaign(get().settings, id, get().campaigns[id] ?? null);
+  },
+
+  async refreshCampaigns() {
+    const shared = await fetchSharedCampaigns(get().settings);
+    set((s) => {
+      const campaigns = mergeCampaigns(s.campaigns, shared);
+      saveCampaigns(campaigns);
+      return { campaigns };
+    });
+    if (shared !== null) void putSharedCampaignsAll(get().settings, get().campaigns);
   },
   };
 });

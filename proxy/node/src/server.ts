@@ -26,6 +26,8 @@ import {
   shodanMonitorRemove,
   getSharedMonitors,
   putSharedMonitors,
+  getSharedCampaigns,
+  putSharedCampaigns,
   runScheduledAutoEnrich,
   getUsers,
   putUsers,
@@ -389,6 +391,15 @@ app.get('/api/monitor', async (req, res) => {
 app.put('/api/monitor', async (req, res) => {
   if (!requireAccess(req, res)) return;
   await putSharedMonitors(store, req.body);
+  res.json({ ok: true });
+});
+app.get('/api/campaigns', async (req, res) => {
+  if (!requireAccess(req, res)) return;
+  res.json(await getSharedCampaigns(store));
+});
+app.put('/api/campaigns', async (req, res) => {
+  if (!requireAccess(req, res)) return;
+  await putSharedCampaigns(store, req.body);
   res.json({ ok: true });
 });
 // Server-side auto re-enrich. Point a daily system cron at this (admin-token gated), e.g.:

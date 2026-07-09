@@ -13,6 +13,8 @@ import { HelpDialog } from './components/HelpDialog';
 import { HistoryDialog } from './components/HistoryDialog';
 import { MonitorPage } from './components/MonitorPage';
 import { MonitorAnalysisPage } from './components/MonitorAnalysisPage';
+import { CampaignsPage } from './components/CampaignsPage';
+import { CampaignPage } from './components/CampaignPage';
 import { RuleSearchDialog } from './components/RuleSearchDialog';
 import { EmptyState } from './components/EmptyState';
 import { AdminPanel } from './admin/AdminPanel';
@@ -32,6 +34,8 @@ export default function App() {
   const rulesAvailable = useStore((s) => s.mode === 'demo' || Boolean(s.health?.socprime));
   const monitorAvailable = useStore((s) => s.mode === 'demo' || Boolean(s.health?.shodan));
   const monitorCount = useStore((s) => Object.keys(s.monitors).length);
+  const campaignCount = useStore((s) => Object.keys(s.campaigns).length);
+  const openCampaigns = useStore((s) => s.openCampaigns);
   const [settingsOpen, setSettingsOpen] = useState(false);
   const [helpOpen, setHelpOpen] = useState(false);
   const [historyOpen, setHistoryOpen] = useState(false);
@@ -92,6 +96,13 @@ export default function App() {
             IP-Mon{monitorCount ? ` (${monitorCount})` : ''}
           </button>
         )}
+        <button
+          className={`btn btn-sm${view === 'campaigns' || view === 'campaign' ? ' active' : ''}`}
+          onClick={() => (view === 'campaigns' || view === 'campaign' ? setView('app') : openCampaigns())}
+          title="CP-Mon — campaign IOC watchlist: continuous enrichment + history analysis"
+        >
+          CP-Mon{campaignCount ? ` (${campaignCount})` : ''}
+        </button>
         {rulesAvailable && (
           <button className="btn btn-sm" onClick={() => setRulesOpen(true)} title="Search SOC Prime detection rules">
             Rules
@@ -124,6 +135,10 @@ export default function App() {
         <MonitorPage />
       ) : view === 'analysis' ? (
         <MonitorAnalysisPage />
+      ) : view === 'campaigns' ? (
+        <CampaignsPage />
+      ) : view === 'campaign' ? (
+        <CampaignPage />
       ) : (
         <main className="layout">
           <div className="col-left">

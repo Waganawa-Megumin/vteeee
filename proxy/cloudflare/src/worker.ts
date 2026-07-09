@@ -23,6 +23,8 @@ import {
   shodanMonitorRemove,
   getSharedMonitors,
   putSharedMonitors,
+  getSharedCampaigns,
+  putSharedCampaigns,
   runScheduledAutoEnrich,
   getUsers,
   putUsers,
@@ -377,6 +379,17 @@ export default {
         if (origin && !originAllowed(origin, allowed)) return json({ error: 'origin not allowed' }, 403);
         if (!checkAccess(auth, proxy)) return json({ error: 'unauthorized' }, 401);
         await putSharedMonitors(store, await request.json());
+        return json({ ok: true });
+      }
+      // CP-Mon shared campaigns (attack-campaign IOC watchlists + enrichment timelines).
+      if (url.pathname === '/api/campaigns' && request.method === 'GET') {
+        if (!checkAccess(auth, proxy)) return json({ error: 'unauthorized' }, 401);
+        return json(await getSharedCampaigns(store));
+      }
+      if (url.pathname === '/api/campaigns' && request.method === 'PUT') {
+        if (origin && !originAllowed(origin, allowed)) return json({ error: 'origin not allowed' }, 403);
+        if (!checkAccess(auth, proxy)) return json({ error: 'unauthorized' }, 401);
+        await putSharedCampaigns(store, await request.json());
         return json({ ok: true });
       }
       // Manual trigger for the server-side auto re-enrich (also runs on the Cloudflare cron below).

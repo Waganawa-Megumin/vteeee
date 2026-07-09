@@ -1983,6 +1983,119 @@ button.pv-monitored.link:hover {
   margin-left: 6px;
   vertical-align: middle;
 }
+/* CP-Mon (campaigns): overview cards + detail add-box. */
+.cp-empty {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  width: 100%;
+  padding: 32px;
+  border: 2px dashed var(--line);
+  border-radius: 12px;
+  background: transparent;
+  color: var(--text);
+  cursor: pointer;
+  font-size: 14px;
+  text-align: left;
+}
+.cp-empty:hover {
+  border-color: var(--accent);
+}
+.cp-empty-plus {
+  font-size: 40px;
+  color: var(--accent);
+  line-height: 1;
+}
+.cp-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(240px, 1fr));
+  gap: 12px;
+  margin-top: 8px;
+}
+.cp-card {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  align-items: flex-start;
+  text-align: left;
+  padding: 14px;
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  background: var(--bg3, transparent);
+  color: var(--text);
+  cursor: pointer;
+  min-height: 100px;
+}
+.cp-card:hover {
+  border-color: var(--accent);
+}
+.cp-card-name {
+  font-weight: 700;
+  font-size: 14px;
+  word-break: break-word;
+}
+.cp-card-meta {
+  font-size: 12px;
+  color: var(--muted);
+}
+.cp-card-stats {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+.cp-card-when {
+  font-size: 11px;
+  color: var(--muted);
+  margin-top: auto;
+}
+.cp-card-new {
+  align-items: center;
+  justify-content: center;
+  color: var(--accent);
+  font-weight: 700;
+  border-style: dashed;
+}
+.cp-title-btn {
+  background: transparent;
+  border: none;
+  color: var(--text);
+  cursor: pointer;
+  padding: 0;
+}
+.cp-title-btn:hover h2 {
+  color: var(--accent);
+}
+.cp-title-btn h2 {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+.cp-title-edit {
+  font-size: 12px;
+  opacity: 0.6;
+}
+.cp-title-meta {
+  font-size: 12px;
+  color: var(--muted);
+}
+.cp-add {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-start;
+  gap: 8px;
+  margin: 6px 0 10px;
+}
+.cp-add-text {
+  flex: 1 1 420px;
+  min-width: 240px;
+  background: var(--bg);
+  border: 1px solid var(--line);
+  border-radius: 6px;
+  color: var(--text);
+  padding: 8px 10px;
+  font-size: 12px;
+  resize: vertical;
+}
 /* Results-table monitor indicators. */
 .ctx-mon {
   display: inline-block;
