@@ -13,6 +13,7 @@ export { urlscanSubmit, urlscanResult, mapUrlscanResult } from './urlscanFetch';
 export { abuseipdbCheck, mapAbuseIpdb } from './abuseipdbFetch';
 export { shodanMonitorList, shodanMonitorAdd, shodanMonitorRemove } from './shodanMonitorFetch';
 export { getSharedMonitors, putSharedMonitors } from './monitorStore';
+export { runScheduledAutoEnrich } from './monitorAutoEnrich';
 export { maxmindLookup, mapMaxmind } from './maxmindFetch';
 export { domaintoolsEnrichDomain, domaintoolsReverseIp, mapIrisEnrich, mapIrisInvestigateReverseIp } from './domaintoolsFetch';
 export { dnslyticsIpInfo, dnslyticsHostingHistory, mapDnslyticsIp, mapDnslyticsHostingHistory } from './dnslyticsFetch';

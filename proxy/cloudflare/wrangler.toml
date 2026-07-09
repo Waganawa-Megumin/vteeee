@@ -2,6 +2,12 @@ name = "vteeee-proxy"
 main = "src/worker.ts"
 compatibility_date = "2024-11-01"
 
+# Daily server-side auto re-enrich for IP-Mon "⚡ Auto" entries. Fires the worker's scheduled()
+# handler once a day (05:00 UTC); it re-enriches every opted-in IP and saves fresh snapshots to the
+# shared watchlist, so intel keeps updating even when nobody has vteeee open.
+[triggers]
+crons = ["0 5 * * *"]
+
 # Non-secret config. Set ALLOWED_ORIGINS to your *.github.io origin + localhost.
 [vars]
 ALLOWED_ORIGINS = "https://waganawa-megumin.github.io,http://localhost:5173"

@@ -30,7 +30,13 @@ import {
   type SocPrimeRuleSearchResult,
   type ThreatVisionAdversary,
   type UserRecord,
+  appendSnapshot,
+  downsampleHistory,
+  autoEnrichInterval,
+  type EnrichSnapshot,
 } from '@vteeee/shared';
+// Re-export the shared timeline helpers/type so existing importers (components, tests) keep working.
+export { appendSnapshot, downsampleHistory, autoEnrichInterval, type EnrichSnapshot };
 import {
   consumeConnectLink,
   loadSettings,
@@ -121,14 +127,6 @@ function browserNotify(title: string, body: string, tag: string): void {
 // IPs registered to Shodan Monitor (server-side alerts) PLUS the last vteeee enrichment snapshot, so
 // you can come back the next day and see the intel, not just the raw Shodan monitor. Shodan is the
 // source of truth for which IPs are monitored; the enrichment snapshots are cached in localStorage.
-/** One point-in-time enrichment snapshot — kept in the watchlist so re-enrich never throws the past
- *  away. `by` records who enriched it (shared timelines show teammates' contributions). */
-export interface EnrichSnapshot {
-  at: number;
-  by?: string;
-  result: NormalizedResult;
-}
-
 export interface MonitorEntry {
   ip: string;
   addedAt: number;
@@ -173,7 +171,6 @@ export interface MonitorEntry {
 }
 
 const MONITORS_KEY = 'vteeee.monitors';
-const MAX_HISTORY = 40; // hard backstop after age-based downsampling
 function stripRaw(r?: NormalizedResult): NormalizedResult | undefined {
   if (!r) return undefined;
   const { raw: _raw, ...rest } = r as NormalizedResult & { raw?: unknown };
@@ -182,98 +179,12 @@ function stripRaw(r?: NormalizedResult): NormalizedResult | undefined {
 function stripSnap(s: EnrichSnapshot): EnrichSnapshot {
   return { at: s.at, by: s.by, result: stripRaw(s.result) as NormalizedResult };
 }
-/** Compact signature of the triage-relevant fields. Two snapshots with the same signature represent
- *  the "same state", so consecutive duplicates are collapsed — the timeline stays meaningful & small. */
-function snapSig(r: NormalizedResult): string {
-  const d = r.detection;
-  return [
-    r.verdict,
-    r.status,
-    d ? `${d.malicious}/${d.suspicious}/${d.harmless}/${d.total}` : '-',
-    r.reputation ?? '-',
-    r.gti?.verdict ?? '-',
-    r.gti?.severity ?? '-',
-    r.gti?.threatScore ?? '-',
-    r.abuseipdb?.abuseConfidenceScore ?? '-',
-    r.abuseipdb?.totalReports ?? '-',
-    r.recordedfuture?.riskScore ?? '-',
-    (r.shodan?.ports ?? []).join(','),
-    (r.shodan?.vulns ?? []).join(','),
-    r.maxmind?.countryCode ?? r.abuseipdb?.countryCode ?? r.shodan?.country ?? r.ip?.country ?? '-',
-    (r.tags ?? []).join(','),
-  ].join('|');
-}
-/** Age-based bucket key so the timeline can't grow without bound however often an IP is re-enriched:
- *  recent is fine-grained, older is progressively coarser. Tiers ≈ ≤1wk daily · 2wk ~5pts · 3–4wk ~2 ·
- *  5–6wk ~1 · older monthly. */
-function ageBucket(at: number, now: number): string {
-  const day = 86_400_000;
-  const ageDays = (now - at) / day;
-  if (ageDays < 7) return 'd' + Math.floor(at / day); // per calendar day
-  if (ageDays < 14) return 'a' + Math.floor(at / (1.4 * day)); // ~5 across week 2
-  if (ageDays < 28) return 'b' + Math.floor(at / (7 * day)); // ~2 across weeks 3–4
-  if (ageDays < 42) return 'c' + Math.floor(at / (14 * day)); // ~1 across weeks 5–6
-  return 'm' + Math.floor(at / (30 * day)); // monthly beyond
-}
-/** Normalise snapshots into a bounded timeline: unique by time, thinned to the newest per age bucket,
- *  consecutive same-state runs collapsed to their onset, hard-capped. Exported for testing. */
-export function downsampleHistory(list: EnrichSnapshot[], now: number): EnrichSnapshot[] {
-  const byAt = new Map<number, EnrichSnapshot>();
-  for (const s of list) if (s && s.result && !byAt.has(s.at)) byAt.set(s.at, s);
-  const sorted = [...byAt.values()].sort((a, b) => a.at - b.at);
-  // Keep the newest snapshot in each age bucket (walk newest → oldest so the first seen per bucket wins).
-  const seen = new Set<string>();
-  const kept: EnrichSnapshot[] = [];
-  for (let i = sorted.length - 1; i >= 0; i--) {
-    const bk = ageBucket(sorted[i].at, now);
-    if (!seen.has(bk)) {
-      seen.add(bk);
-      kept.push(sorted[i]);
-    }
-  }
-  kept.reverse(); // ascending (oldest → newest)
-  // Collapse consecutive same-signature runs to their onset (when the state first appeared).
-  const out: EnrichSnapshot[] = [];
-  let lastSig: string | null = null;
-  for (const s of kept) {
-    const sig = snapSig(s.result);
-    if (sig !== lastSig) {
-      out.push(s);
-      lastSig = sig;
-    }
-  }
-  return out.slice(-MAX_HISTORY);
-}
-/** Append a snapshot only if it's a real change vs the newest one, then re-downsample by age.
- *  Exported for testing. */
-export function appendSnapshot(
-  history: EnrichSnapshot[] | undefined,
-  snap: EnrichSnapshot,
-  now: number,
-): EnrichSnapshot[] {
-  const prev = history ?? [];
-  const last = prev[prev.length - 1];
-  if (last && snapSig(last.result) === snapSig(snap.result)) return prev; // no state change → unchanged
-  return downsampleHistory([...prev, snap], now);
-}
 /** If an entry has a current result but no timeline yet (existing watches predate history tracking),
  *  seed that result as the first point so the NEXT enrich has a baseline to diff against. */
 function seedHistory(cur: MonitorEntry): EnrichSnapshot[] | undefined {
   if (cur.history && cur.history.length) return cur.history;
   if (cur.result) return [{ at: cur.lastEnrichAt ?? cur.updatedAt ?? cur.addedAt, result: cur.result }];
   return undefined;
-}
-/** Auto-enrich cadence, aligned to the history tiers so it captures ~1 point per downsample bucket:
- *  week 1 daily · week 2 ≈ 1.5d · weeks 3–4 weekly · weeks 5–6 biweekly · older monthly (定点観測).
- *  Exported for testing. */
-export function autoEnrichInterval(ageMs: number): number {
-  const day = 86_400_000;
-  const ageDays = ageMs / day;
-  if (ageDays < 7) return day;
-  if (ageDays < 14) return 1.5 * day;
-  if (ageDays < 28) return 7 * day;
-  if (ageDays < 42) return 14 * day;
-  return 30 * day;
 }
 /** Trim an entry for persistence/sharing: strip raw VT payloads from the latest result AND every snapshot. */
 function slimEntry(v: MonitorEntry): MonitorEntry {

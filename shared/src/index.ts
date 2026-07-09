@@ -5,6 +5,13 @@ export { extractIndicators, reclassify } from './extract';
 export { urlApiId, sha256Hex, guiLink, apiPath, buildLinks } from './vt-links';
 export { normalizeVt, deriveVerdict, type NormalizeInput } from './vt-normalize';
 export {
+  snapSig,
+  downsampleHistory,
+  appendSnapshot,
+  autoEnrichInterval,
+  type EnrichSnapshot,
+} from './enrichHistory';
+export {
   DEFAULT_ITERATIONS,
   derive,
   randomSaltB64,

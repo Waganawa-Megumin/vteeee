@@ -26,6 +26,7 @@ import {
   shodanMonitorRemove,
   getSharedMonitors,
   putSharedMonitors,
+  runScheduledAutoEnrich,
   getUsers,
   putUsers,
   getSettings,
@@ -389,6 +390,12 @@ app.put('/api/monitor', async (req, res) => {
   if (!requireAccess(req, res)) return;
   await putSharedMonitors(store, req.body);
   res.json({ ok: true });
+});
+// Server-side auto re-enrich. Point a daily system cron at this (admin-token gated), e.g.:
+//   curl -fsS -X POST -H "Authorization: Bearer $ADMIN_TOKEN" http://localhost:8787/api/cron/auto-enrich
+app.post('/api/cron/auto-enrich', async (req, res) => {
+  if (!checkAdmin(req.headers.authorization, env)) return res.status(401).json({ error: 'unauthorized' });
+  res.json(await runScheduledAutoEnrich(store, env));
 });
 
 app.get('/api/shodan/monitor', async (req, res) => {

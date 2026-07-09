@@ -23,6 +23,7 @@ import {
   shodanMonitorRemove,
   getSharedMonitors,
   putSharedMonitors,
+  runScheduledAutoEnrich,
   getUsers,
   putUsers,
   getSettings,
@@ -378,6 +379,12 @@ export default {
         await putSharedMonitors(store, await request.json());
         return json({ ok: true });
       }
+      // Manual trigger for the server-side auto re-enrich (also runs on the Cloudflare cron below).
+      // Admin-token gated. Node deployments point an external daily cron at this endpoint.
+      if (url.pathname === '/api/cron/auto-enrich' && request.method === 'POST') {
+        if (!checkAdmin(auth, proxy)) return json({ error: 'unauthorized' }, 401);
+        return json(await runScheduledAutoEnrich(store, proxy));
+      }
 
       // Shodan Monitor — list the watched IPs (network alerts named vteeee:<ip>).
       if (url.pathname === '/api/shodan/monitor' && request.method === 'GET') {
@@ -528,5 +535,18 @@ export default {
     } catch (e) {
       return json({ error: (e as Error).message }, 500);
     }
+  },
+
+  /** Cloudflare Cron Trigger (see wrangler.toml [triggers]): once a day, server-side re-enrich every
+   *  IP opted into auto-enrich and write the fresh snapshots back to the shared watchlist, so every
+   *  client picks them up on next sync — no browser needs to be open. */
+  async scheduled(_event: ScheduledEvent, env: Env, ctx: ExecutionContext): Promise<void> {
+    const { proxy, store } = build(env);
+    ctx.waitUntil(
+      runScheduledAutoEnrich(store, proxy).then(
+        () => undefined,
+        () => undefined,
+      ),
+    );
   },
 };
