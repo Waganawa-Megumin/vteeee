@@ -28,7 +28,7 @@ import {
   putSharedMonitors,
   getSharedCampaigns,
   putSharedCampaigns,
-  runScheduledAutoEnrich,
+  runAllScheduledEnrich,
   getUsers,
   putUsers,
   getSettings,
@@ -406,7 +406,7 @@ app.put('/api/campaigns', async (req, res) => {
 //   curl -fsS -X POST -H "Authorization: Bearer $ADMIN_TOKEN" http://localhost:8787/api/cron/auto-enrich
 app.post('/api/cron/auto-enrich', async (req, res) => {
   if (!checkAdmin(req.headers.authorization, env)) return res.status(401).json({ error: 'unauthorized' });
-  res.json(await runScheduledAutoEnrich(store, env));
+  res.json(await runAllScheduledEnrich(store, env));
 });
 
 app.get('/api/shodan/monitor', async (req, res) => {

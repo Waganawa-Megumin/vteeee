@@ -2,6 +2,7 @@ import type { EnrichableType, EnrichRequest, EnrichSnapshot, NormalizedResult } 
 import { appendSnapshot } from '@vteeee/shared';
 import { runEnrich } from './enrich';
 import { getSharedMonitors, putSharedMonitors } from './monitorStore';
+import { getSharedCampaigns, putSharedCampaigns } from './campaignStore';
 import type { ProxyEnv, Storage } from './types';
 
 /** Loose view of the web app's MonitorEntry — the cron only touches the fields it needs; the shape is
@@ -68,4 +69,78 @@ export async function runScheduledAutoEnrich(
   }
   if (enriched) await putSharedMonitors(store, blob);
   return { due: due.length, enriched, changed };
+}
+
+/** Loose view of the web app's CampaignIoc / Campaign — the cron only touches what it needs. */
+interface CampaignIocLike {
+  value: string;
+  type: EnrichableType;
+  addedAt?: number;
+  updatedAt?: number;
+  lastEnrichAt?: number;
+  autoEnrich?: boolean;
+  result?: NormalizedResult;
+  history?: EnrichSnapshot[];
+}
+interface CampaignLike {
+  updatedAt?: number;
+  iocs?: Record<string, CampaignIocLike>;
+}
+
+/** Same as the watchlist auto-enrich, but for CP-Mon campaign IOCs (any type). Re-enriches every
+ *  opted-in, due IOC across all campaigns, appends a snapshot, and writes the campaigns blob back. */
+export async function runScheduledCampaignEnrich(
+  store: Storage,
+  env: ProxyEnv,
+): Promise<{ due: number; enriched: number; changed: number }> {
+  const blob = (await getSharedCampaigns(store)) as Record<string, CampaignLike>;
+  if (!blob || typeof blob !== 'object') return { due: 0, enriched: 0, changed: 0 };
+  const now = Date.now();
+  const dueList: { c: CampaignLike; ioc: CampaignIocLike }[] = [];
+  for (const c of Object.values(blob)) {
+    if (!c?.iocs) continue;
+    for (const ioc of Object.values(c.iocs)) {
+      if (ioc?.autoEnrich && typeof ioc.value === 'string' && now - (ioc.lastEnrichAt ?? ioc.addedAt ?? 0) >= DUE_MS)
+        dueList.push({ c, ioc });
+    }
+  }
+  dueList.sort((a, b) => (a.ioc.lastEnrichAt ?? a.ioc.addedAt ?? 0) - (b.ioc.lastEnrichAt ?? b.ioc.addedAt ?? 0));
+
+  let enriched = 0;
+  let changed = 0;
+  for (const { c, ioc } of dueList.slice(0, MAX_PER_RUN)) {
+    const req: EnrichRequest = {
+      indicators: [{ value: ioc.value, type: ioc.type, input: ioc.value }],
+      options: { includeRaw: false },
+    };
+    let result: NormalizedResult | undefined;
+    try {
+      for await (const ev of runEnrich(req, env)) {
+        if (ev.event === 'result') result = ev.result;
+      }
+    } catch {
+      continue;
+    }
+    if (!result || result.status !== 'success') continue;
+    enriched++;
+    const before = ioc.history?.length ?? 0;
+    ioc.history = appendSnapshot(ioc.history, { at: now, by: 'auto', result }, now);
+    if ((ioc.history?.length ?? 0) !== before) changed++;
+    ioc.result = result;
+    ioc.lastEnrichAt = now;
+    ioc.updatedAt = now;
+    c.updatedAt = now;
+  }
+  if (enriched) await putSharedCampaigns(store, blob);
+  return { due: dueList.length, enriched, changed };
+}
+
+/** Run both the IP-Mon watchlist and the CP-Mon campaign auto-enrich in one pass (cron entry point). */
+export async function runAllScheduledEnrich(
+  store: Storage,
+  env: ProxyEnv,
+): Promise<{ monitors: { due: number; enriched: number; changed: number }; campaigns: { due: number; enriched: number; changed: number } }> {
+  const monitors = await runScheduledAutoEnrich(store, env);
+  const campaigns = await runScheduledCampaignEnrich(store, env);
+  return { monitors, campaigns };
 }

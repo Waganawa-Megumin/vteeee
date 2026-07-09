@@ -25,7 +25,7 @@ import {
   putSharedMonitors,
   getSharedCampaigns,
   putSharedCampaigns,
-  runScheduledAutoEnrich,
+  runAllScheduledEnrich,
   getUsers,
   putUsers,
   getSettings,
@@ -396,7 +396,7 @@ export default {
       // Admin-token gated. Node deployments point an external daily cron at this endpoint.
       if (url.pathname === '/api/cron/auto-enrich' && request.method === 'POST') {
         if (!checkAdmin(auth, proxy)) return json({ error: 'unauthorized' }, 401);
-        return json(await runScheduledAutoEnrich(store, proxy));
+        return json(await runAllScheduledEnrich(store, proxy));
       }
 
       // Shodan Monitor — list the watched IPs (network alerts named vteeee:<ip>).
@@ -556,7 +556,7 @@ export default {
   async scheduled(_event: ScheduledEvent, env: Env, ctx: ExecutionContext): Promise<void> {
     const { proxy, store } = build(env);
     ctx.waitUntil(
-      runScheduledAutoEnrich(store, proxy).then(
+      runAllScheduledEnrich(store, proxy).then(
         () => undefined,
         () => undefined,
       ),

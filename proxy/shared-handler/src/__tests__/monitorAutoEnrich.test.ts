@@ -24,7 +24,7 @@ vi.mock('../enrich', () => ({
   },
 }));
 
-import { runScheduledAutoEnrich } from '../monitorAutoEnrich';
+import { runScheduledAutoEnrich, runScheduledCampaignEnrich } from '../monitorAutoEnrich';
 import type { ProxyEnv, Storage } from '../types';
 
 function memStore(initial: unknown): Storage & { snapshot: () => Record<string, unknown> } {
@@ -73,5 +73,34 @@ describe('server-side scheduled auto re-enrich', () => {
     });
     const r = await runScheduledAutoEnrich(store, env);
     expect(r).toEqual({ due: 0, enriched: 0, changed: 0 });
+  });
+
+  it('enriches due CP-Mon campaign IOCs across campaigns and appends snapshots', async () => {
+    const now = Date.now();
+    let blob = JSON.stringify({
+      camp1: {
+        id: 'camp1',
+        name: 'Ph1',
+        iocs: {
+          '1.1.1.1': { value: '1.1.1.1', type: 'ipv4', addedAt: now - 5 * DAY, autoEnrich: true, lastEnrichAt: now - 2 * DAY }, // due
+          '2.2.2.2': { value: '2.2.2.2', type: 'ipv4', addedAt: now - 5 * DAY, autoEnrich: true, lastEnrichAt: now - 1 * HOUR }, // not due
+          '3.3.3.3': { value: '3.3.3.3', type: 'ipv4', addedAt: now - 5 * DAY, autoEnrich: false }, // not opted in
+        },
+      },
+    });
+    const store: Storage = {
+      get: async (k: string) => (k === 'campaigns' ? blob : null),
+      put: async (k: string, v: string) => {
+        if (k === 'campaigns') blob = v;
+      },
+    };
+    const r = await runScheduledCampaignEnrich(store, env);
+    expect(r.due).toBe(1);
+    expect(r.enriched).toBe(1);
+    const saved = JSON.parse(blob).camp1.iocs;
+    expect(saved['1.1.1.1'].history?.length).toBe(1);
+    expect(saved['1.1.1.1'].history?.[0].by).toBe('auto');
+    expect(saved['2.2.2.2'].history).toBeUndefined();
+    expect(saved['3.3.3.3'].history).toBeUndefined();
   });
 });

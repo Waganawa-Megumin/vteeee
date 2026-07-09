@@ -2,9 +2,10 @@ name = "vteeee-proxy"
 main = "src/worker.ts"
 compatibility_date = "2024-11-01"
 
-# Daily server-side auto re-enrich for IP-Mon "⚡ Auto" entries. Fires the worker's scheduled()
-# handler once a day (05:00 UTC); it re-enriches every opted-in IP and saves fresh snapshots to the
-# shared watchlist, so intel keeps updating even when nobody has vteeee open.
+# Daily server-side auto re-enrich for IP-Mon "⚡ Auto" watches AND all CP-Mon campaign IOCs. Fires
+# the worker's scheduled() handler once a day (05:00 UTC); it re-enriches every opted-in indicator and
+# saves fresh snapshots to the shared watchlist/campaigns, so intel keeps updating and distributing
+# even when nobody has vteeee open. (CP-Mon's whole point is this steady-state IOC analysis.)
 [triggers]
 crons = ["0 5 * * *"]
 
