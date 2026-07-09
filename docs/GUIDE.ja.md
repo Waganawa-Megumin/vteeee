@@ -121,9 +121,7 @@ APIキーはすべて**プロキシ側のみ**が保持します。**VirusTotal 
 pnpm install
 pnpm dev                 # http://localhost:5173
 ```
-ログイン:
-- 管理者 `admin / REDACTED`
-- 閲覧 `analyst / REDACTED`
+ログイン: 共有のデモ資格情報でサインイン（管理者 `admin` / 閲覧 `analyst`。**パスワードは非公開**＝ここには記載せず、別途連携）。
 
 「Load sample → Parse → Enrich N selected」でサンプル結果を確認。行クリックで詳細、右上 Settings、管理者は「Manage」。
 
@@ -175,7 +173,7 @@ curl http://localhost:8787/health          # {"ok":true,"vtKey":true,...}
   - 管理者トークン、プロキシURL、許可オリジンメモの編集、`settings.json` のExport/Import。
   - **Live時**は「Push to proxy / Pull from proxy」で users+settings をプロキシ(KV)に共有保存できます（要 `ADMIN_TOKEN`）。
 - **デフォルト資格情報の変更手順（推奨・最初にやる）**:
-  1. `admin / REDACTED` でログイン → Manage → Users。
+  1. `admin`（デモ資格情報）でログイン → Manage → Users。
   2. 新しい管理者を追加 → 既存 `admin`/`analyst` を削除 or パスワード変更。
   3. **Export users.json** → 中身を `web/public/config/users.json` に上書きコミット → 全員へ反映。
 

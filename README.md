@@ -105,8 +105,8 @@ when the key is present. Step-by-step (GitHub Secrets / Cloudflare / Node): **[d
 ▶︎ **https://waganawa-megumin.github.io/vteeee/**
 
 The public site is a **demo** (bundled sample data — no key, nothing sensitive).
-Sign in with `analyst` / `REDACTED` (user) or `admin` / `REDACTED`, then
-**Load sample → Parse → Enrich**. Point it at your own proxy in **Settings** to go live.
+Sign in with the shared demo credentials (**not published here** — provided separately),
+then **Load sample → Parse → Enrich**. Point it at your own proxy in **Settings** to go live.
 
 ## How it works
 
