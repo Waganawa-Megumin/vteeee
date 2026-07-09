@@ -2,6 +2,8 @@ import { useEffect, useRef, useState } from 'react';
 import { useStore, type MonitorEntry } from '../state/store';
 import { VerdictBadge } from './Badges';
 import { detectionRatio } from '../lib/verdict';
+import { Spark } from './Spark';
+import { abuseOf, cvesOf, detOf, diffParts, portsOf, rfOf } from '../lib/enrichTrend';
 
 // Minimal Leaflet surface (dynamic import keeps it lazy) — mirrors the detail-panel map shim.
 interface LMap {
@@ -295,6 +297,27 @@ export function MonitorPage() {
     const abuse = r?.abuseipdb?.abuseConfidenceScore;
     const abuseCls = abuse == null ? '' : abuse >= 75 ? 'sev-high' : abuse >= 25 ? 'sev-med' : 'sev-low';
     const cc = countryOf(e);
+    // Row-level enrichment trend: mini sparklines for metrics that vary + the "vs previous" diff.
+    const histAsc = e.history && e.history.length ? [...e.history].sort((a, b) => a.at - b.at) : [];
+    const trendChanges =
+      histAsc.length >= 2 ? diffParts(histAsc[histAsc.length - 1].result, histAsc[histAsc.length - 2].result) : [];
+    const sparks =
+      histAsc.length >= 2
+        ? (
+            [
+              ['det', detOf],
+              ['abuse', abuseOf],
+              ['RF', rfOf],
+              ['ports', portsOf],
+              ['CVE', cvesOf],
+            ] as const
+          )
+            .map(([k, f]) => ({ k, series: histAsc.map((s) => f(s.result)) }))
+            .filter(({ series }) => {
+              const nn = series.map((v) => v ?? 0);
+              return Math.max(...nn) !== Math.min(...nn);
+            })
+        : [];
     return (
       <li key={e.ip} className="monitor-row">
         <input
@@ -360,6 +383,21 @@ export function MonitorPage() {
             </span>
           ) : (
             <span className="mon-nointel">no enrichment yet — press “Re-enrich”</span>
+          )}
+          {histAsc.length >= 2 && (
+            <div className="mon-trend">
+              {sparks.length > 0 && (
+                <span className="mon-sparks">
+                  {sparks.map(({ k, series }) => (
+                    <span key={k} className="mon-spark-item" title={`${k} trend · ${series.length} pts`}>
+                      <span className="mon-spark-label">{k}</span>
+                      <Spark className="mon-spark" values={series} w={46} h={16} />
+                    </span>
+                  ))}
+                </span>
+              )}
+              {trendChanges.length > 0 && <span className="mon-trend-diff">↗ 前回比: {trendChanges.join(' · ')}</span>}
+            </div>
           )}
           {e.check && (
             <div className={`mon-check${e.check.changed ? ' changed' : ''}`}>

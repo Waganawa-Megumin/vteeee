@@ -256,6 +256,13 @@ export function appendSnapshot(
   if (last && snapSig(last.result) === snapSig(snap.result)) return prev; // no state change → unchanged
   return downsampleHistory([...prev, snap], now);
 }
+/** If an entry has a current result but no timeline yet (existing watches predate history tracking),
+ *  seed that result as the first point so the NEXT enrich has a baseline to diff against. */
+function seedHistory(cur: MonitorEntry): EnrichSnapshot[] | undefined {
+  if (cur.history && cur.history.length) return cur.history;
+  if (cur.result) return [{ at: cur.lastEnrichAt ?? cur.updatedAt ?? cur.addedAt, result: cur.result }];
+  return undefined;
+}
 /** Auto-enrich cadence, aligned to the history tiers so it captures ~1 point per downsample bucket:
  *  week 1 daily · week 2 ≈ 1.5d · weeks 3–4 weekly · weeks 5–6 biweekly · older monthly (定点観測).
  *  Exported for testing. */
@@ -751,7 +758,7 @@ export const useStore = create<State>((set, get) => {
                   monitors[r.value] = {
                     ...cur,
                     result: r,
-                    history: appendSnapshot(cur.history, { at, by, result: r }, at),
+                    history: appendSnapshot(seedHistory(cur), { at, by, result: r }, at),
                     updatedAt: at,
                     lastEnrichAt: at,
                   };
@@ -1299,7 +1306,8 @@ export const useStore = create<State>((set, get) => {
       const cur = s.monitors[ip];
       if (!cur) return {};
       // Append to the timeline (deduped by state) instead of throwing the previous enrichment away.
-      const history = result ? appendSnapshot(cur.history, { at, by, result }, at) : cur.history;
+      // Seed the pre-existing snapshot first so a forced re-enrich always has a "vs previous" baseline.
+      const history = result ? appendSnapshot(seedHistory(cur), { at, by, result }, at) : cur.history;
       const monitors = {
         ...s.monitors,
         [ip]: { ...cur, enriching: false, result: result ?? cur.result, history, updatedAt: at, lastEnrichAt: at },

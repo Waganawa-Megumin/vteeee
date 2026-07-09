@@ -2,62 +2,8 @@ import { Fragment, useEffect, useMemo, useState } from 'react';
 import type { NormalizedResult } from '@vteeee/shared';
 import { useStore } from '../state/store';
 import { VerdictBadge } from './Badges';
-
-function countryOf(r: NormalizedResult): string {
-  return r.maxmind?.countryCode ?? r.abuseipdb?.countryCode ?? r.shodan?.country ?? r.ip?.country ?? '';
-}
-const detOf = (r: NormalizedResult) => (r.detection?.malicious ?? 0) + (r.detection?.suspicious ?? 0);
-const abuseOf = (r: NormalizedResult) => r.abuseipdb?.abuseConfidenceScore ?? null;
-const rfOf = (r: NormalizedResult) => r.recordedfuture?.riskScore ?? null;
-const portsOf = (r: NormalizedResult) => r.shodan?.ports?.length ?? 0;
-const cvesOf = (r: NormalizedResult) => r.shodan?.vulns?.length ?? 0;
-
-/** Tiny inline SVG sparkline for a numeric series over time. */
-function Spark({ values }: { values: (number | null)[] }) {
-  const w = 128;
-  const h = 30;
-  const pad = 3;
-  const nums = values.map((v) => (v == null ? 0 : v));
-  const max = Math.max(1, ...nums);
-  const min = Math.min(0, ...nums);
-  const range = max - min || 1;
-  const n = nums.length;
-  const pt = (v: number, i: number): [number, number] => {
-    const x = n <= 1 ? w / 2 : pad + (i / (n - 1)) * (w - 2 * pad);
-    const y = pad + (1 - (v - min) / range) * (h - 2 * pad);
-    return [x, y];
-  };
-  const line = nums.map((v, i) => pt(v, i).join(',')).join(' ');
-  const [lx, ly] = pt(nums[n - 1] ?? 0, n - 1);
-  return (
-    <svg className="ana-spark" width={w} height={h} viewBox={`0 0 ${w} ${h}`} aria-hidden>
-      {n > 1 && <polyline points={line} fill="none" stroke="currentColor" strokeWidth="1.5" />}
-      <circle cx={lx} cy={ly} r="2.5" fill="currentColor" />
-    </svg>
-  );
-}
-
-/** Human-readable "what changed" between two snapshots (cur vs prev). */
-function diffParts(cur: NormalizedResult, prev: NormalizedResult): string[] {
-  const parts: string[] = [];
-  if (prev.verdict !== cur.verdict) parts.push(`verdict ${prev.verdict}→${cur.verdict}`);
-  if (detOf(prev) !== detOf(cur) || (prev.detection?.total ?? 0) !== (cur.detection?.total ?? 0))
-    parts.push(`det ${detOf(prev)}/${prev.detection?.total ?? 0}→${detOf(cur)}/${cur.detection?.total ?? 0}`);
-  if (abuseOf(prev) !== abuseOf(cur)) parts.push(`abuse ${abuseOf(prev) ?? '—'}→${abuseOf(cur) ?? '—'}`);
-  if (rfOf(prev) !== rfOf(cur)) parts.push(`RF ${rfOf(prev) ?? '—'}→${rfOf(cur) ?? '—'}`);
-  const setD = (prevArr?: (number | string)[], curArr?: (number | string)[], label = '') => {
-    const p = new Set(prevArr ?? []);
-    const c = new Set(curArr ?? []);
-    const add = [...c].filter((x) => !p.has(x));
-    const gone = [...p].filter((x) => !c.has(x));
-    if (add.length) parts.push(`+${label} ${add.slice(0, 5).join(',')}${add.length > 5 ? '…' : ''}`);
-    if (gone.length) parts.push(`−${label} ${gone.slice(0, 5).join(',')}${gone.length > 5 ? '…' : ''}`);
-  };
-  setD(prev.shodan?.ports, cur.shodan?.ports, 'ports');
-  setD(prev.shodan?.vulns, cur.shodan?.vulns, 'CVE');
-  if (countryOf(prev) !== countryOf(cur)) parts.push(`country ${countryOf(prev) || '—'}→${countryOf(cur) || '—'}`);
-  return parts;
-}
+import { Spark } from './Spark';
+import { abuseOf, countryOf, cvesOf, detOf, diffParts, portsOf, rfOf } from '../lib/enrichTrend';
 
 interface MatrixRow {
   label: string;

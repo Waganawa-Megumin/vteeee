@@ -1451,6 +1451,37 @@ a.i471-search-item:hover {
   color: var(--warn, #f59e0b);
   font-weight: 600;
 }
+/* Row-level enrichment trend: mini sparklines + "vs previous" diff. */
+.mon-trend {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 8px 14px;
+  margin-top: 2px;
+}
+.mon-sparks {
+  display: inline-flex;
+  gap: 10px;
+  align-items: center;
+}
+.mon-spark-item {
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+  color: var(--accent);
+}
+.mon-spark-label {
+  font-size: 10px;
+  color: var(--muted);
+}
+.mon-spark {
+  display: block;
+}
+.mon-trend-diff {
+  font-size: 12px;
+  color: var(--sus);
+  font-family: var(--mono);
+}
 .mon-check-when {
   color: var(--muted);
   font-weight: 400;
