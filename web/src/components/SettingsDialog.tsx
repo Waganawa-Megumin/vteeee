@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import type { AppSettings } from '@vteeee/shared';
 import { useStore } from '../state/store';
+import { buildConnectLink } from '../config';
 import { InfoTip } from './InfoTip';
 import { SecretField } from './SecretField';
 
@@ -9,9 +10,21 @@ export function SettingsDialog({ onClose }: { onClose: () => void }) {
   const applySettings = useStore((s) => s.applySettings);
   const health = useStore((s) => s.health);
   const [draft, setDraft] = useState<AppSettings>(settings);
+  const [linkCopied, setLinkCopied] = useState(false);
 
   function up<K extends keyof AppSettings>(k: K, v: AppSettings[K]) {
     setDraft((d) => ({ ...d, [k]: v }));
+  }
+
+  async function copyConnectLink() {
+    const link = buildConnectLink(draft);
+    try {
+      await navigator.clipboard.writeText(link);
+      setLinkCopied(true);
+      setTimeout(() => setLinkCopied(false), 2000);
+    } catch {
+      window.prompt('Copy this setup link:', link);
+    }
   }
 
   const live = !!draft.proxyBaseUrl;
@@ -126,6 +139,25 @@ export function SettingsDialog({ onClose }: { onClose: () => void }) {
               onChange={(v) => up('accessToken', v || null)}
             />
           </label>
+
+          {live && (
+            <div className="fld connect-share">
+              <span className="fld-label">
+                Connect another device
+                <InfoTip
+                  ja="このボタンでコピーしたリンクを別の端末（同じadmin）で開くと、プロキシURL＋トークンが自動設定され、共有中の IP-Mon 監視リストがすぐ見えます。リンクの接続情報はURLの#以降（フラグメント）に入り、サーバーには送信されません。ただし《アクセストークンを含む》ため、信頼できる端末／チームだけに渡してください。"
+                  en="Open the copied link on another device (same admin) to auto-apply the proxy URL + token and immediately see the shared IP-Mon watchlist. The connection rides in the URL fragment (after #), which browsers never send to a server — but it DOES contain the access token, so only share it with trusted devices/teammates."
+                />
+              </span>
+              <button className="btn btn-sm" onClick={copyConnectLink} type="button">
+                {linkCopied ? '✓ Copied setup link' : '🔗 Copy setup link'}
+              </button>
+              <span className="hint">
+                別端末や仲間はこのリンクを開くだけで接続完了＝<b>ログインすれば共有中の監視リストが表示</b>されます。
+                <b>リンクにはアクセストークンが含まれます</b>。信頼できる相手にのみ共有してください。
+              </span>
+            </div>
+          )}
 
           <div className="fld-row">
             <label className="fld">

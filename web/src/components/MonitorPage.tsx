@@ -506,7 +506,14 @@ export function MonitorPage() {
             （intel を持つ端末で一度開いてください）。
           </>
         )}
-        {mode === 'demo' && ' （デモ：サンプル表示）'}
+        {mode === 'demo' && (
+          <>
+            {' '}
+            <b>（この端末はプロキシ未接続＝demo表示です）</b> 別端末で共有中の監視リストがここに出ない場合、この端末が未接続です。
+            設定済みの端末で <b>Settings →「Connect another device」→ Copy setup link</b> を押し、そのリンクを<b>この端末で開く</b>と
+            接続が引き継がれて共有リストが表示されます（または Settings にプロキシURL＋アクセストークンを入力）。
+          </>
+        )}
       </p>
 
       {total === 0 ? (

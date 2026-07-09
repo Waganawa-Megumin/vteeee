@@ -31,7 +31,15 @@ import {
   type ThreatVisionAdversary,
   type UserRecord,
 } from '@vteeee/shared';
-import { loadSettings, loadUsers, resolveMode, saveSettings, saveUsers, type Mode } from '../config';
+import {
+  consumeConnectLink,
+  loadSettings,
+  loadUsers,
+  resolveMode,
+  saveSettings,
+  saveUsers,
+  type Mode,
+} from '../config';
 import { authenticate, persistSession, restoreSession } from '../auth/session';
 import { makeClient, type EnrichClient } from '../api/client';
 import { saveHistory } from '../lib/historySource';
@@ -440,13 +448,18 @@ export const useStore = create<State>((set, get) => {
 
   async boot() {
     void requestPersistentStorage(); // ask the browser not to evict our storage
-    const [users, settings] = await Promise.all([loadUsers(), loadSettings()]);
+    const [users, loaded] = await Promise.all([loadUsers(), loadSettings()]);
+    // A "connect another device" link (#connect=…) auto-applies the proxy URL + token so this device
+    // becomes Live and can see the shared watchlist; land on IP-Mon so the sync is immediately visible.
+    const imported = consumeConnectLink(loaded);
+    const settings = imported ?? loaded;
     set({
       users,
       settings,
       mode: resolveMode(settings),
       session: restoreSession(),
       booted: true,
+      ...(imported ? { view: 'monitor' as const } : {}),
     });
     void get().refreshHealth();
   },
