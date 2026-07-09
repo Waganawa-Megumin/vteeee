@@ -1543,10 +1543,19 @@ button.pv-monitored.link:hover {
   margin: 10px 0;
   align-items: start;
 }
+/* No map coordinates → drop the empty map column so the bars fill the row (no big empty frame). */
+.mon-dash.mon-dash-nomap {
+  grid-template-columns: 1fr 1fr;
+}
 @media (max-width: 900px) {
-  .mon-dash {
+  .mon-dash,
+  .mon-dash.mon-dash-nomap {
     grid-template-columns: 1fr;
   }
+}
+.mon-nomap-note {
+  margin: -2px 0 10px;
+  font-size: 12px;
 }
 .monitor-map {
   height: 300px;
@@ -1563,14 +1572,6 @@ button.pv-monitored.link:hover {
   height: 100%;
   background: var(--bg3);
   font: inherit;
-}
-.mon-map-empty {
-  height: 300px;
-  display: flex;
-  align-items: center;
-  border: 1px dashed var(--line);
-  border-radius: 8px;
-  padding: 12px;
 }
 .mon-bars {
   border: 1px solid var(--line);
@@ -1744,7 +1745,8 @@ button.pv-monitored.link:hover {
   border-radius: 6px;
   background: var(--bg3);
   color: var(--fg);
-  max-width: 170px;
+  /* Wider so long campaign-style group names aren't badly clipped (hover shows the full name). */
+  width: clamp(160px, 26vw, 440px);
   cursor: pointer;
 }
 /* Results-table monitor indicators. */

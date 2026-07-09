@@ -333,7 +333,7 @@ export function MonitorPage() {
                   // Resync the control to the source of truth so a cancelled "＋ New group…" doesn't stick.
                   sel.value = e.group ?? '';
                 }}
-                title="Put this IP in a group (＋ New group… to create one)"
+                title={e.group ? `Group: ${e.group}` : 'Put this IP in a group (＋ New group… to create one)'}
                 aria-label={`Group for ${e.ip}`}
               >
                 <option value="">— none —</option>
@@ -530,17 +530,13 @@ export function MonitorPage() {
             <StatTile n={byCountry.size} label="countries" />
           </div>
 
-          <div className="mon-dash">
-            <div className="mon-map-wrap">
-              <div className="mon-bars-title">Monitored locations</div>
-              {points.length ? (
+          <div className={`mon-dash${points.length ? '' : ' mon-dash-nomap'}`}>
+            {points.length > 0 && (
+              <div className="mon-map-wrap">
+                <div className="mon-bars-title">Monitored locations</div>
                 <MonitorMap points={points} />
-              ) : (
-                <div className="hint mon-map-empty">
-                  座標がありません（地図には MaxMind の緯度経度が必要）。各IPを Re-enrich するか MaxMind を有効化してください。
-                </div>
-              )}
-            </div>
+              </div>
+            )}
             <BarList title="By country" rows={countries} max={maxCountry} />
             <BarList
               title="Top vulnerabilities (CVE)"
@@ -549,6 +545,11 @@ export function MonitorPage() {
               hrefFor={(cve) => `https://nvd.nist.gov/vuln/detail/${cve}`}
             />
           </div>
+          {points.length === 0 && (
+            <div className="hint mon-nomap-note">
+              🗺 監視地図は MaxMind の座標が必要です（各IPを <b>Re-enrich</b> するか MaxMind 有効化で表示）。
+            </div>
+          )}
 
           <div className="mon-bulkbar">
             <label className="mon-selall">
