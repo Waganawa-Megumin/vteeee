@@ -25,6 +25,7 @@ import {
   putSharedMonitors,
   getSharedCampaigns,
   putSharedCampaigns,
+  summarizeCampaign,
   runAllScheduledEnrich,
   getUsers,
   putUsers,
@@ -42,7 +43,7 @@ import {
   type ProxyEnv,
   type Storage,
 } from '@vteeee/proxy-core';
-import type { AppSettings, EnrichableType, EnrichRequest, UserRecord } from '@vteeee/shared';
+import type { AppSettings, CampaignDigest, EnrichableType, EnrichRequest, UserRecord } from '@vteeee/shared';
 
 interface Env {
   VT_API_KEY: string;
@@ -391,6 +392,14 @@ export default {
         if (!checkAccess(auth, proxy)) return json({ error: 'unauthorized' }, 401);
         await putSharedCampaigns(store, await request.json());
         return json({ ok: true });
+      }
+      // CP-Mon 電光掲示板: Claude-written one-line key message from a compact campaign digest.
+      if (url.pathname === '/api/campaign-summary' && request.method === 'POST') {
+        if (!checkAccess(auth, proxy)) return json({ error: 'unauthorized' }, 401);
+        if (!(await consumeDailyQuota(store, 'parse', proxy.parseDailyCap, 1)))
+          return json({ error: 'daily smart-parse quota reached' }, 429);
+        const digest = (await request.json()) as CampaignDigest;
+        return json(await summarizeCampaign(digest, proxy));
       }
       // Manual trigger for the server-side auto re-enrich (also runs on the Cloudflare cron below).
       // Admin-token gated. Node deployments point an external daily cron at this endpoint.

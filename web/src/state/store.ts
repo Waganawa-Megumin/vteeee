@@ -33,6 +33,8 @@ import {
   appendSnapshot,
   downsampleHistory,
   autoEnrichInterval,
+  fallbackSummary,
+  type CampaignDigest,
   type EnrichSnapshot,
 } from '@vteeee/shared';
 // Re-export the shared timeline helpers/type so existing importers (components, tests) keep working.
@@ -52,6 +54,7 @@ import { saveHistory } from '../lib/historySource';
 import { requestPersistentStorage } from '../lib/durable';
 import { loadCampaigns, saveCampaigns, slimCampaign, mergeCampaigns, type Campaign } from './campaigns';
 export type { Campaign, CampaignIoc } from './campaigns';
+import { countryOf, diffParts } from '../lib/enrichTrend';
 
 export const indKey = (i: { type: string; value: string }) => `${i.type}|${i.value}`;
 
@@ -390,6 +393,76 @@ async function pushSharedCampaign(settings: AppSettings, id: string, campaign: C
   }
 }
 
+/** Build the compact digest the summarizer consumes (aggregates + short change strings only). */
+function buildCampaignDigest(c: Campaign): CampaignDigest {
+  const iocs = Object.values(c.iocs);
+  const byType = new Map<string, number>();
+  const byCountry = new Map<string, number>();
+  const byCve = new Map<string, number>();
+  const byGroup = new Map<string, number>();
+  let totalSnapshots = 0;
+  let minAt = Number.MAX_SAFE_INTEGER;
+  let maxAt = 0;
+  const recentChanges: { value: string; changes: string[] }[] = [];
+  for (const i of iocs) {
+    byType.set(i.type, (byType.get(i.type) ?? 0) + 1);
+    if (i.group) byGroup.set(i.group, (byGroup.get(i.group) ?? 0) + 1);
+    const r = i.result;
+    if (r) {
+      const cc = countryOf(r);
+      if (cc) byCountry.set(cc, (byCountry.get(cc) ?? 0) + 1);
+      for (const v of r.shodan?.vulns ?? []) byCve.set(v, (byCve.get(v) ?? 0) + 1);
+    }
+    const h = i.history?.length ? [...i.history].sort((a, b) => a.at - b.at) : [];
+    totalSnapshots += h.length;
+    if (h.length) {
+      minAt = Math.min(minAt, h[0].at);
+      maxAt = Math.max(maxAt, h[h.length - 1].at);
+    }
+    if (h.length >= 2) {
+      const changes = diffParts(h[h.length - 1].result, h[h.length - 2].result);
+      if (changes.length) recentChanges.push({ value: i.value, changes });
+    }
+  }
+  const top = (m: Map<string, number>, n: number): [string, number][] =>
+    [...m.entries()].sort((a, b) => b[1] - a[1]).slice(0, n);
+  return {
+    name: c.name,
+    iocCount: iocs.length,
+    withIntel: iocs.filter((i) => i.result).length,
+    malicious: iocs.filter((i) => i.result?.verdict === 'malicious').length,
+    suspicious: iocs.filter((i) => i.result?.verdict === 'suspicious').length,
+    highAbuse: iocs.filter((i) => (i.result?.abuseipdb?.abuseConfidenceScore ?? -1) >= 75).length,
+    distinctCves: byCve.size,
+    autoCount: iocs.filter((i) => i.autoEnrich).length,
+    byType: top(byType, 8),
+    topCountries: top(byCountry, 6),
+    topCves: top(byCve, 6),
+    groups: top(byGroup, 12),
+    recentChanges: recentChanges.slice(0, 12),
+    spanDays: maxAt > minAt && minAt !== Number.MAX_SAFE_INTEGER ? Math.round((maxAt - minAt) / 86_400_000) : 0,
+    totalSnapshots,
+  };
+}
+
+/** Ask the proxy's Claude to write the key message; falls back to the deterministic summary offline. */
+async function fetchCampaignSummary(settings: AppSettings, digest: CampaignDigest): Promise<string> {
+  if (!monitorSharingOn(settings)) return fallbackSummary(digest);
+  const base = settings.proxyBaseUrl!.replace(/\/$/, '');
+  try {
+    const res = await fetch(`${base}/api/campaign-summary`, {
+      method: 'POST',
+      headers: { ...monitorAuth(settings), 'content-type': 'application/json' },
+      body: JSON.stringify(digest),
+    });
+    if (!res.ok) return fallbackSummary(digest);
+    const j = (await res.json()) as { text?: string };
+    return j.text?.trim() || fallbackSummary(digest);
+  } catch {
+    return fallbackSummary(digest);
+  }
+}
+
 interface State {
   booted: boolean;
   session: Session | null;
@@ -519,6 +592,8 @@ interface State {
   setCampaignIocAuto: (id: string, values: string[], on: boolean) => Promise<void>;
   /** Pull the shared campaigns (KV) + two-way merge. */
   refreshCampaigns: () => Promise<void>;
+  /** (Re)generate the campaign's Claude key-message summary (電光掲示板); shared with the campaign. */
+  summarizeCampaign: (id: string) => Promise<void>;
 }
 
 function defaultIncludes(parsed: ParsedIndicator[]): Record<string, boolean> {
@@ -1587,6 +1662,22 @@ export const useStore = create<State>((set, get) => {
       return { campaigns };
     });
     if (shared !== null) void putSharedCampaignsAll(get().settings, get().campaigns);
+  },
+
+  async summarizeCampaign(id) {
+    const cur = get().campaigns[id];
+    if (!cur) return;
+    const text = await fetchCampaignSummary(get().settings, buildCampaignDigest(cur));
+    const at = Date.now();
+    const by = get().session?.username;
+    set((s) => {
+      const c = s.campaigns[id];
+      if (!c) return {};
+      const campaigns = { ...s.campaigns, [id]: { ...c, summary: { text, at, by }, updatedAt: at } };
+      saveCampaigns(campaigns);
+      return { campaigns };
+    });
+    void pushSharedCampaign(get().settings, id, get().campaigns[id] ?? null);
   },
   };
 });

@@ -1604,6 +1604,66 @@ button.pv-monitored.link:hover {
   background: var(--bg3);
   font: inherit;
 }
+/* --- Country heatmap (choropleth) — "多いほど濃い" per selected group ------------------------- */
+.mon-choro {
+  margin: 10px 0;
+}
+.mon-choro-head {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
+  margin-bottom: 6px;
+}
+.mon-choro-head .mon-bars-title {
+  margin-bottom: 0;
+}
+.mon-choro-group {
+  max-width: clamp(140px, 30vw, 300px);
+}
+.mon-choro-count {
+  font-size: 12px;
+  color: var(--muted);
+  margin-left: auto;
+}
+.choro-map {
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  overflow: hidden;
+  background: var(--bg3);
+  /* Contain Leaflet's internal z-indexes so its controls don't punch through the detail overlay. */
+  isolation: isolate;
+}
+.choro-map .leaflet-container {
+  width: 100%;
+  height: 100%;
+  background: var(--bg3);
+  font: inherit;
+}
+.choro-legend {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-top: 6px;
+  font-size: 11px;
+  color: var(--muted);
+}
+.choro-legend-bar {
+  flex: 0 0 120px;
+  height: 10px;
+  border-radius: 5px;
+  border: 1px solid var(--line);
+  background: linear-gradient(90deg, rgb(253, 230, 190), rgb(214, 96, 60), rgb(124, 22, 22));
+}
+.choro-legend-note {
+  color: var(--danger, #dc2626);
+}
+.choro-empty {
+  padding: 18px;
+  text-align: center;
+  border: 1px dashed var(--line);
+  border-radius: 8px;
+}
 .mon-bars {
   border: 1px solid var(--line);
   border-radius: 8px;
@@ -2126,6 +2186,104 @@ button.pv-monitored.link:hover {
   font-size: 11px;
   color: var(--muted);
 }
+
+/* --- 電光掲示板: the campaign key-message ticker (LED board, dark regardless of theme) ---------- */
+.cp-marquee {
+  display: flex;
+  align-items: stretch;
+  gap: 0;
+  /* The campaign panel is a flex column; without flex:none this row collapses to its borders. */
+  flex: none;
+  min-height: 40px;
+  margin: 4px 0 12px;
+  border: 1px solid #1c2735;
+  border-radius: 8px;
+  background:
+    repeating-linear-gradient(90deg, rgba(255, 255, 255, 0.03) 0 1px, transparent 1px 3px),
+    linear-gradient(180deg, #0b0f16, #0a0d12);
+  box-shadow: inset 0 0 22px rgba(0, 0, 0, 0.6), 0 0 0 1px rgba(255, 191, 71, 0.06);
+  overflow: hidden;
+}
+.cp-marquee-tag {
+  display: flex;
+  align-items: center;
+  padding: 0 12px;
+  font-size: 12px;
+  font-weight: 800;
+  letter-spacing: 0.14em;
+  color: #0b0f16;
+  background: linear-gradient(180deg, #ffcf5c, #f6b53f);
+  text-shadow: none;
+  flex: none;
+}
+.cp-marquee-viewport {
+  position: relative;
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  display: flex;
+  align-items: center;
+  padding: 9px 0;
+}
+.cp-marquee-track {
+  display: inline-flex;
+  flex: none;
+  white-space: nowrap;
+  will-change: transform;
+  animation: cp-marquee-scroll 22s linear infinite;
+}
+.cp-marquee:hover .cp-marquee-track {
+  animation-play-state: paused;
+}
+.cp-marquee-text {
+  display: inline-block;
+  padding: 0 3rem 0 1.2rem;
+  font-family: var(--mono, ui-monospace, SFMono-Regular, Menlo, monospace);
+  font-size: 14px;
+  font-weight: 600;
+  color: #ffd166;
+  text-shadow: 0 0 6px rgba(255, 191, 71, 0.55), 0 0 2px rgba(255, 209, 102, 0.9);
+}
+.cp-marquee-pending {
+  padding-left: 1.2rem;
+  font-family: var(--mono, ui-monospace, monospace);
+  font-size: 13px;
+  color: #7c8794;
+}
+@keyframes cp-marquee-scroll {
+  from {
+    transform: translateX(0);
+  }
+  to {
+    transform: translateX(-50%);
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .cp-marquee-track {
+    animation: none;
+  }
+  .cp-marquee-text {
+    white-space: normal;
+  }
+}
+.cp-marquee-refresh {
+  flex: none;
+  border: none;
+  border-left: 1px solid #1c2735;
+  background: transparent;
+  color: #ffd166;
+  cursor: pointer;
+  font-size: 14px;
+  padding: 0 12px;
+}
+.cp-marquee-refresh:disabled {
+  opacity: 0.4;
+  cursor: default;
+}
+.cp-marquee-refresh:hover:not(:disabled) {
+  background: rgba(255, 191, 71, 0.1);
+}
+
 /* Results-table monitor indicators. */
 .ctx-mon {
   display: inline-block;

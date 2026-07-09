@@ -3,6 +3,7 @@ import { useStore, type MonitorEntry } from '../state/store';
 import { VerdictBadge } from './Badges';
 import { detectionRatio } from '../lib/verdict';
 import { Spark } from './Spark';
+import { CountryChoropleth } from './CountryChoropleth';
 import { abuseOf, cvesOf, detOf, diffParts, portsOf, rfOf } from '../lib/enrichTrend';
 
 // Minimal Leaflet surface (dynamic import keeps it lazy) — mirrors the detail-panel map shim.
@@ -150,6 +151,7 @@ export function MonitorPage() {
   const setAutoEnrich = useStore((s) => s.setAutoEnrich);
   const [checked, setChecked] = useState<Set<string>>(new Set());
   const [groupInput, setGroupInput] = useState('');
+  const [mapGroup, setMapGroup] = useState('');
   const [collapsed, setCollapsed] = useState<Set<string>>(() => {
     try {
       const raw = localStorage.getItem('vteeee.monGroupsCollapsed');
@@ -257,6 +259,16 @@ export function MonitorPage() {
   }));
   const ungrouped = list.filter((e) => !e.group);
   if (ungrouped.length) buckets.push({ key: UNGROUPED, name: null, entries: ungrouped });
+
+  // Country heatmap: aggregate a chosen group's IPs by country (darker = more) for the choropleth.
+  const mapEntries =
+    !mapGroup ? list : mapGroup === UNGROUPED ? ungrouped : list.filter((e) => e.group === mapGroup);
+  const mapCounts: Record<string, number> = {};
+  for (const e of mapEntries) {
+    const cc = countryOf(e);
+    if (cc) mapCounts[cc] = (mapCounts[cc] ?? 0) + 1;
+  }
+  const mapCountryN = new Set(mapEntries.map(countryOf).filter(Boolean)).size;
 
   /** Select / deselect every IP in one group at once (drives the per-group checkbox). */
   function groupToggle(entries: MonitorEntry[]) {
@@ -619,6 +631,33 @@ export function MonitorPage() {
               🗺 監視地図は MaxMind の座標が必要です（各IPを <b>Re-enrich</b> するか MaxMind 有効化で表示）。
             </div>
           )}
+
+          <div className="mon-choro">
+            <div className="mon-choro-head">
+              <div className="mon-bars-title">国別ヒートマップ — 多いほど濃い</div>
+              {hasGroups && (
+                <select
+                  className="filter mon-choro-group"
+                  value={mapGroup}
+                  onChange={(e) => setMapGroup(e.target.value)}
+                  aria-label="Group for the country heatmap"
+                  title="ヒートマップに集計するグループを選択"
+                >
+                  <option value="">All groups</option>
+                  {groupNames.map((g) => (
+                    <option key={g} value={g}>
+                      {g}
+                    </option>
+                  ))}
+                  {ungrouped.length > 0 && <option value={UNGROUPED}>Ungrouped</option>}
+                </select>
+              )}
+              <span className="mon-choro-count">
+                {mapEntries.length} IP{mapEntries.length === 1 ? '' : 's'} · {mapCountryN} countries
+              </span>
+            </div>
+            <CountryChoropleth counts={mapCounts} />
+          </div>
 
           <div className="mon-bulkbar">
             <label className="mon-selall">

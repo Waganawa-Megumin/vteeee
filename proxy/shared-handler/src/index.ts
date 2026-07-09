@@ -14,6 +14,7 @@ export { abuseipdbCheck, mapAbuseIpdb } from './abuseipdbFetch';
 export { shodanMonitorList, shodanMonitorAdd, shodanMonitorRemove } from './shodanMonitorFetch';
 export { getSharedMonitors, putSharedMonitors } from './monitorStore';
 export { getSharedCampaigns, putSharedCampaigns } from './campaignStore';
+export { summarizeCampaign } from './campaignSummary';
 export { runScheduledAutoEnrich, runScheduledCampaignEnrich, runAllScheduledEnrich } from './monitorAutoEnrich';
 export { maxmindLookup, mapMaxmind } from './maxmindFetch';
 export { domaintoolsEnrichDomain, domaintoolsReverseIp, mapIrisEnrich, mapIrisInvestigateReverseIp } from './domaintoolsFetch';

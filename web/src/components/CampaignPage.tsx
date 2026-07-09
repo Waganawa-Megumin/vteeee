@@ -1,8 +1,9 @@
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { extractIndicators, type EnrichableType } from '@vteeee/shared';
 import { useStore, type CampaignIoc } from '../state/store';
 import { VerdictBadge } from './Badges';
 import { Spark } from './Spark';
+import { CountryChoropleth } from './CountryChoropleth';
 import { abuseOf, countryOf, cvesOf, detOf, diffParts, portsOf, rfOf } from '../lib/enrichTrend';
 
 const UNGROUPED = '__ungrouped__';
@@ -48,6 +49,27 @@ function Bars({ title, rows, hrefFor }: { title: string; rows: [string, number][
 /** Campaign analytics — the dashboard is analysis, not just a list: roll-up, distributions, and the
  *  recent enrichment CHANGES across the campaign's IOCs (its evolving picture). */
 function CampaignDashboard({ iocs, onOpen }: { iocs: CampaignIoc[]; onOpen?: (v: string) => void }) {
+  const [mapGroup, setMapGroup] = useState('');
+  // Country heatmap for a chosen group within the campaign (darker = more IOCs in that country).
+  const map = useMemo(() => {
+    const names = [...new Set(iocs.map((i) => i.group).filter((g): g is string => !!g))].sort((a, b) =>
+      a.localeCompare(b),
+    );
+    const hasUngrouped = iocs.some((i) => !i.group);
+    const entries =
+      !mapGroup ? iocs : mapGroup === UNGROUPED ? iocs.filter((i) => !i.group) : iocs.filter((i) => i.group === mapGroup);
+    const counts: Record<string, number> = {};
+    const seen = new Set<string>();
+    for (const i of entries) {
+      const cc = i.result ? countryOf(i.result) : '';
+      if (cc) {
+        counts[cc] = (counts[cc] ?? 0) + 1;
+        seen.add(cc);
+      }
+    }
+    return { names, hasUngrouped, n: entries.length, countryN: seen.size, counts };
+  }, [iocs, mapGroup]);
+
   const d = useMemo(() => {
     const byType = new Map<string, number>();
     for (const i of iocs) byType.set(i.type, (byType.get(i.type) ?? 0) + 1);
@@ -107,6 +129,32 @@ function CampaignDashboard({ iocs, onOpen }: { iocs: CampaignIoc[]; onOpen?: (v:
         <Bars title="By country" rows={d.countries} />
         <Bars title="Top CVEs" rows={d.cves} hrefFor={(cve) => `https://nvd.nist.gov/vuln/detail/${cve}`} />
       </div>
+      <div className="mon-choro">
+        <div className="mon-choro-head">
+          <div className="mon-bars-title">国別ヒートマップ — 多いほど濃い</div>
+          {map.names.length > 0 && (
+            <select
+              className="filter mon-choro-group"
+              value={mapGroup}
+              onChange={(e) => setMapGroup(e.target.value)}
+              aria-label="Group for the country heatmap"
+              title="ヒートマップに集計するグループを選択"
+            >
+              <option value="">All groups</option>
+              {map.names.map((g) => (
+                <option key={g} value={g}>
+                  {g}
+                </option>
+              ))}
+              {map.hasUngrouped && <option value={UNGROUPED}>Ungrouped</option>}
+            </select>
+          )}
+          <span className="mon-choro-count">
+            {map.n} IoC{map.n === 1 ? '' : 's'} · {map.countryN} countries
+          </span>
+        </div>
+        <CountryChoropleth counts={map.counts} />
+      </div>
       {d.recent.length > 0 && (
         <div className="cp-recent">
           <div className="mon-bars-title">Recent changes（直近のエンリッチ変化）</div>
@@ -137,8 +185,32 @@ export function CampaignPage() {
   const rename = useStore((s) => s.renameCampaign);
   const removeCampaign = useStore((s) => s.removeCampaign);
   const showResult = useStore((s) => s.showResult);
+  const summarize = useStore((s) => s.summarizeCampaign);
   const [text, setText] = useState('');
   const [groupInput, setGroupInput] = useState('');
+  const [summarizing, setSummarizing] = useState(false);
+  const autoSummarized = useRef<string | null>(null);
+
+  const iocCount = id ? Object.keys(campaign?.iocs ?? {}).length : 0;
+  const hasSummary = Boolean(campaign?.summary);
+  async function onSummarize() {
+    if (!id) return;
+    setSummarizing(true);
+    try {
+      await summarize(id);
+    } finally {
+      setSummarizing(false);
+    }
+  }
+  // Auto-write the key message once when a campaign with IOCs is opened and has none yet — so it
+  // "appears" (電光掲示板) without the analyst clicking. The button refreshes it thereafter.
+  useEffect(() => {
+    if (!id || !iocCount || hasSummary || summarizing) return;
+    if (autoSummarized.current === id) return;
+    autoSummarized.current = id;
+    void onSummarize();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [id, iocCount, hasSummary]);
 
   if (!id || !campaign) {
     return (
@@ -327,6 +399,38 @@ export function CampaignPage() {
           Delete campaign
         </button>
       </div>
+
+      {(campaign.summary || summarizing) && (
+        <div className="cp-marquee" role="status" aria-label="campaign key message">
+          <span className="cp-marquee-tag">総括</span>
+          <div className="cp-marquee-viewport">
+            {campaign.summary ? (
+              <div className="cp-marquee-track">
+                <span className="cp-marquee-text">{campaign.summary.text}</span>
+                <span className="cp-marquee-text" aria-hidden>
+                  {campaign.summary.text}
+                </span>
+              </div>
+            ) : (
+              <span className="cp-marquee-pending">総括を生成中…（Claude）</span>
+            )}
+          </div>
+          <button
+            className="cp-marquee-refresh"
+            onClick={() => void onSummarize()}
+            disabled={summarizing || iocs.length === 0}
+            title={
+              campaign.summary
+                ? `Claudeで総括を再生成 · 最終: ${new Date(campaign.summary.at).toLocaleString()}${
+                    campaign.summary.by ? ` · ${campaign.summary.by}` : ''
+                  }`
+                : 'Claudeで総括を生成'
+            }
+          >
+            {summarizing ? '…' : '🔄'}
+          </button>
+        </div>
+      )}
 
       <p className="hint mon-intro">
         任意の <b>Group 名</b>を付けて IoC を登録できます。登録した IoC は<b>サーバ側で毎日自動エンリッチ</b>され、各行に

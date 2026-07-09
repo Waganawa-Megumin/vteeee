@@ -28,6 +28,7 @@ import {
   putSharedMonitors,
   getSharedCampaigns,
   putSharedCampaigns,
+  summarizeCampaign,
   runAllScheduledEnrich,
   getUsers,
   putUsers,
@@ -401,6 +402,11 @@ app.put('/api/campaigns', async (req, res) => {
   if (!requireAccess(req, res)) return;
   await putSharedCampaigns(store, req.body);
   res.json({ ok: true });
+});
+// CP-Mon 電光掲示板: Claude-written one-line key message from a compact campaign digest.
+app.post('/api/campaign-summary', async (req, res) => {
+  if (!requireAccess(req, res)) return;
+  res.json(await summarizeCampaign(req.body as import('@vteeee/shared').CampaignDigest, env));
 });
 // Server-side auto re-enrich. Point a daily system cron at this (admin-token gated), e.g.:
 //   curl -fsS -X POST -H "Authorization: Bearer $ADMIN_TOKEN" http://localhost:8787/api/cron/auto-enrich

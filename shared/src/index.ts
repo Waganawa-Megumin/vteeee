@@ -11,6 +11,7 @@ export {
   autoEnrichInterval,
   type EnrichSnapshot,
 } from './enrichHistory';
+export { fallbackSummary, type CampaignDigest } from './campaignSummary';
 export {
   DEFAULT_ITERATIONS,
   derive,

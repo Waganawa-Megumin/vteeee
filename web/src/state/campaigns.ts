@@ -21,6 +21,15 @@ export interface CampaignIoc {
   note?: string;
 }
 
+/** A Claude-written (or deterministic-fallback) key-message summary of the campaign — the whole
+ *  picture incl. how the enrichment has shifted (情報推移). Shown as the 電光掲示板 marquee up top. */
+export interface CampaignSummary {
+  text: string;
+  at: number;
+  by?: string;
+  model?: string;
+}
+
 export interface Campaign {
   id: string;
   name: string;
@@ -28,6 +37,8 @@ export interface Campaign {
   updatedAt: number;
   note?: string;
   iocs: Record<string, CampaignIoc>;
+  /** Latest overall summary (shared with the campaign so the whole team sees the same key message). */
+  summary?: CampaignSummary;
 }
 
 export const CAMPAIGNS_KEY = 'vteeee.campaigns';
@@ -98,6 +109,8 @@ export function mergeCampaign(a: Campaign | undefined, b: Campaign | undefined):
   const iocs: Record<string, CampaignIoc> = {};
   const keys = new Set([...Object.keys(a?.iocs ?? {}), ...Object.keys(b?.iocs ?? {})]);
   for (const k of keys) iocs[k] = mergeIoc(a?.iocs?.[k], b?.iocs?.[k]);
+  // Keep whichever summary was generated most recently (it travels with the shared campaign).
+  const summary = (b?.summary?.at ?? 0) >= (a?.summary?.at ?? 0) ? b?.summary ?? a?.summary : a?.summary ?? b?.summary;
   return {
     id: base.id,
     name: (newerB ? b?.name : a?.name) ?? base.name,
@@ -105,6 +118,7 @@ export function mergeCampaign(a: Campaign | undefined, b: Campaign | undefined):
     updatedAt: Math.max(a?.updatedAt ?? 0, b?.updatedAt ?? 0),
     note: (newerB ? b?.note : a?.note) ?? base.note,
     iocs,
+    summary,
   };
 }
 
