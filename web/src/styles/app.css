@@ -2096,6 +2096,36 @@ button.pv-monitored.link:hover {
   font-size: 12px;
   resize: vertical;
 }
+.cp-recent {
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  padding: 8px 12px 10px;
+  margin: 4px 0 10px;
+}
+.cp-recent-row {
+  display: flex;
+  align-items: baseline;
+  flex-wrap: wrap;
+  gap: 8px;
+  padding: 5px 0;
+  border-top: 1px solid var(--line);
+}
+.cp-recent-row:first-of-type {
+  border-top: none;
+}
+.cp-recent-ioc {
+  background: transparent;
+  border: none;
+  color: var(--accent);
+  cursor: pointer;
+  font-weight: 700;
+  padding: 0;
+  font-size: 13px;
+}
+.cp-recent-when {
+  font-size: 11px;
+  color: var(--muted);
+}
 /* Results-table monitor indicators. */
 .ctx-mon {
   display: inline-block;
