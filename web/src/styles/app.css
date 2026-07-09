@@ -1749,6 +1749,72 @@ button.pv-monitored.link:hover {
   width: clamp(160px, 26vw, 440px);
   cursor: pointer;
 }
+/* Enrichment history & analysis dialog (per-IP timeline of past enrichments + change diffs). */
+.history-modal {
+  width: 720px;
+}
+.hist-summary {
+  margin-bottom: 4px;
+}
+.hist-timeline {
+  list-style: none;
+  margin: 6px 0 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+.hist-item {
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  padding: 8px 10px 10px;
+  background: var(--bg3, transparent);
+}
+.hist-item.latest {
+  border-color: var(--accent);
+}
+.hist-when {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+  font-size: 12px;
+}
+.hist-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: var(--muted);
+  flex: none;
+}
+.hist-item.latest .hist-dot {
+  background: var(--accent);
+}
+.hist-badge {
+  font-size: 10px;
+  font-weight: 700;
+  color: var(--accent-ink);
+  background: var(--accent);
+  border-radius: 10px;
+  padding: 1px 7px;
+}
+.hist-by {
+  font-size: 11px;
+  color: var(--muted);
+}
+.hist-metrics {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin-top: 6px;
+}
+.hist-diff {
+  margin-top: 6px;
+  font-size: 12px;
+  color: var(--sus);
+  font-family: var(--mono);
+}
 /* Results-table monitor indicators. */
 .ctx-mon {
   display: inline-block;

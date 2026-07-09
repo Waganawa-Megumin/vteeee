@@ -32,7 +32,7 @@ APIキーはすべて**プロキシ側のみ**が保持します。**VirusTotal 
 | サービス | 役割 | 必須? | プロキシの環境変数 | 付与される情報 |
 |---|---|---|---|---|
 | **VirusTotal / GTI** | 脅威情報（基本） | ✅ 必須 | `VT_API_KEY` | 判定・検出比・レピュテーション・ASN/国・カテゴリ・脅威ラベル・First/Last seen(ファイル・URL)・GTI評価 |
-| **Shodan** | OSINT（IP限定） | 任意 | `SHODAN_API_KEY` | 開放ポート・稼働サービス・既知CVE・組織/ISP/OS・ホスト名・タグ。詳細で **📡 Live ports**（InternetDB/再スキャン）。**☆ Monitor** で Shodan ネットワークアラートに登録→ヘッダー **📡 Monitor** ページで監視IP＋vteeee エンリッチ結果を翌日以降も確認。監視IPは**任意名称のグループ**にまとめ可（グループ見出しで一括選択・折りたたみ・Rename/Ungroup、ラベルもチーム共有）（Monitorは membership+ 必要） |
+| **Shodan** | OSINT（IP限定） | 任意 | `SHODAN_API_KEY` | 開放ポート・稼働サービス・既知CVE・組織/ISP/OS・ホスト名・タグ。詳細で **📡 Live ports**（InternetDB/再スキャン）。**☆ Monitor** で Shodan ネットワークアラートに登録→ヘッダー **📡 Monitor** ページで監視IP＋vteeee エンリッチ結果を翌日以降も確認。監視IPは**任意名称のグループ**にまとめ可（グループ見出しで一括選択・折りたたみ・Rename/Ungroup、ラベルもチーム共有）。Re-enrichは過去を捨てず**時系列で蓄積**し、各行の **🕓 History** で**エンリッチ履歴・変化分析**（前回からの差分＝verdict/検出/abuse/RF/ポート/CVE、誰がenrichしたか、過去スナップショットをOpen）。古い点は**年代間引き**（直近1週≒日次→以降は月次まで）でログ肥大を防止。履歴ごとチーム共有（Monitorは membership+ 必要） |
 | **MaxMind GeoIP** | 位置情報（IP限定） | 任意 | `MAXMIND_ACCOUNT_ID`＋`MAXMIND_LICENSE_KEY` | 地理位置(国/地域/市/郵便番号)・ISP/組織/ASN/ドメイン・接続種別・**匿名化(VPN/Tor/プロキシ)判定**・詳細に**地図(OpenStreetMap)**。**Insights**ライセンスなら信頼度スコア・静的IPスコア・IPリスク・ユーザー数/種別・US平均所得/人口密度も。※規約により緯度経度は必ず**精度半径(km)**と共に“おおよその範囲”として表示 |
 | **DomainTools Iris** | ドメイン/IP情報 | 任意 | `DOMAINTOOLS_API_USERNAME`＋`DOMAINTOOLS_API_KEY` | **ドメイン**(Enrich)：リスクスコア＋内訳/WHOIS/RDAP/IP/ASN/NS/MX/SSL/website/first_seen/tags。**IP**(Investigate逆引き)：そのIP上のドメイン |
 | **DNSLytics** | IP/ドメイン情報 | 任意 | `DNSLYTICS_API_KEY` | **IP**(IPInfo)：ASN/組織/ネットワーク/逆引き/同居ドメイン数＋サンプル/ブロックリスト。**ドメイン**(HostingHistory)：A/AAAA・NS・MX・SPF の履歴 |

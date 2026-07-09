@@ -121,6 +121,14 @@ function browserNotify(title: string, body: string, tag: string): void {
 // IPs registered to Shodan Monitor (server-side alerts) PLUS the last vteeee enrichment snapshot, so
 // you can come back the next day and see the intel, not just the raw Shodan monitor. Shodan is the
 // source of truth for which IPs are monitored; the enrichment snapshots are cached in localStorage.
+/** One point-in-time enrichment snapshot — kept in the watchlist so re-enrich never throws the past
+ *  away. `by` records who enriched it (shared timelines show teammates' contributions). */
+export interface EnrichSnapshot {
+  at: number;
+  by?: string;
+  result: NormalizedResult;
+}
+
 export interface MonitorEntry {
   ip: string;
   addedAt: number;
@@ -133,6 +141,8 @@ export interface MonitorEntry {
   triggers?: string[];
   /** Last vteeee enrichment snapshot (raw VT attributes stripped to keep localStorage small). */
   result?: NormalizedResult;
+  /** Timeline of enrichment snapshots (deduped by state) — the past is kept, not overwritten. */
+  history?: EnrichSnapshot[];
   /** A re-enrich is in flight. */
   enriching?: boolean;
   error?: string;
@@ -159,10 +169,98 @@ export interface MonitorEntry {
 }
 
 const MONITORS_KEY = 'vteeee.monitors';
+const MAX_HISTORY = 40; // hard backstop after age-based downsampling
 function stripRaw(r?: NormalizedResult): NormalizedResult | undefined {
   if (!r) return undefined;
   const { raw: _raw, ...rest } = r as NormalizedResult & { raw?: unknown };
   return rest as NormalizedResult;
+}
+function stripSnap(s: EnrichSnapshot): EnrichSnapshot {
+  return { at: s.at, by: s.by, result: stripRaw(s.result) as NormalizedResult };
+}
+/** Compact signature of the triage-relevant fields. Two snapshots with the same signature represent
+ *  the "same state", so consecutive duplicates are collapsed — the timeline stays meaningful & small. */
+function snapSig(r: NormalizedResult): string {
+  const d = r.detection;
+  return [
+    r.verdict,
+    r.status,
+    d ? `${d.malicious}/${d.suspicious}/${d.harmless}/${d.total}` : '-',
+    r.reputation ?? '-',
+    r.gti?.verdict ?? '-',
+    r.gti?.severity ?? '-',
+    r.gti?.threatScore ?? '-',
+    r.abuseipdb?.abuseConfidenceScore ?? '-',
+    r.abuseipdb?.totalReports ?? '-',
+    r.recordedfuture?.riskScore ?? '-',
+    (r.shodan?.ports ?? []).join(','),
+    (r.shodan?.vulns ?? []).join(','),
+    r.maxmind?.countryCode ?? r.abuseipdb?.countryCode ?? r.shodan?.country ?? r.ip?.country ?? '-',
+    (r.tags ?? []).join(','),
+  ].join('|');
+}
+/** Age-based bucket key so the timeline can't grow without bound however often an IP is re-enriched:
+ *  recent is fine-grained, older is progressively coarser. Tiers ≈ ≤1wk daily · 2wk ~5pts · 3–4wk ~2 ·
+ *  5–6wk ~1 · older monthly. */
+function ageBucket(at: number, now: number): string {
+  const day = 86_400_000;
+  const ageDays = (now - at) / day;
+  if (ageDays < 7) return 'd' + Math.floor(at / day); // per calendar day
+  if (ageDays < 14) return 'a' + Math.floor(at / (1.4 * day)); // ~5 across week 2
+  if (ageDays < 28) return 'b' + Math.floor(at / (7 * day)); // ~2 across weeks 3–4
+  if (ageDays < 42) return 'c' + Math.floor(at / (14 * day)); // ~1 across weeks 5–6
+  return 'm' + Math.floor(at / (30 * day)); // monthly beyond
+}
+/** Normalise snapshots into a bounded timeline: unique by time, thinned to the newest per age bucket,
+ *  consecutive same-state runs collapsed to their onset, hard-capped. Exported for testing. */
+export function downsampleHistory(list: EnrichSnapshot[], now: number): EnrichSnapshot[] {
+  const byAt = new Map<number, EnrichSnapshot>();
+  for (const s of list) if (s && s.result && !byAt.has(s.at)) byAt.set(s.at, s);
+  const sorted = [...byAt.values()].sort((a, b) => a.at - b.at);
+  // Keep the newest snapshot in each age bucket (walk newest → oldest so the first seen per bucket wins).
+  const seen = new Set<string>();
+  const kept: EnrichSnapshot[] = [];
+  for (let i = sorted.length - 1; i >= 0; i--) {
+    const bk = ageBucket(sorted[i].at, now);
+    if (!seen.has(bk)) {
+      seen.add(bk);
+      kept.push(sorted[i]);
+    }
+  }
+  kept.reverse(); // ascending (oldest → newest)
+  // Collapse consecutive same-signature runs to their onset (when the state first appeared).
+  const out: EnrichSnapshot[] = [];
+  let lastSig: string | null = null;
+  for (const s of kept) {
+    const sig = snapSig(s.result);
+    if (sig !== lastSig) {
+      out.push(s);
+      lastSig = sig;
+    }
+  }
+  return out.slice(-MAX_HISTORY);
+}
+/** Append a snapshot only if it's a real change vs the newest one, then re-downsample by age.
+ *  Exported for testing. */
+export function appendSnapshot(
+  history: EnrichSnapshot[] | undefined,
+  snap: EnrichSnapshot,
+  now: number,
+): EnrichSnapshot[] {
+  const prev = history ?? [];
+  const last = prev[prev.length - 1];
+  if (last && snapSig(last.result) === snapSig(snap.result)) return prev; // no state change → unchanged
+  return downsampleHistory([...prev, snap], now);
+}
+/** Trim an entry for persistence/sharing: strip raw VT payloads from the latest result AND every snapshot. */
+function slimEntry(v: MonitorEntry): MonitorEntry {
+  return {
+    ...v,
+    result: stripRaw(v.result),
+    history: v.history?.map(stripSnap),
+    enriching: false,
+    checking: false,
+  };
 }
 function loadMonitors(): Record<string, MonitorEntry> {
   try {
@@ -175,7 +273,7 @@ function loadMonitors(): Record<string, MonitorEntry> {
 function saveMonitors(m: Record<string, MonitorEntry>): void {
   try {
     const slim: Record<string, MonitorEntry> = {};
-    for (const [k, v] of Object.entries(m)) slim[k] = { ...v, result: stripRaw(v.result), enriching: false };
+    for (const [k, v] of Object.entries(m)) slim[k] = slimEntry(v);
     localStorage.setItem(MONITORS_KEY, JSON.stringify(slim));
   } catch {
     /* storage full/disabled — in-memory watchlist still works */
@@ -237,11 +335,15 @@ function mergeEntry(local: MonitorEntry | undefined, shared: MonitorEntry | unde
   const a = (local ?? {}) as Partial<MonitorEntry>;
   const b = (shared ?? {}) as Partial<MonitorEntry>;
   const check = a.check && b.check ? ((b.check.at ?? 0) >= (a.check.at ?? 0) ? b.check : a.check) : (b.check ?? a.check);
+  // Union both sides' enrichment timelines so nobody's snapshots are lost; the newest drives "current".
+  const history = downsampleHistory([...(a.history ?? []), ...(b.history ?? [])], Date.now());
+  const latest = history.length ? history[history.length - 1].result : undefined;
   return {
     ...a,
     ...b,
     ip: (b.ip ?? a.ip) as string,
-    result: b.result ?? a.result, // keep the snapshot from whichever side has one
+    result: latest ?? b.result ?? a.result, // newest snapshot wins; else whichever side has one
+    history: history.length ? history : undefined,
     group: b.group ?? a.group, // group label — prefer the shared (latest-pushed) side, else local
     baseline: b.baseline ?? a.baseline,
     check,
@@ -259,7 +361,7 @@ async function putSharedMonitorsAll(settings: AppSettings, map: Record<string, M
   if (!monitorSharingOn(settings)) return;
   const base = settings.proxyBaseUrl!.replace(/\/$/, '');
   const slim: Record<string, MonitorEntry> = {};
-  for (const [k, v] of Object.entries(map)) slim[k] = { ...v, result: stripRaw(v.result), enriching: false, checking: false };
+  for (const [k, v] of Object.entries(map)) slim[k] = slimEntry(v);
   try {
     await fetch(`${base}/api/monitor`, {
       method: 'PUT',
@@ -280,7 +382,7 @@ async function pushSharedMonitorEntry(settings: AppSettings, ip: string, entry: 
     const res = await fetch(`${base}/api/monitor`, { headers: monitorAuth(settings), cache: 'no-store' });
     const j = res.ok ? await res.json() : {};
     const map = (j && typeof j === 'object' ? j : {}) as Record<string, MonitorEntry>;
-    if (entry) map[ip] = { ...entry, result: stripRaw(entry.result), enriching: false, checking: false };
+    if (entry) map[ip] = slimEntry(entry);
     else delete map[ip];
     await fetch(`${base}/api/monitor`, {
       method: 'PUT',
@@ -612,11 +714,19 @@ export const useStore = create<State>((set, get) => {
               s.monitors[r.value],
           );
           if (monitoredHits.length) {
+            const by = s.session?.username;
+            const at = Date.now();
             set((st) => {
               const monitors = { ...st.monitors };
               for (const r of monitoredHits) {
                 const cur = monitors[r.value];
-                if (cur) monitors[r.value] = { ...cur, result: r, updatedAt: Date.now() };
+                if (cur)
+                  monitors[r.value] = {
+                    ...cur,
+                    result: r,
+                    history: appendSnapshot(cur.history, { at, by, result: r }, at),
+                    updatedAt: at,
+                  };
               }
               saveMonitors(monitors);
               return { monitors };
@@ -1022,6 +1132,7 @@ export const useStore = create<State>((set, get) => {
 
   async addMonitor(ip, result) {
     const now = Date.now();
+    const by = get().session?.username;
     set((s) => {
       const cur = s.monitors[ip];
       const monitors = {
@@ -1031,6 +1142,7 @@ export const useStore = create<State>((set, get) => {
           addedAt: cur?.addedAt ?? now,
           updatedAt: now,
           result: result ?? cur?.result,
+          history: result ? appendSnapshot(cur?.history, { at: now, by, result }, now) : cur?.history,
           live: cur?.live,
           alertId: cur?.alertId,
           triggers: cur?.triggers,
@@ -1148,12 +1260,16 @@ export const useStore = create<State>((set, get) => {
     } catch {
       /* leave the previous snapshot */
     }
+    const by = get().session?.username;
+    const at = Date.now();
     set((s) => {
       const cur = s.monitors[ip];
       if (!cur) return {};
+      // Append to the timeline (deduped by state) instead of throwing the previous enrichment away.
+      const history = result ? appendSnapshot(cur.history, { at, by, result }, at) : cur.history;
       const monitors = {
         ...s.monitors,
-        [ip]: { ...cur, enriching: false, result: result ?? cur.result, updatedAt: Date.now() },
+        [ip]: { ...cur, enriching: false, result: result ?? cur.result, history, updatedAt: at },
       };
       saveMonitors(monitors);
       return { monitors };

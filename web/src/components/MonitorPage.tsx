@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from 'react';
 import { useStore, type MonitorEntry } from '../state/store';
 import { VerdictBadge } from './Badges';
 import { detectionRatio } from '../lib/verdict';
+import { MonitorHistoryDialog } from './MonitorHistoryDialog';
 
 // Minimal Leaflet surface (dynamic import keeps it lazy) — mirrors the detail-panel map shim.
 interface LMap {
@@ -146,6 +147,7 @@ export function MonitorPage() {
   const setGroup = useStore((s) => s.setMonitorGroup);
   const [checked, setChecked] = useState<Set<string>>(new Set());
   const [groupInput, setGroupInput] = useState('');
+  const [histIp, setHistIp] = useState<string | null>(null);
   const [collapsed, setCollapsed] = useState<Set<string>>(() => {
     try {
       const raw = localStorage.getItem('vteeee.monGroupsCollapsed');
@@ -383,6 +385,15 @@ export function MonitorPage() {
           <button className="btn btn-sm" disabled={!r} onClick={() => r && showResult(r)}>
             Open
           </button>
+          {(e.history?.length ?? 0) > 0 && (
+            <button
+              className="btn btn-sm"
+              onClick={() => setHistIp(e.ip)}
+              title="Enrichment history & change analysis — 過去のエンリッチ時系列・前回からの変化比較"
+            >
+              🕓 History{(e.history?.length ?? 0) > 1 ? ` (${e.history!.length})` : ''}
+            </button>
+          )}
           <button
             className="btn btn-sm"
             disabled={e.checking}
@@ -614,6 +625,9 @@ export function MonitorPage() {
             <ul className="monitor-list">{list.map(renderRow)}</ul>
           )}
         </>
+      )}
+      {histIp && monitors[histIp] && (
+        <MonitorHistoryDialog entry={monitors[histIp]} onClose={() => setHistIp(null)} />
       )}
     </section>
   );
