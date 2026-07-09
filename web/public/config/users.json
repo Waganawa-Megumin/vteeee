@@ -3,15 +3,15 @@
   "users": [
     {
       "username": "admin",
-      "salt": "B0WMXn68QExG9cwrZy0H6A==",
-      "hash": "yLztVDhrKOjSOL+raE1g70psaCORutS/0zg3kzNKdLA=",
+      "salt": "Kyxa02Dem4ke5ltLTSJ24w==",
+      "hash": "ZNRZCrRNlTQDSnoojDDe40v2l8Zd87Fe9BHIIuZbPMw=",
       "iterations": 200000,
       "role": "admin"
     },
     {
       "username": "analyst",
-      "salt": "4Ynmk7XvLxw5F6pNa1YgZg==",
-      "hash": "irBgeIrmbShdup7BeHowxFePZyyIGbXbMNK1Guffw/M=",
+      "salt": "+Oo+ixvZ/YvE7S+QfOmprg==",
+      "hash": "RRJalQmrTnmjbvqbT1nlEmYwHde8C35NQ+068qiSJYQ=",
       "iterations": 200000,
       "role": "user"
     }
