@@ -385,7 +385,7 @@ export function MonitorPage() {
           <button className="btn btn-sm" disabled={!r} onClick={() => r && showResult(r)}>
             Open
           </button>
-          {(e.history?.length ?? 0) > 0 && (
+          {((e.history?.length ?? 0) > 0 || !!e.result) && (
             <button
               className="btn btn-sm"
               onClick={() => setHistIp(e.ip)}

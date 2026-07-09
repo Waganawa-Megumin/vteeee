@@ -62,7 +62,15 @@ function diffParts(cur: NormalizedResult, prev: NormalizedResult): string[] {
  */
 export function MonitorHistoryDialog({ entry, onClose }: { entry: MonitorEntry; onClose: () => void }) {
   const showResult = useStore((s) => s.showResult);
-  const hist = [...(entry.history ?? [])].sort((a, b) => b.at - a.at); // newest first
+  // Existing entries may have a current snapshot but no accumulated timeline yet — seed the current
+  // result as the first point so the timeline is never empty when there's intel to show.
+  const raw =
+    entry.history && entry.history.length
+      ? entry.history
+      : entry.result
+        ? [{ at: entry.updatedAt, by: undefined, result: entry.result }]
+        : [];
+  const hist = [...raw].sort((a, b) => b.at - a.at); // newest first
   const contributors = [...new Set(hist.map((h) => h.by).filter((x): x is string => !!x))];
 
   return (
