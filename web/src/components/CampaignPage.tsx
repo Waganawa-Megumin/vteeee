@@ -67,7 +67,8 @@ function CampaignDashboard({ iocs, onOpen }: { iocs: CampaignIoc[]; onOpen?: (v:
         seen.add(cc);
       }
     }
-    return { names, hasUngrouped, n: entries.length, countryN: seen.size, counts };
+    const countryRows = Object.entries(counts).sort((a, b) => b[1] - a[1]).slice(0, 10) as [string, number][];
+    return { names, hasUngrouped, n: entries.length, countryN: seen.size, counts, countryRows };
   }, [iocs, mapGroup]);
 
   const d = useMemo(() => {
@@ -126,19 +127,18 @@ function CampaignDashboard({ iocs, onOpen }: { iocs: CampaignIoc[]; onOpen?: (v:
       </div>
       <div className="mon-dash mon-dash-nomap">
         <Bars title="By IOC type" rows={d.byType} />
-        <Bars title="By country" rows={d.countries} />
         <Bars title="Top CVEs" rows={d.cves} hrefFor={(cve) => `https://nvd.nist.gov/vuln/detail/${cve}`} />
       </div>
-      <div className="mon-choro">
+      <div className="mon-geo">
         <div className="mon-choro-head">
-          <div className="mon-bars-title">国別ヒートマップ — 多いほど濃い</div>
+          <div className="mon-bars-title">国別 — 統計 ＋ ヒートマップ（多いほど濃い）</div>
           {map.names.length > 0 && (
             <select
               className="filter mon-choro-group"
               value={mapGroup}
               onChange={(e) => setMapGroup(e.target.value)}
-              aria-label="Group for the country heatmap"
-              title="ヒートマップに集計するグループを選択"
+              aria-label="Group for the country stats + heatmap"
+              title="集計するグループを選択"
             >
               <option value="">All groups</option>
               {map.names.map((g) => (
@@ -153,7 +153,14 @@ function CampaignDashboard({ iocs, onOpen }: { iocs: CampaignIoc[]; onOpen?: (v:
             {map.n} IoC{map.n === 1 ? '' : 's'} · {map.countryN} countries
           </span>
         </div>
-        <CountryChoropleth counts={map.counts} />
+        <div className="mon-geo-body">
+          <div className="mon-geo-stats">
+            <Bars title="By country" rows={map.countryRows} />
+          </div>
+          <div className="mon-geo-map">
+            <CountryChoropleth counts={map.counts} height={250} />
+          </div>
+        </div>
       </div>
       {d.recent.length > 0 && (
         <div className="cp-recent">

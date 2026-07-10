@@ -190,14 +190,12 @@ export function MonitorPage() {
   const highAbuse = list.filter((e) => (e.result?.abuseipdb?.abuseConfidenceScore ?? -1) >= 75).length;
   const changedCount = list.filter((e) => e.check?.changed).length;
 
-  // Country breakdown.
+  // Country breakdown (for the "countries" stat tile; the grouped bars/heatmap use mapCounts below).
   const byCountry = new Map<string, number>();
   for (const e of list) {
     const cc = countryOf(e);
     if (cc) byCountry.set(cc, (byCountry.get(cc) ?? 0) + 1);
   }
-  const countries = [...byCountry.entries()].sort((a, b) => b[1] - a[1]).slice(0, 10);
-  const maxCountry = countries[0]?.[1] ?? 1;
 
   // Vulnerability breakdown (Shodan CVEs across the monitored hosts).
   const byCve = new Map<string, number>();
@@ -268,7 +266,9 @@ export function MonitorPage() {
     const cc = countryOf(e);
     if (cc) mapCounts[cc] = (mapCounts[cc] ?? 0) + 1;
   }
-  const mapCountryN = new Set(mapEntries.map(countryOf).filter(Boolean)).size;
+  const mapCountryN = Object.keys(mapCounts).length;
+  const mapCountryRows = Object.entries(mapCounts).sort((a, b) => b[1] - a[1]).slice(0, 10) as [string, number][];
+  const mapCountryMax = mapCountryRows[0]?.[1] ?? 1;
 
   /** Select / deselect every IP in one group at once (drives the per-group checkbox). */
   function groupToggle(entries: MonitorEntry[]) {
@@ -611,14 +611,13 @@ export function MonitorPage() {
             <StatTile n={byCountry.size} label="countries" />
           </div>
 
-          <div className={`mon-dash${points.length ? '' : ' mon-dash-nomap'}`}>
+          <div className={`mon-dash${points.length ? ' mon-dash-2' : ' mon-dash-nomap'}`}>
             {points.length > 0 && (
               <div className="mon-map-wrap">
                 <div className="mon-bars-title">Monitored locations</div>
                 <MonitorMap points={points} />
               </div>
             )}
-            <BarList title="By country" rows={countries} max={maxCountry} />
             <BarList
               title="Top vulnerabilities (CVE)"
               rows={cves}
@@ -632,16 +631,16 @@ export function MonitorPage() {
             </div>
           )}
 
-          <div className="mon-choro">
+          <div className="mon-geo">
             <div className="mon-choro-head">
-              <div className="mon-bars-title">国別ヒートマップ — 多いほど濃い</div>
+              <div className="mon-bars-title">国別 — 統計 ＋ ヒートマップ（多いほど濃い）</div>
               {hasGroups && (
                 <select
                   className="filter mon-choro-group"
                   value={mapGroup}
                   onChange={(e) => setMapGroup(e.target.value)}
-                  aria-label="Group for the country heatmap"
-                  title="ヒートマップに集計するグループを選択"
+                  aria-label="Group for the country stats + heatmap"
+                  title="集計するグループを選択"
                 >
                   <option value="">All groups</option>
                   {groupNames.map((g) => (
@@ -656,7 +655,14 @@ export function MonitorPage() {
                 {mapEntries.length} IP{mapEntries.length === 1 ? '' : 's'} · {mapCountryN} countries
               </span>
             </div>
-            <CountryChoropleth counts={mapCounts} />
+            <div className="mon-geo-body">
+              <div className="mon-geo-stats">
+                <BarList title="By country" rows={mapCountryRows} max={mapCountryMax} />
+              </div>
+              <div className="mon-geo-map">
+                <CountryChoropleth counts={mapCounts} height={250} />
+              </div>
+            </div>
           </div>
 
           <div className="mon-bulkbar">

@@ -1604,16 +1604,45 @@ button.pv-monitored.link:hover {
   background: var(--bg3);
   font: inherit;
 }
-/* --- Country heatmap (choropleth) — "多いほど濃い" per selected group ------------------------- */
-.mon-choro {
+/* --- Country panel: by-country stats (left) + choropleth heatmap (right), one compact unit ------ */
+.mon-geo {
   margin: 10px 0;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  padding: 8px 10px 10px;
+}
+.mon-geo-body {
+  display: grid;
+  /* stats column stays narrow; the map fills the rest but is itself capped so it never sprawls. */
+  grid-template-columns: minmax(160px, 240px) 1fr;
+  gap: 14px;
+  align-items: start;
+}
+.mon-geo-stats .mon-bars {
+  border: none;
+  padding: 0;
+}
+.mon-geo-map {
+  max-width: 520px;
+}
+@media (max-width: 760px) {
+  .mon-geo-body {
+    grid-template-columns: 1fr;
+  }
+  .mon-geo-map {
+    max-width: none;
+  }
+}
+/* Two-column dashboard row (used once the by-country bars move into the country panel above). */
+.mon-dash-2 {
+  grid-template-columns: 1.6fr 1fr;
 }
 .mon-choro-head {
   display: flex;
   align-items: center;
   gap: 10px;
   flex-wrap: wrap;
-  margin-bottom: 6px;
+  margin-bottom: 8px;
 }
 .mon-choro-head .mon-bars-title {
   margin-bottom: 0;
