@@ -1589,7 +1589,7 @@ button.pv-monitored.link:hover {
   font-size: 12px;
 }
 .monitor-map {
-  height: 300px;
+  height: 260px;
   border: 1px solid var(--line);
   border-radius: 8px;
   overflow: hidden;
@@ -1614,8 +1614,8 @@ button.pv-monitored.link:hover {
 .mon-geo-body {
   display: grid;
   /* stats column stays narrow; the map fills the rest but is itself capped so it never sprawls. */
-  grid-template-columns: minmax(160px, 240px) 1fr;
-  gap: 14px;
+  grid-template-columns: minmax(180px, 280px) 1fr;
+  gap: 16px;
   align-items: start;
 }
 .mon-geo-stats .mon-bars {
@@ -1623,7 +1623,13 @@ button.pv-monitored.link:hover {
   padding: 0;
 }
 .mon-geo-map {
-  max-width: 520px;
+  max-width: 720px;
+}
+.mon-geo-maplabel {
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--muted);
+  margin-bottom: 6px;
 }
 @media (max-width: 760px) {
   .mon-geo-body {
@@ -1632,10 +1638,6 @@ button.pv-monitored.link:hover {
   .mon-geo-map {
     max-width: none;
   }
-}
-/* Two-column dashboard row (used once the by-country bars move into the country panel above). */
-.mon-dash-2 {
-  grid-template-columns: 1.6fr 1fr;
 }
 .mon-choro-head {
   display: flex;

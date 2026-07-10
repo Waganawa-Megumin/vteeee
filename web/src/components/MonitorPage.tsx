@@ -611,25 +611,35 @@ export function MonitorPage() {
             <StatTile n={byCountry.size} label="countries" />
           </div>
 
-          <div className={`mon-dash${points.length ? ' mon-dash-2' : ' mon-dash-nomap'}`}>
-            {points.length > 0 && (
-              <div className="mon-map-wrap">
-                <div className="mon-bars-title">Monitored locations</div>
-                <MonitorMap points={points} />
-              </div>
-            )}
-            <BarList
-              title="Top vulnerabilities (CVE)"
-              rows={cves}
-              max={maxCve}
-              hrefFor={(cve) => `https://nvd.nist.gov/vuln/detail/${cve}`}
-            />
-          </div>
-          {points.length === 0 && (
-            <div className="hint mon-nomap-note">
-              🗺 監視地図は MaxMind の座標が必要です（各IPを <b>Re-enrich</b> するか MaxMind 有効化で表示）。
+          {/* Host overview: top CVEs (left) + a size-capped location map (right) — same stats-left /
+              map-right shape as the country panel below, so the two panels read as one system. */}
+          <div className="mon-geo">
+            <div className="mon-choro-head">
+              <div className="mon-bars-title">監視ホスト — 上位CVE ＆ ロケーション</div>
             </div>
-          )}
+            <div className="mon-geo-body">
+              <div className="mon-geo-stats">
+                <BarList
+                  title="Top vulnerabilities (CVE)"
+                  rows={cves}
+                  max={maxCve}
+                  hrefFor={(cve) => `https://nvd.nist.gov/vuln/detail/${cve}`}
+                />
+              </div>
+              <div className="mon-geo-map">
+                {points.length > 0 ? (
+                  <>
+                    <div className="mon-geo-maplabel">Monitored locations</div>
+                    <MonitorMap points={points} />
+                  </>
+                ) : (
+                  <div className="hint mon-nomap-note">
+                    🗺 監視地図は MaxMind の座標が必要です（各IPを <b>Re-enrich</b> するか MaxMind 有効化で表示）。
+                  </div>
+                )}
+              </div>
+            </div>
+          </div>
 
           <div className="mon-geo">
             <div className="mon-choro-head">
