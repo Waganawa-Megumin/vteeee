@@ -1611,16 +1611,37 @@ button.pv-monitored.link:hover {
   border-radius: 8px;
   padding: 8px 10px 10px;
 }
+/* Two map panels side by side on desktop; stacked on narrower screens (phones get one column). */
+.mon-geo-row {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 12px;
+  margin: 10px 0;
+}
+.mon-geo-row .mon-geo {
+  margin: 0; /* the row owns the outer margin; keeps the two panels the same height */
+}
+@media (max-width: 1200px) {
+  .mon-geo-row {
+    grid-template-columns: 1fr;
+  }
+}
 .mon-geo-body {
   display: grid;
   /* stats column stays narrow; the map fills the rest but is itself capped so it never sprawls. */
-  grid-template-columns: minmax(180px, 280px) 1fr;
+  grid-template-columns: minmax(160px, 240px) 1fr;
   gap: 16px;
   align-items: start;
 }
 .mon-geo-stats .mon-bars {
   border: none;
   padding: 0;
+}
+/* The map already sits inside the bordered panel — drop its own frame so the two borders don't
+   double up ("枠線がかぶる"). Its light background gives it enough definition on the dark panel. */
+.mon-geo-map .choro-map,
+.mon-geo-map .monitor-map {
+  border: none;
 }
 .mon-geo-map {
   max-width: 720px;

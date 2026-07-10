@@ -611,8 +611,9 @@ export function MonitorPage() {
             <StatTile n={byCountry.size} label="countries" />
           </div>
 
-          {/* Host overview: top CVEs (left) + a size-capped location map (right) — same stats-left /
-              map-right shape as the country panel below, so the two panels read as one system. */}
+          {/* Two map panels side by side on desktop (stacked on mobile): host overview (top CVEs +
+              location map) and the country stats + heatmap. */}
+          <div className="mon-geo-row">
           <div className="mon-geo">
             <div className="mon-choro-head">
               <div className="mon-bars-title">監視ホスト — 上位CVE ＆ ロケーション</div>
@@ -673,6 +674,7 @@ export function MonitorPage() {
                 <CountryChoropleth counts={mapCounts} height={250} />
               </div>
             </div>
+          </div>
           </div>
 
           <div className="mon-bulkbar">
