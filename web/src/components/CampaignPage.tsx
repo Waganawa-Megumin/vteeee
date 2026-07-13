@@ -21,6 +21,19 @@ function threatScore(i: CampaignIoc): number {
 }
 const byThreat = (list: CampaignIoc[]) => [...list].sort((a, b) => threatScore(b) - threatScore(a));
 
+const WEB_PORTS = [80, 443, 8080, 8443, 8000, 8888];
+/** OSINT exposure/attack-surface score for TARGET assets — ports, CVEs, web-facing, hostnames. */
+function exposureScore(i: CampaignIoc): number {
+  const r = i.result;
+  if (!r) return -1;
+  const ports = r.shodan?.ports ?? [];
+  const web = ports.some((p) => WEB_PORTS.includes(p)) ? 120 : 0;
+  return (
+    cvesOf(r) * 50 + ports.length * 6 + web + (r.shodan?.hostnames?.length ?? 0) * 2 + (i.history?.length ?? 0)
+  );
+}
+const byExposure = (list: CampaignIoc[]) => [...list].sort((a, b) => exposureScore(b) - exposureScore(a));
+
 function tlpClass(t: TlpLevel): string {
   return `tlp-${t.toLowerCase().replace('+', '-')}`;
 }
@@ -63,14 +76,26 @@ function Bars({ title, rows, hrefFor }: { title: string; rows: [string, number][
   );
 }
 
-/** Campaign analytics — analysis, not just a list: roll-up, distributions, country heatmap, recent changes. */
+/** Campaign analytics, scoped so Attack (threat) and Target (OSINT exposure) never mix — the map too. */
 function CampaignDashboard({ iocs, onOpen }: { iocs: CampaignIoc[]; onOpen?: (v: string) => void }) {
+  const attackN = iocs.filter((i) => (i.side ?? 'attack') === 'attack').length;
+  const targetN = iocs.filter((i) => i.side === 'target').length;
+  const [scope, setScope] = useState<'attack' | 'target' | 'all'>(() =>
+    attackN > 0 ? 'attack' : targetN > 0 ? 'target' : 'all',
+  );
   const [mapGroup, setMapGroup] = useState('');
+  const scoped = useMemo(
+    () => (scope === 'all' ? iocs : iocs.filter((i) => (i.side ?? 'attack') === scope)),
+    [iocs, scope],
+  );
+
   const map = useMemo(() => {
-    const names = [...new Set(iocs.map((i) => i.group).filter((g): g is string => !!g))].sort((a, b) => a.localeCompare(b));
-    const hasUngrouped = iocs.some((i) => !i.group);
+    const names = [...new Set(scoped.map((i) => i.group).filter((g): g is string => !!g))].sort((a, b) =>
+      a.localeCompare(b),
+    );
+    const hasUngrouped = scoped.some((i) => !i.group);
     const entries =
-      !mapGroup ? iocs : mapGroup === UNGROUPED ? iocs.filter((i) => !i.group) : iocs.filter((i) => i.group === mapGroup);
+      !mapGroup ? scoped : mapGroup === UNGROUPED ? scoped.filter((i) => !i.group) : scoped.filter((i) => i.group === mapGroup);
     const counts: Record<string, number> = {};
     const seen = new Set<string>();
     for (const i of entries) {
@@ -82,22 +107,32 @@ function CampaignDashboard({ iocs, onOpen }: { iocs: CampaignIoc[]; onOpen?: (v:
     }
     const countryRows = Object.entries(counts).sort((a, b) => b[1] - a[1]).slice(0, 10) as [string, number][];
     return { names, hasUngrouped, n: entries.length, countryN: seen.size, counts, countryRows };
-  }, [iocs, mapGroup]);
+  }, [scoped, mapGroup]);
 
   const d = useMemo(() => {
     const byType = new Map<string, number>();
-    for (const i of iocs) byType.set(i.type, (byType.get(i.type) ?? 0) + 1);
     const byCve = new Map<string, number>();
+    const byPort = new Map<number, number>();
     let hostsCve = 0;
-    for (const i of iocs) {
-      const v = i.result?.shodan?.vulns;
+    let hostsPorts = 0;
+    let anon = 0;
+    for (const i of scoped) {
+      byType.set(i.type, (byType.get(i.type) ?? 0) + 1);
+      const r = i.result;
+      const v = r?.shodan?.vulns;
       if (v?.length) {
         hostsCve++;
         for (const c of v) byCve.set(c, (byCve.get(c) ?? 0) + 1);
       }
+      const ports = r?.shodan?.ports ?? [];
+      if (ports.length) {
+        hostsPorts++;
+        for (const p of ports) byPort.set(p, (byPort.get(p) ?? 0) + 1);
+      }
+      if (r?.maxmind?.anonymizerType?.length) anon++;
     }
     const recent: { value: string; at: number; changes: string[] }[] = [];
-    for (const i of iocs) {
+    for (const i of scoped) {
       const h = i.history?.length ? [...i.history].sort((a, b) => a.at - b.at) : [];
       if (h.length < 2) continue;
       const changes = diffParts(h[h.length - 1].result, h[h.length - 2].result);
@@ -105,44 +140,127 @@ function CampaignDashboard({ iocs, onOpen }: { iocs: CampaignIoc[]; onOpen?: (v:
     }
     recent.sort((a, b) => b.at - a.at);
     return {
-      total: iocs.length,
-      withIntel: iocs.filter((i) => i.result).length,
-      mal: iocs.filter((i) => i.result?.verdict === 'malicious').length,
-      sus: iocs.filter((i) => i.result?.verdict === 'suspicious').length,
-      attack: iocs.filter((i) => (i.side ?? 'attack') === 'attack').length,
-      target: iocs.filter((i) => i.side === 'target').length,
-      highAbuse: iocs.filter((i) => (i.result?.abuseipdb?.abuseConfidenceScore ?? -1) >= 75).length,
-      auto: iocs.filter((i) => i.autoEnrich).length,
+      total: scoped.length,
+      withIntel: scoped.filter((i) => i.result).length,
+      mal: scoped.filter((i) => i.result?.verdict === 'malicious').length,
+      sus: scoped.filter((i) => i.result?.verdict === 'suspicious').length,
+      highAbuse: scoped.filter((i) => (i.result?.abuseipdb?.abuseConfidenceScore ?? -1) >= 75).length,
+      auto: scoped.filter((i) => i.autoEnrich).length,
       byType: [...byType.entries()].sort((a, b) => b[1] - a[1]) as [string, number][],
       cves: [...byCve.entries()].sort((a, b) => b[1] - a[1]).slice(0, 10) as [string, number][],
+      ports: [...byPort.entries()]
+        .sort((a, b) => b[1] - a[1])
+        .slice(0, 10)
+        .map(([p, n]) => [String(p), n] as [string, number]),
       distinctCves: byCve.size,
       hostsCve,
+      hostsPorts,
+      anon,
       recent: recent.slice(0, 8),
     };
-  }, [iocs]);
+  }, [scoped]);
 
-  if (d.total === 0) return null;
+  const scopeBar = (
+    <div className="cp-scope" role="tablist" aria-label="dashboard scope">
+      <button
+        role="tab"
+        aria-selected={scope === 'attack'}
+        className={`cp-scope-btn${scope === 'attack' ? ' active' : ''}`}
+        onClick={() => {
+          setScope('attack');
+          setMapGroup('');
+        }}
+      >
+        🗡 Attack ({attackN})
+      </button>
+      <button
+        role="tab"
+        aria-selected={scope === 'target'}
+        className={`cp-scope-btn${scope === 'target' ? ' active' : ''}`}
+        onClick={() => {
+          setScope('target');
+          setMapGroup('');
+        }}
+      >
+        🎯 Target ({targetN})
+      </button>
+      <button
+        role="tab"
+        aria-selected={scope === 'all'}
+        className={`cp-scope-btn${scope === 'all' ? ' active' : ''}`}
+        onClick={() => {
+          setScope('all');
+          setMapGroup('');
+        }}
+      >
+        All ({iocs.length})
+      </button>
+      <span className="cp-scope-note">
+        {scope === 'attack'
+          ? '攻撃側インフラ — 脅威の観点'
+          : scope === 'target'
+            ? '標的/被害側 — OSINT 露出・リスクの観点（Shodan/MaxMind）'
+            : '攻撃＋標的の合算'}
+      </span>
+    </div>
+  );
 
+  if (scoped.length === 0) {
+    return (
+      <>
+        {scopeBar}
+        <div className="hint cp-scope-empty">
+          このスコープに IoC はありません。
+          {scope === 'target' ? 'Target Info タブで登録、または行の「→ Target」で移動できます。' : ''}
+        </div>
+      </>
+    );
+  }
+
+  const target = scope === 'target';
   return (
     <>
+      {scopeBar}
       <div className="mon-stats" role="group" aria-label="campaign overview">
-        <Tile n={d.total} label="IOCs" />
-        <Tile n={d.attack} label="🗡 attack" />
-        {d.target > 0 && <Tile n={d.target} label="🎯 target" />}
+        <Tile n={d.total} label={target ? 'assets' : 'IOCs'} />
         <Tile n={d.withIntel} label="with intel" />
-        {d.mal > 0 && <Tile n={d.mal} label="malicious" tone="bad" />}
-        {d.sus > 0 && <Tile n={d.sus} label="suspicious" tone="warn" />}
-        {d.highAbuse > 0 && <Tile n={d.highAbuse} label="abuse ≥75" tone="bad" />}
-        {d.distinctCves > 0 && <Tile n={d.distinctCves} label="distinct CVEs" />}
+        {target ? (
+          <>
+            {d.hostsPorts > 0 && <Tile n={d.hostsPorts} label="exposed hosts" tone="warn" />}
+            {d.hostsCve > 0 && <Tile n={d.hostsCve} label="hosts w/ CVEs" tone="bad" />}
+            {d.distinctCves > 0 && <Tile n={d.distinctCves} label="distinct CVEs" />}
+            {d.anon > 0 && <Tile n={d.anon} label="anonymized" />}
+          </>
+        ) : (
+          <>
+            {d.mal > 0 && <Tile n={d.mal} label="malicious" tone="bad" />}
+            {d.sus > 0 && <Tile n={d.sus} label="suspicious" tone="warn" />}
+            {d.highAbuse > 0 && <Tile n={d.highAbuse} label="abuse ≥75" tone="bad" />}
+            {d.distinctCves > 0 && <Tile n={d.distinctCves} label="distinct CVEs" />}
+          </>
+        )}
         <Tile n={d.auto} label="⚡ auto" />
       </div>
       <div className="mon-dash mon-dash-nomap">
         <Bars title="By IOC type" rows={d.byType} />
-        <Bars title="Top CVEs" rows={d.cves} hrefFor={(cve) => `https://nvd.nist.gov/vuln/detail/${cve}`} />
+        <Bars
+          title={target ? '露出脆弱性 Top CVEs' : 'Top CVEs'}
+          rows={d.cves}
+          hrefFor={(cve) => `https://nvd.nist.gov/vuln/detail/${cve}`}
+        />
+        {target && (
+          <Bars
+            title="露出ポート Top"
+            rows={d.ports}
+            hrefFor={(p) => `https://www.shodan.io/search?query=port%3A${p}`}
+          />
+        )}
       </div>
       <div className="mon-geo">
         <div className="mon-choro-head">
-          <div className="mon-bars-title">国別 — 統計 ＋ ヒートマップ（多いほど濃い）</div>
+          <div className="mon-bars-title">
+            {target ? '標的の所在地' : scope === 'attack' ? '攻撃インフラの所在地' : '国別'} — ヒートマップ（多いほど濃い）
+          </div>
           {map.names.length > 0 && (
             <select
               className="filter mon-choro-group"
@@ -160,7 +278,8 @@ function CampaignDashboard({ iocs, onOpen }: { iocs: CampaignIoc[]; onOpen?: (v:
             </select>
           )}
           <span className="mon-choro-count">
-            {map.n} IoC{map.n === 1 ? '' : 's'} · {map.countryN} countries
+            {map.n} {target ? 'asset' : 'IoC'}
+            {map.n === 1 ? '' : 's'} · {map.countryN} countries
           </span>
         </div>
         <div className="mon-geo-body">
@@ -257,7 +376,9 @@ export function CampaignPage() {
   const groupNames = [...new Set(iocs.map((i) => i.group).filter((g): g is string => !!g))];
 
   /** Order a side's groups by the campaign's saved order (fallback alphabetical); threat-sort within. */
-  function bucketsFor(list: CampaignIoc[]) {
+  function bucketsFor(list: CampaignIoc[], side: IocSide) {
+    // attack → threat-first; target → OSINT exposure-first (most exposed/at-risk on top).
+    const sort = side === 'target' ? byExposure : byThreat;
     const order = campaign?.groupOrder ?? [];
     const names = [...new Set(list.map((i) => i.group).filter((g): g is string => !!g))].sort((a, b) => {
       const ia = order.indexOf(a);
@@ -270,10 +391,10 @@ export function CampaignPage() {
     const bs: { key: string; name: string | null; items: CampaignIoc[] }[] = names.map((g) => ({
       key: g,
       name: g,
-      items: byThreat(list.filter((i) => i.group === g)),
+      items: sort(list.filter((i) => i.group === g)),
     }));
     const ung = list.filter((i) => !i.group);
-    if (ung.length) bs.push({ key: UNGROUPED, name: null, items: byThreat(ung) });
+    if (ung.length) bs.push({ key: UNGROUPED, name: null, items: sort(ung) });
     return { bs, orderedNames: names };
   }
 
@@ -285,6 +406,7 @@ export function CampaignPage() {
     if (!add.length) return;
     void addIocs(cid, add, groupInput, side);
     setText('');
+    setGroupInput(''); // reset to "new group" default so the next batch doesn't inherit the last name
   }
 
   function renameGroup(name: string) {
@@ -356,19 +478,54 @@ export function CampaignPage() {
             </span>
           </div>
           {r ? (
-            <span className="mon-summary">
-              <VerdictBadge verdict={r.verdict} status={r.status} />
-              {r.detection && (
-                <span className="mon-chip">
-                  det {detOf(r)}/{r.detection.total}
-                </span>
-              )}
-              {abuseOf(r) != null && <span className="mon-chip">abuse {abuseOf(r)}</span>}
-              {rfOf(r) != null && <span className="mon-chip">RF {rfOf(r)}</span>}
-              {portsOf(r) > 0 && <span className="mon-chip mono">{portsOf(r)} ports</span>}
-              {cvesOf(r) > 0 && <span className="mon-chip sev-high">{cvesOf(r)} CVE</span>}
-              {countryOf(r) && <span className="mon-chip">{countryOf(r)}</span>}
-            </span>
+            side === 'target' ? (
+              <span className="mon-summary">
+                {/* Target = OSINT exposure/attack-surface (Shodan + MaxMind), not a threat verdict. */}
+                {(() => {
+                  const geo = [r.maxmind?.city, countryOf(r)].filter(Boolean).join(', ');
+                  const net =
+                    r.maxmind?.asn != null
+                      ? `AS${r.maxmind.asn}${r.maxmind.organization ? ` ${r.maxmind.organization}` : ''}`
+                      : (r.shodan?.org ?? r.ip?.asOwner ?? '');
+                  return (
+                    <>
+                      {geo && <span className="mon-chip">📍 {geo}</span>}
+                      {net && <span className="mon-chip" title="ASN / org">{net}</span>}
+                      {r.maxmind?.isp && r.maxmind.isp !== r.maxmind.organization && (
+                        <span className="mon-chip">ISP {r.maxmind.isp}</span>
+                      )}
+                    </>
+                  );
+                })()}
+                {portsOf(r) > 0 && (
+                  <span className="mon-chip mono sev-med" title={(r.shodan?.ports ?? []).join(', ')}>
+                    {portsOf(r)} ports{r.shodan?.ports?.length ? `: ${r.shodan.ports.slice(0, 6).join(',')}${r.shodan.ports.length > 6 ? '…' : ''}` : ''}
+                  </span>
+                )}
+                {cvesOf(r) > 0 && <span className="mon-chip sev-high">⚠ {cvesOf(r)} CVE 露出</span>}
+                {r.shodan?.os && <span className="mon-chip">OS {r.shodan.os}</span>}
+                {r.shodan?.hostnames?.length ? <span className="mon-chip mono">{r.shodan.hostnames[0]}</span> : null}
+                {r.shodan?.tags?.length ? <span className="mon-chip">{r.shodan.tags.slice(0, 3).join(' · ')}</span> : null}
+                {r.maxmind?.anonymizerType?.length ? (
+                  <span className="mon-chip sev-med">{r.maxmind.anonymizerType.join('/')}</span>
+                ) : null}
+                {abuseOf(r) != null && abuseOf(r)! > 0 && <span className="mon-chip">abuse {abuseOf(r)}</span>}
+              </span>
+            ) : (
+              <span className="mon-summary">
+                <VerdictBadge verdict={r.verdict} status={r.status} />
+                {r.detection && (
+                  <span className="mon-chip">
+                    det {detOf(r)}/{r.detection.total}
+                  </span>
+                )}
+                {abuseOf(r) != null && <span className="mon-chip">abuse {abuseOf(r)}</span>}
+                {rfOf(r) != null && <span className="mon-chip">RF {rfOf(r)}</span>}
+                {portsOf(r) > 0 && <span className="mon-chip mono">{portsOf(r)} ports</span>}
+                {cvesOf(r) > 0 && <span className="mon-chip sev-high">{cvesOf(r)} CVE</span>}
+                {countryOf(r) && <span className="mon-chip">{countryOf(r)}</span>}
+              </span>
+            )
           ) : (
             <span className="mon-nointel">no enrichment yet — press “Re-enrich”</span>
           )}
@@ -390,8 +547,13 @@ export function CampaignPage() {
           {i.error && <div className="mon-err">{i.error}</div>}
         </div>
         <div className="mon-actions">
-          <button className="btn btn-sm" disabled={!r} onClick={() => r && showResult(r)}>
-            Open
+          <button
+            className="btn btn-sm"
+            disabled={!r}
+            onClick={() => r && showResult(r)}
+            title={side === 'target' ? '詳細を開く（urlscan 魚拓・Live ports 等の露出調査）' : 'Open detail'}
+          >
+            {side === 'target' ? '🎣 詳細/魚拓' : 'Open'}
           </button>
           <button className="btn btn-sm" disabled={i.enriching} onClick={() => void reEnrich(cid, i.value)}>
             {i.enriching ? 'Enriching…' : 'Re-enrich'}
@@ -426,36 +588,68 @@ export function CampaignPage() {
   /** One IOC-management tab (Attack or Target): add box + threat-sorted, reorderable groups. */
   function SideView({ side }: { side: IocSide }) {
     const list = side === 'attack' ? attackIocs : targetIocs;
-    const { bs, orderedNames } = bucketsFor(list);
+    const { bs, orderedNames } = bucketsFor(list, side);
     const sideLabel = side === 'attack' ? 'Attack' : 'Target';
     return (
       <>
         <p className="hint mon-intro">
-          {side === 'attack'
-            ? '攻撃側インフラ（C2・マルウェア・フィッシング等）の IoC。'
-            : '標的/被害側（狙われた資産）の IoC。'}
-          任意の <b>Group 名</b>で整理でき、<b>各グループ内は脅威度順（悪性度・検知数・CVE等）</b>に自動整列します。登録IoCは
-          <b>サーバ側で毎日自動エンリッチ</b>・<b>履歴ごとチーム共有</b>されます。
+          {side === 'attack' ? (
+            <>
+              攻撃側インフラ（C2・マルウェア・フィッシング等）の IoC。任意の <b>Group 名</b>で整理でき、
+              <b>各グループ内は脅威度順（悪性度・検知数・CVE等）</b>に自動整列します。
+            </>
+          ) : (
+            <>
+              標的/被害側（狙われた資産）の IoC。脅威判定より <b>OSINT 露出・リスク</b>の観点で、
+              <b>Shodan（開放ポート・サービス・CVE・OS）＋ MaxMind（所在地・ASN/ISP・匿名化）</b>を表示。
+              <b>各グループ内は露出度順</b>に整列し、行の <b>🎣 詳細/魚拓</b> で urlscan 魚拓・Live ports を確認できます。
+            </>
+          )}{' '}
+          登録IoCは<b>サーバ側で毎日自動エンリッチ</b>・<b>履歴ごとチーム共有</b>されます。
         </p>
 
         <div className="cp-add">
           <div className="cp-add-group">
             <label className="cp-add-group-label" htmlFor={`cp-grp-${side}`}>
-              Group 名（任意・後から編集/並べ替え可）
+              Group（未入力＝グループなし・追加後は自動でクリア）
             </label>
-            <input
-              id={`cp-grp-${side}`}
-              className="filter cp-group-field"
-              list={`cp-group-names-${side}`}
-              placeholder="例: C2 Servers / Malicious Hashes / Phishing Domains"
-              value={groupInput}
-              onChange={(e) => setGroupInput(e.target.value)}
-            />
-            <datalist id={`cp-group-names-${side}`}>
-              {groupNames.map((g) => (
-                <option key={g} value={g} />
-              ))}
-            </datalist>
+            <div className="cp-add-group-row">
+              <input
+                id={`cp-grp-${side}`}
+                className="filter cp-group-field"
+                placeholder="新規グループ名を入力…"
+                value={groupInput}
+                onChange={(e) => setGroupInput(e.target.value)}
+              />
+              {groupNames.length > 0 && (
+                <select
+                  className="filter cp-group-pick"
+                  value=""
+                  onChange={(e) => {
+                    if (e.target.value) setGroupInput(e.target.value);
+                  }}
+                  aria-label="既存グループから選択"
+                  title="既存のグループから選ぶ（入力欄に反映されます）"
+                >
+                  <option value="">既存から選択…</option>
+                  {groupNames.map((g) => (
+                    <option key={g} value={g}>
+                      {g}
+                    </option>
+                  ))}
+                </select>
+              )}
+              {groupInput && (
+                <button
+                  className="btn btn-sm btn-ghost cp-group-clear"
+                  onClick={() => setGroupInput('')}
+                  title="グループ名をクリア"
+                  aria-label="Clear group name"
+                >
+                  ✕
+                </button>
+              )}
+            </div>
           </div>
           <textarea
             className="cp-add-text mono"
