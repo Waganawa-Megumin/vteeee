@@ -2095,6 +2095,64 @@ button.pv-monitored.link:hover {
   margin-left: 6px;
   vertical-align: middle;
 }
+/* Medium screens: let the A↔B compare scroll rather than run off the edge; long tokens wrap. */
+.ana-compare-wrap {
+  overflow-x: auto;
+}
+.ana-compare td {
+  overflow-wrap: anywhere;
+}
+/* Phones/small tablets: stack the compare so A and B sit under each field — nothing gets cut off. */
+@media (max-width: 700px) {
+  .ana-compare thead {
+    display: none;
+  }
+  .ana-compare,
+  .ana-compare tbody,
+  .ana-compare tr,
+  .ana-compare td {
+    display: block;
+    width: auto;
+  }
+  .ana-compare tr:not(.ana-compare-group) {
+    padding: 5px 2px 7px;
+    border-bottom: 1px solid var(--line);
+  }
+  .ana-compare td {
+    border-bottom: none;
+    padding: 1px 0;
+  }
+  .ana-compare tr:not(.ana-compare-group) td:first-child {
+    font-weight: 600;
+    color: var(--text);
+    margin-bottom: 3px;
+  }
+  .ana-compare tr:not(.ana-compare-group) td:nth-child(2)::before,
+  .ana-compare tr:not(.ana-compare-group) td:nth-child(3)::before {
+    display: inline-block;
+    width: 1.5em;
+    color: var(--muted);
+    font-weight: 700;
+  }
+  .ana-compare tr:not(.ana-compare-group) td:nth-child(2)::before {
+    content: 'A';
+  }
+  .ana-compare tr:not(.ana-compare-group) td:nth-child(3)::before {
+    content: 'B';
+  }
+  .ana-compare tr.ana-changed-row {
+    background: rgba(240, 187, 96, 0.14);
+    border-radius: 5px;
+  }
+  .ana-compare-group td {
+    margin: 8px 0 2px;
+    border-radius: 4px;
+    padding: 6px 8px;
+  }
+  .ana-compare-controls select {
+    max-width: 100%;
+  }
+}
 /* CP-Mon (campaigns): overview cards + detail add-box. */
 .cp-empty {
   display: flex;

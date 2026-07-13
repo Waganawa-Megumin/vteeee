@@ -258,6 +258,7 @@ export function MonitorAnalysisPage() {
                 </label>
               </div>
               {A && B && (
+                <div className="ana-compare-wrap">
                 <table className="ana-compare">
                   <thead>
                     <tr>
@@ -295,6 +296,7 @@ export function MonitorAnalysisPage() {
                     })}
                   </tbody>
                 </table>
+                </div>
               )}
             </>
           )}
