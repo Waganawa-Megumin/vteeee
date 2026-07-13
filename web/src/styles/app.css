@@ -1557,15 +1557,17 @@ a.i471-search-item:hover {
   border: 1px solid var(--line);
   color: var(--muted);
 }
+/* Calm, harmonious severity — the same soft translucent treatment as the verdict badges
+   (.v-malicious / .v-suspicious), not a loud solid fill. */
 .mon-chip.sev-high {
-  color: #fff;
-  background: var(--bad, #b91c1c);
-  border-color: transparent;
+  color: var(--mal, #ff6f86);
+  background: rgba(244, 81, 108, 0.16);
+  border-color: rgba(244, 81, 108, 0.32);
 }
 .mon-chip.sev-med {
-  color: #1f2a24;
-  background: var(--warn, #f59e0b);
-  border-color: transparent;
+  color: var(--sus, #f0bb60);
+  background: rgba(242, 169, 59, 0.16);
+  border-color: rgba(242, 169, 59, 0.34);
 }
 .mon-chip.sev-low {
   color: var(--good, #6c9);
