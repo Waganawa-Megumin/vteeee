@@ -322,6 +322,7 @@ export function CampaignPage() {
   const reorderGroup = useStore((s) => s.reorderCampaignGroup);
   const removeIocs = useStore((s) => s.removeCampaignIocs);
   const reEnrich = useStore((s) => s.reEnrichCampaignIoc);
+  const reEnrichIocs = useStore((s) => s.reEnrichCampaignIocs);
   const setAuto = useStore((s) => s.setCampaignIocAuto);
   const rename = useStore((s) => s.renameCampaign);
   const removeCampaign = useStore((s) => s.removeCampaign);
@@ -333,6 +334,17 @@ export function CampaignPage() {
   const [tab, setTab] = useState<Tab>('dashboard');
   const [summarizing, setSummarizing] = useState(false);
   const [assessing, setAssessing] = useState(false);
+  const [bulkBusy, setBulkBusy] = useState(false);
+
+  async function bulkReEnrich(values: string[]) {
+    if (!values.length || bulkBusy) return;
+    setBulkBusy(true);
+    try {
+      await reEnrichIocs(cid, values);
+    } finally {
+      setBulkBusy(false);
+    }
+  }
   const autoSummarized = useRef<string | null>(null);
 
   const iocCount = id ? Object.keys(campaign?.iocs ?? {}).length : 0;
@@ -590,6 +602,8 @@ export function CampaignPage() {
     const list = side === 'attack' ? attackIocs : targetIocs;
     const { bs, orderedNames } = bucketsFor(list, side);
     const sideLabel = side === 'attack' ? 'Attack' : 'Target';
+    const unEnriched = list.filter((i) => !i.result);
+    const enrichingN = list.filter((i) => i.enriching).length;
     return (
       <>
         <p className="hint mon-intro">
@@ -663,6 +677,42 @@ export function CampaignPage() {
           </button>
         </div>
 
+        {list.length > 0 && (
+          <div className="cp-side-toolbar">
+            <button
+              className="btn btn-sm"
+              disabled={bulkBusy}
+              onClick={() => void bulkReEnrich(list.map((i) => i.value))}
+              title="この側の全 IoC を順次 Re-enrich（レート制限に配慮して1件ずつ）"
+            >
+              {bulkBusy ? `⟳ Re-enrich 中…${enrichingN ? ` (${enrichingN})` : ''}` : `⟳ Re-enrich all (${list.length})`}
+            </button>
+            {unEnriched.length > 0 && (
+              <button
+                className="btn btn-sm btn-primary"
+                disabled={bulkBusy}
+                onClick={() => void bulkReEnrich(unEnriched.map((i) => i.value))}
+                title="エンリッチ結果が無い IoC だけを一括で取得"
+              >
+                未エンリッチのみ ({unEnriched.length})
+              </button>
+            )}
+            <button
+              className="btn btn-sm"
+              disabled={bulkBusy}
+              onClick={() => void setAuto(cid, list.map((i) => i.value), true)}
+              title="この側の全 IoC の自動エンリッチを ON"
+            >
+              ⚡ Auto on all
+            </button>
+            {unEnriched.length > 0 && !bulkBusy && (
+              <span className="cp-side-toolbar-note">
+                ⚠ {unEnriched.length} 件が未エンリッチ（追加時の失敗/レート制限の可能性）。上のボタンで再取得できます。
+              </span>
+            )}
+          </div>
+        )}
+
         {list.length === 0 ? (
           <div className="empty-state">
             まだ {sideLabel} 側の IoC がありません。上の欄に貼り付けて <b>Add to {sideLabel}</b> で登録してください。
@@ -709,6 +759,16 @@ export function CampaignPage() {
                     )}
                     <span className="mon-group-count">
                       {b.items.length} IoC{b.items.length === 1 ? '' : 's'}
+                    </span>
+                    <span className="cp-group-actions">
+                      <button
+                        className="btn btn-sm btn-ghost"
+                        disabled={bulkBusy}
+                        onClick={() => void bulkReEnrich(b.items.map((i) => i.value))}
+                        title="このグループを一括 Re-enrich"
+                      >
+                        ⟳ Re-enrich
+                      </button>
                     </span>
                   </div>
                   <ul className="monitor-list">{b.items.map((i) => renderIoc(i, side))}</ul>

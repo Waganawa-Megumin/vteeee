@@ -709,6 +709,8 @@ interface State {
   removeCampaignIocs: (id: string, values: string[]) => Promise<void>;
   /** Re-enrich one IOC in a campaign (appends a timeline snapshot). */
   reEnrichCampaignIoc: (id: string, value: string) => Promise<void>;
+  /** Re-enrich many campaign IOCs in one go (sequential; used for bulk / "un-enriched only"). */
+  reEnrichCampaignIocs: (id: string, values: string[]) => Promise<void>;
   /** Turn auto re-enrich on/off for IOCs in a campaign. */
   setCampaignIocAuto: (id: string, values: string[], on: boolean) => Promise<void>;
   /** Pull the shared campaigns (KV) + two-way merge. */
@@ -1826,6 +1828,11 @@ export const useStore = create<State>((set, get) => {
       return { campaigns };
     });
     void pushSharedCampaign(get().settings, id, get().campaigns[id] ?? null);
+  },
+
+  async reEnrichCampaignIocs(id, values) {
+    // Sequential to respect the free-tier rate limit; each row shows its own "enriching…" state.
+    for (const v of values) await get().reEnrichCampaignIoc(id, v);
   },
 
   async setCampaignIocAuto(id, values, on) {
