@@ -359,6 +359,24 @@ function saveMonitors(m: Record<string, MonitorEntry>): void {
     /* storage full/disabled — in-memory watchlist still works */
   }
 }
+// IP-Mon group display order (a local display preference — analogous to a campaign's groupOrder).
+const MON_GROUP_ORDER_KEY = 'vteeee.monitorGroupOrder';
+function loadMonitorGroupOrder(): string[] {
+  try {
+    const raw = localStorage.getItem(MON_GROUP_ORDER_KEY);
+    const a = raw ? (JSON.parse(raw) as unknown) : [];
+    return Array.isArray(a) ? a.filter((x): x is string => typeof x === 'string') : [];
+  } catch {
+    return [];
+  }
+}
+function saveMonitorGroupOrder(order: string[]): void {
+  try {
+    localStorage.setItem(MON_GROUP_ORDER_KEY, JSON.stringify(order));
+  } catch {
+    /* ignore */
+  }
+}
 
 /** Run a full vteeee enrichment for ONE indicator (any type) and return the normalized result. */
 async function enrichOne(
@@ -895,6 +913,10 @@ interface State {
   checkMonitor: (ip: string) => Promise<void>;
   /** Assign (or clear, when group is blank/undefined) a group label on the given monitored IPs. */
   setMonitorGroup: (ips: string[], group: string | undefined) => Promise<void>;
+  /** IP-Mon group display order (local preference); groups not listed fall back to alphabetical. */
+  monitorGroupOrder: string[];
+  /** Move an IP-Mon group up/down in the display order. */
+  reorderMonitorGroup: (group: string, dir: 'up' | 'down') => void;
   /** Turn the age-tiered auto re-enrich on/off for the given monitored IPs. */
   setAutoEnrich: (ips: string[], on: boolean) => Promise<void>;
   /** Run one pass of auto re-enrichment for any monitored IP that is "due" (called on an interval). */
@@ -1019,6 +1041,7 @@ export const useStore = create<State>((set, get) => {
   webCaptures: loadWebCaptures(),
   notifications: loadNotifs(),
   monitors: loadMonitors(),
+  monitorGroupOrder: loadMonitorGroupOrder(),
 
   rawInput: '',
   parsed: [],
@@ -2064,6 +2087,20 @@ export const useStore = create<State>((set, get) => {
     }
   },
 
+  reorderMonitorGroup(group, dir) {
+    set((s) => {
+      const present = [...new Set(Object.values(s.monitors).map((e) => e.group).filter((x): x is string => !!x))];
+      const base = s.monitorGroupOrder.filter((g) => present.includes(g));
+      for (const g of [...present].sort((a, b) => a.localeCompare(b))) if (!base.includes(g)) base.push(g);
+      const i = base.indexOf(group);
+      const j = dir === 'up' ? i - 1 : i + 1;
+      if (i < 0 || j < 0 || j >= base.length) return {};
+      [base[i], base[j]] = [base[j], base[i]];
+      saveMonitorGroupOrder(base);
+      return { monitorGroupOrder: base };
+    });
+  },
+
   async setAutoEnrich(ips, on) {
     set((s) => {
       const monitors = { ...s.monitors };
@@ -2083,9 +2120,10 @@ export const useStore = create<State>((set, get) => {
 
   async runAutoEnrichDue() {
     const s = get();
-    // Client-side scheduler: only meaningful against a real proxy, and only for opted-in IPs.
+    // Client-side scheduler: only meaningful against a real proxy, and only for opted-in items.
     if (s.mode !== 'live') return;
     const now = Date.now();
+    // 1) Auto re-enrich due monitored IPs (capped per pass so a large watchlist doesn't burst the API).
     const due = Object.values(s.monitors)
       .filter(
         (e) =>
@@ -2094,11 +2132,41 @@ export const useStore = create<State>((set, get) => {
           now - (e.lastEnrichAt ?? e.addedAt) >= autoEnrichInterval(now - e.addedAt),
       )
       .sort((a, b) => (a.lastEnrichAt ?? a.addedAt) - (b.lastEnrichAt ?? b.addedAt));
-    if (!due.length) return;
-    // Cap per pass so a large watchlist doesn't burst the API; the rest run on the next tick.
     for (const e of due.slice(0, 4)) {
       await get().reEnrichMonitor(e.ip);
     }
+
+    // 2) Auto re-魚拓: keep a fresh urlscan capture for every auto-enabled, web-capturable target —
+    // IP-Mon IPs (https://<ip>) and CP-Mon auto IOCs (URL/domain as-is, IP → https). Throttled: only
+    // when the latest capture is stale (~daily) and a few per pass, run silently (they land in history).
+    const AUTO_CAP_MS = 20 * 3_600_000;
+    const targets = new Set<string>();
+    for (const e of Object.values(s.monitors)) {
+      if (e.autoEnrich) targets.add(e.ip.includes(':') ? `https://[${e.ip}]` : `https://${e.ip}`);
+    }
+    for (const c of Object.values(s.campaigns)) {
+      for (const i of Object.values(c.iocs)) {
+        if (!i.autoEnrich) continue;
+        const t =
+          i.type === 'url' || i.type === 'domain'
+            ? i.value
+            : i.type === 'ipv4'
+              ? `https://${i.value}`
+              : i.type === 'ipv6'
+                ? `https://[${i.value}]`
+                : null;
+        if (t) targets.add(t);
+      }
+    }
+    const caps = get().webCaptures;
+    const capDue = [...targets]
+      .filter((t) => {
+        const j = caps[t];
+        if (j && isActiveCapture(j)) return false;
+        return now - (j?.history?.[0]?.at ?? 0) >= AUTO_CAP_MS;
+      })
+      .slice(0, 3);
+    for (const t of capDue) void get().startWebCapture(t, undefined, { silent: true });
   },
 
   // ---- CP-Mon (campaigns) ----

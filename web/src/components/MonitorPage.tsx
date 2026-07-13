@@ -5,6 +5,7 @@ import { detectionRatio } from '../lib/verdict';
 import { Spark } from './Spark';
 import { CountryChoropleth } from './CountryChoropleth';
 import { abuseOf, cvesOf, detOf, diffParts, portsOf, rfOf } from '../lib/enrichTrend';
+import { intelChips } from '../lib/iocChips';
 
 // Minimal Leaflet surface (dynamic import keeps it lazy) — mirrors the detail-panel map shim.
 interface LMap {
@@ -161,9 +162,12 @@ export function MonitorPage() {
   const setGroup = useStore((s) => s.setMonitorGroup);
   const openAnalysis = useStore((s) => s.openAnalysis);
   const setAutoEnrich = useStore((s) => s.setAutoEnrich);
+  const reorderGroup = useStore((s) => s.reorderMonitorGroup);
+  const groupOrder = useStore((s) => s.monitorGroupOrder);
   const [drill, setDrill] = useState<{ label: string; values: string[] } | null>(null);
   const [checked, setChecked] = useState<Set<string>>(new Set());
   const [groupInput, setGroupInput] = useState('');
+  const [filter, setFilter] = useState('');
   const [mapGroup, setMapGroup] = useState('');
   const [collapsed, setCollapsed] = useState<Set<string>>(() => {
     try {
@@ -193,6 +197,22 @@ export function MonitorPage() {
   }, []);
 
   const list = Object.values(monitors).sort((a, b) => b.addedAt - a.addedAt);
+  // Free-text filter over IP / group / country / verdict / org (narrows the grouped rows below; the
+  // top stats + map stay over the whole watchlist).
+  const q = filter.trim().toLowerCase();
+  const filtered = q
+    ? list.filter((e) => {
+        const r = e.result;
+        return (
+          e.ip.toLowerCase().includes(q) ||
+          (e.group ?? '').toLowerCase().includes(q) ||
+          (countryOf(e) ?? '').toLowerCase().includes(q) ||
+          (r?.verdict ?? '').toLowerCase().includes(q) ||
+          (r?.shodan?.org ?? r?.maxmind?.organization ?? r?.ip?.asOwner ?? '').toLowerCase().includes(q) ||
+          (r?.shodan?.hostnames ?? []).some((h) => h.toLowerCase().includes(q))
+        );
+      })
+    : list;
   // Drill-down: "which IPs are behind this stat?" — list them from a predicate over the watchlist.
   const pick = (label: string, pred: (e: MonitorEntry) => boolean) =>
     setDrill({ label, values: list.filter(pred).map((e) => e.ip) });
@@ -262,17 +282,26 @@ export function MonitorPage() {
 
   // --- Grouping: named groups become top-level sections with the IPs nested underneath. ----------
   const UNGROUPED = '__vteeee_ungrouped__';
+  // All groups (alphabetical) — for the per-row group picker, the map selector and the assign datalist
+  // (stable regardless of the filter).
   const groupNames = [...new Set(list.map((e) => e.group).filter((g): g is string => !!g))].sort((a, b) =>
     a.localeCompare(b),
   );
   const hasGroups = groupNames.length > 0;
-  const buckets: { key: string; name: string | null; entries: MonitorEntry[] }[] = groupNames.map((g) => ({
+  const ungrouped = list.filter((e) => !e.group);
+  // Sections shown below use the FILTERED entries, ordered by the analyst's group order, then alphabetical.
+  const fGroupsPresent = [...new Set(filtered.map((e) => e.group).filter((g): g is string => !!g))];
+  const orderedNames = [
+    ...groupOrder.filter((g) => fGroupsPresent.includes(g)),
+    ...fGroupsPresent.filter((g) => !groupOrder.includes(g)).sort((a, b) => a.localeCompare(b)),
+  ];
+  const buckets: { key: string; name: string | null; entries: MonitorEntry[] }[] = orderedNames.map((g) => ({
     key: g,
     name: g,
-    entries: list.filter((e) => e.group === g),
+    entries: filtered.filter((e) => e.group === g),
   }));
-  const ungrouped = list.filter((e) => !e.group);
-  if (ungrouped.length) buckets.push({ key: UNGROUPED, name: null, entries: ungrouped });
+  const fUngrouped = filtered.filter((e) => !e.group);
+  if (fUngrouped.length) buckets.push({ key: UNGROUPED, name: null, entries: fUngrouped });
 
   // Country heatmap: aggregate a chosen group's IPs by country (darker = more) for the choropleth.
   const mapEntries =
@@ -324,7 +353,6 @@ export function MonitorPage() {
     const r = e.result;
     const abuse = r?.abuseipdb?.abuseConfidenceScore;
     const abuseCls = abuse == null ? '' : abuse >= 75 ? 'sev-high' : abuse >= 25 ? 'sev-med' : 'sev-low';
-    const cc = countryOf(e);
     // Row-level enrichment trend: mini sparklines for metrics that vary + the "vs previous" diff.
     const histAsc = e.history && e.history.length ? [...e.history].sort((a, b) => a.at - b.at) : [];
     const trendChanges =
@@ -403,11 +431,10 @@ export function MonitorPage() {
             <span className="mon-summary">
               <VerdictBadge verdict={r.verdict} status={r.status} />
               {r.detection && <span className="mon-chip">det {detectionRatio(r)}</span>}
-              {r.shodan?.ports?.length ? <span className="mon-chip mono">{r.shodan.ports.length} ports</span> : null}
-              {r.shodan?.vulns?.length ? <span className="mon-chip sev-high">{r.shodan.vulns.length} CVE</span> : null}
               {abuse != null && <span className={`mon-chip ${abuseCls}`}>abuse {abuse}</span>}
               {r.recordedfuture?.riskScore != null && <span className="mon-chip">RF {r.recordedfuture.riskScore}</span>}
-              {cc && <span className="mon-chip">{cc}</span>}
+              {/* Shodan/MaxMind detail like CP-Mon: 🏳 flag+geo · ASN/org · ISP · ports · CVEs · OS · host. */}
+              {intelChips(r, 'ipv4')}
             </span>
           ) : (
             <span className="mon-nointel">no enrichment yet — press “Re-enrich”</span>
@@ -476,8 +503,8 @@ export function MonitorPage() {
             onClick={() => void setAutoEnrich([e.ip], !e.autoEnrich)}
             title={
               e.autoEnrich
-                ? '自動エンリッチ ON（週1→2週→月次…と年代連動の間隔で自動Re-enrich・vteeeeを開いている間）— クリックでOFF'
-                : '自動エンリッチ OFF — クリックでON（監視期間に応じた間隔で定点観測）'
+                ? '自動エンリッチ＋自動魚拓 ON（年代連動の間隔で自動Re-enrich＋約1日毎に urlscan 魚拓・vteeeeを開いている間）— クリックでOFF'
+                : '自動エンリッチ＋自動魚拓 OFF — クリックでON（監視期間に応じた間隔で定点観測＋魚拓）'
             }
           >
             ⚡ Auto{e.autoEnrich ? ' ✓' : ''}
@@ -537,6 +564,28 @@ export function MonitorPage() {
             </button>
           ) : (
             <span className="mon-group-name ungrouped">Ungrouped</span>
+          )}
+          {b.name && (
+            <span className="cp-group-reorder">
+              <button
+                className="btn btn-sm btn-ghost"
+                disabled={orderedNames.indexOf(b.name) <= 0}
+                onClick={() => reorderGroup(b.name!, 'up')}
+                title="上へ"
+                aria-label="Move group up"
+              >
+                ↑
+              </button>
+              <button
+                className="btn btn-sm btn-ghost"
+                disabled={orderedNames.indexOf(b.name) < 0 || orderedNames.indexOf(b.name) >= orderedNames.length - 1}
+                onClick={() => reorderGroup(b.name!, 'down')}
+                title="下へ"
+                aria-label="Move group down"
+              >
+                ↓
+              </button>
+            </span>
           )}
           <span className="mon-group-count">{b.entries.length} IP{b.entries.length === 1 ? '' : 's'}</span>
           <span className="mon-group-sum">
@@ -800,7 +849,7 @@ export function MonitorPage() {
               className="btn btn-sm"
               disabled={!checkedList.length}
               onClick={() => void setAutoEnrich(checkedList.map((e) => e.ip), true)}
-              title="選択IPの自動エンリッチをON（年代連動の間隔で自動Re-enrich）"
+              title="選択IPの自動エンリッチ＋自動魚拓をON（年代連動の間隔で自動Re-enrich＋約1日毎に魚拓）"
             >
               ⚡ Auto on{checkedList.length ? ` (${checkedList.length})` : ''}
             </button>
@@ -817,10 +866,32 @@ export function MonitorPage() {
             </button>
           </div>
 
-          {hasGroups ? (
+          {list.length > 0 && (
+            <div className="cp-filter-row">
+              <input
+                className="filter cp-filter-input"
+                placeholder="🔎 監視IPを絞り込み（IP/グループ/国/判定/組織/ホスト名…）"
+                value={filter}
+                onChange={(e) => setFilter(e.target.value)}
+                aria-label="Filter monitored IPs"
+              />
+              {filter && (
+                <button className="btn btn-sm btn-ghost" onClick={() => setFilter('')} title="絞り込みをクリア">
+                  ✕
+                </button>
+              )}
+              <span className="cp-filter-count">
+                {filtered.length}/{list.length} 件
+              </span>
+            </div>
+          )}
+
+          {filtered.length === 0 && q ? (
+            <div className="empty-state">「{filter}」に一致する監視IPはありません。</div>
+          ) : hasGroups ? (
             <div className="mon-groups">{buckets.map(renderGroup)}</div>
           ) : (
-            <ul className="monitor-list">{list.map(renderRow)}</ul>
+            <ul className="monitor-list">{filtered.map(renderRow)}</ul>
           )}
         </>
       )}

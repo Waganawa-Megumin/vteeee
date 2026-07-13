@@ -1,5 +1,5 @@
-import { useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
-import { extractIndicators, type EnrichableType, type NormalizedResult } from '@vteeee/shared';
+import { useEffect, useMemo, useRef, useState } from 'react';
+import { extractIndicators, type EnrichableType } from '@vteeee/shared';
 import { useStore, type CampaignIoc, type IocSide, type TlpLevel } from '../state/store';
 import {
   TLP_LEVELS,
@@ -11,6 +11,7 @@ import { VerdictBadge } from './Badges';
 import { Spark } from './Spark';
 import { CountryChoropleth } from './CountryChoropleth';
 import { MarkdownLite } from './MarkdownLite';
+import { intelChips } from '../lib/iocChips';
 import { copyText, copyElementImage, exportAssessmentPdf } from '../lib/assessment-export';
 import { abuseOf, countryOf, cvesOf, detOf, diffParts, portsOf, rfOf } from '../lib/enrichTrend';
 
@@ -39,92 +40,6 @@ function exposureScore(i: CampaignIoc): number {
   );
 }
 const byExposure = (list: CampaignIoc[]) => [...list].sort((a, b) => exposureScore(b) - exposureScore(a));
-
-// ---- Per-row intel chips (type-specific), so a row shows the concrete facts, not just a verdict ----
-/** IP: Shodan (org/ports/CVEs/OS/hostname) + MaxMind (geo/ASN/ISP/anonymizer). */
-function ipInfraChips(r: NormalizedResult): ReactNode[] {
-  const out: ReactNode[] = [];
-  const geo = [r.maxmind?.city, countryOf(r)].filter(Boolean).join(', ');
-  if (geo) out.push(<span key="geo" className="mon-chip">📍 {geo}</span>);
-  const net =
-    r.maxmind?.asn != null
-      ? `AS${r.maxmind.asn}${r.maxmind.organization ? ` ${r.maxmind.organization}` : ''}`
-      : (r.shodan?.org ?? r.ip?.asOwner ?? '');
-  if (net) out.push(<span key="net" className="mon-chip" title="ASN / 所有組織">{net}</span>);
-  if (r.maxmind?.isp && r.maxmind.isp !== r.maxmind.organization)
-    out.push(<span key="isp" className="mon-chip">ISP {r.maxmind.isp}</span>);
-  const ports = r.shodan?.ports ?? [];
-  if (ports.length)
-    out.push(
-      <span key="ports" className="mon-chip mono sev-med" title={ports.join(', ')}>
-        {ports.length} ports: {ports.slice(0, 6).join(',')}
-        {ports.length > 6 ? '…' : ''}
-      </span>,
-    );
-  const vulns = r.shodan?.vulns ?? [];
-  if (vulns.length)
-    out.push(
-      <span key="cve" className="mon-chip sev-high" title={vulns.join(', ')}>
-        ⚠ {vulns.length} CVE: {vulns.slice(0, 3).join(', ')}
-        {vulns.length > 3 ? '…' : ''}
-      </span>,
-    );
-  if (r.shodan?.os) out.push(<span key="os" className="mon-chip">OS {r.shodan.os}</span>);
-  if (r.shodan?.hostnames?.length) out.push(<span key="host" className="mon-chip mono">{r.shodan.hostnames[0]}</span>);
-  if (r.maxmind?.anonymizerType?.length)
-    out.push(<span key="anon" className="mon-chip sev-med">{r.maxmind.anonymizerType.join('/')}</span>);
-  return out;
-}
-/** Domain: DomainTools (risk/registrar/created/NS) + DNSLytics + CTI actor/malware. */
-function domainChips(r: NormalizedResult): ReactNode[] {
-  const out: ReactNode[] = [];
-  const dt = r.domaintools;
-  if (dt?.riskScore != null)
-    out.push(
-      <span key="dtr" className={`mon-chip ${dt.riskScore >= 70 ? 'sev-high' : 'sev-med'}`} title="DomainTools risk">
-        DTリスク {dt.riskScore}
-      </span>,
-    );
-  if (dt?.registrar) out.push(<span key="reg" className="mon-chip" title="Registrar">reg: {dt.registrar}</span>);
-  const created = dt?.created ?? dt?.firstSeen;
-  if (created) out.push(<span key="cre" className="mon-chip" title="登録/初観測">🗓 {String(created).slice(0, 10)}</span>);
-  const ns = dt?.nameServers ?? r.dnslytics?.nameServers ?? [];
-  if (ns.length) out.push(<span key="ns" className="mon-chip mono" title={ns.join(', ')}>NS {ns[0]}</span>);
-  if (r.dnslytics?.threat) out.push(<span key="dns" className="mon-chip sev-high">DNSLytics: {r.dnslytics.threat}</span>);
-  const actors = [...new Set([...(r.threatvision?.adversaries ?? []), ...(r.cyfirma?.threatActors ?? [])])];
-  if (actors.length) out.push(<span key="act" className="mon-chip sev-high" title="関連アクター">🎭 {actors.slice(0, 2).join(', ')}</span>);
-  const malware = [
-    ...new Set([
-      ...(r.threatvision?.malwareFamilies ?? []),
-      ...(r.intel471?.malwareFamily ? [r.intel471.malwareFamily] : []),
-      ...(r.cyfirma?.malware ?? []),
-    ]),
-  ];
-  if (malware.length) out.push(<span key="mal" className="mon-chip sev-high" title="関連マルウェア">🦠 {malware.slice(0, 2).join(', ')}</span>);
-  return out;
-}
-/** Hash: malware family / VT threat label / categories / file type. */
-function hashChips(r: NormalizedResult): ReactNode[] {
-  const out: ReactNode[] = [];
-  if (r.file?.threatLabel) out.push(<span key="lbl" className="mon-chip sev-high" title="VT 脅威ラベル">🦠 {r.file.threatLabel}</span>);
-  const fam = [
-    ...new Set([...(r.threatvision?.malwareFamilies ?? []), ...(r.intel471?.malwareFamily ? [r.intel471.malwareFamily] : [])]),
-  ];
-  if (fam.length) out.push(<span key="fam" className="mon-chip sev-high">{fam.slice(0, 2).join(', ')}</span>);
-  if (r.file?.threatCategories?.length)
-    out.push(<span key="cat" className="mon-chip">{r.file.threatCategories.slice(0, 3).join(', ')}</span>);
-  if (r.file?.meaningfulName) out.push(<span key="nm" className="mon-chip mono" title="ファイル名">{r.file.meaningfulName}</span>);
-  if (r.file?.typeDescription) out.push(<span key="ty" className="mon-chip">{r.file.typeDescription}</span>);
-  if (r.file?.size) out.push(<span key="sz" className="mon-chip">{Math.round(r.file.size / 1024)} KB</span>);
-  return out;
-}
-/** Type-appropriate intel chips for an enriched IOC row. */
-function intelChips(r: NormalizedResult, type: EnrichableType): ReactNode[] {
-  if (type === 'ipv4' || type === 'ipv6') return ipInfraChips(r);
-  if (type === 'domain') return domainChips(r);
-  if (type === 'md5' || type === 'sha1' || type === 'sha256') return hashChips(r);
-  return [];
-}
 
 /** Compact completion time for a 魚拓 (e.g. "7/13 14:30"). */
 function capTime(at: number): string {
@@ -897,7 +812,7 @@ export function CampaignPage() {
           <button
             className={`btn btn-sm${i.autoEnrich ? ' btn-primary' : ''}`}
             onClick={() => void setAuto(cid, [i.value], !i.autoEnrich)}
-            title="自動エンリッチ（サーバ側で毎日／開いている間はクライアントでも）"
+            title="自動エンリッチ＋自動魚拓（サーバ側で毎日／開いている間はクライアントでも。魚拓は Web面のあるIoCを約1日毎に自動保全）"
           >
             ⚡ Auto{i.autoEnrich ? ' ✓' : ''}
           </button>
@@ -1071,7 +986,7 @@ export function CampaignPage() {
               className="btn btn-sm"
               disabled={bulkBusy}
               onClick={() => void setAuto(cid, list.map((i) => i.value), true)}
-              title="この側の全 IoC の自動エンリッチを ON"
+              title="この側の全 IoC の自動エンリッチ＋自動魚拓を ON"
             >
               ⚡ Auto on all
             </button>
@@ -1166,6 +1081,18 @@ export function CampaignPage() {
                       >
                         ⟳ Re-enrich
                       </button>
+                      {b.name && (
+                        <button
+                          className="btn btn-sm btn-ghost"
+                          onClick={() => {
+                            if (window.confirm(`グループ「${b.name}」を解除しますか？（${b.items.length} 件の IoC はグループなしに戻ります・IoC自体は残ります）`))
+                              void setGroup(cid, b.items.map((i) => i.value), undefined);
+                          }}
+                          title="このグループを解除（IoC はグループなしに戻す・削除はしない）"
+                        >
+                          ⊘ Ungroup
+                        </button>
+                      )}
                     </span>
                   </div>
                   <ul className="monitor-list">{b.items.map((i) => renderIoc(i, side, sideGroupNames))}</ul>
