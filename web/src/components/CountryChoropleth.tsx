@@ -16,6 +16,7 @@ interface LFeature {
 }
 interface LGeoLayer {
   bindTooltip(html: string, o?: Record<string, unknown>): LGeoLayer;
+  on(type: string, handler: () => void): LGeoLayer;
 }
 interface LLayerG {
   addTo(m: LMap): LLayerG;
@@ -122,8 +123,19 @@ function shade(n: number, max: number): string {
  * A country choropleth: `counts` maps a raw country id (ISO-2 or full name) → a number; countries are
  * shaded from pale to deep red by that number ("多いほど濃い"). Self-contained (bundled polygons, no tiles).
  */
-export function CountryChoropleth({ counts, height = 300 }: { counts: Record<string, number>; height?: number }) {
+export function CountryChoropleth({
+  counts,
+  height = 300,
+  onPick,
+}: {
+  counts: Record<string, number>;
+  height?: number;
+  /** Click a shaded country → (iso2, name); the parent lists the matching IOCs. */
+  onPick?: (iso2: string, name: string) => void;
+}) {
   const ref = useRef<HTMLDivElement>(null);
+  const onPickRef = useRef(onPick);
+  onPickRef.current = onPick;
   const [geo, setGeo] = useState<GeoData | null>(null);
 
   // Lazy-load the polygon set once from /public (fetched only when a map renders — kept out of the JS
@@ -187,15 +199,17 @@ export function CountryChoropleth({ counts, height = 300 }: { counts: Record<str
               fillOpacity: n > 0 ? 0.88 : 0.12,
               color: '#7c8794',
               weight: 0.5,
+              className: n > 0 ? 'choro-clickable' : '',
             };
           },
           onEachFeature: (f, lyr) => {
             const iso = f.properties.iso2;
             const n = iso ? resolved[iso] ?? 0 : 0;
-            lyr.bindTooltip(`${f.properties.name ?? iso ?? '—'}${iso ? ` (${iso})` : ''}: ${n}`, {
-              sticky: true,
-              direction: 'top',
-            });
+            lyr.bindTooltip(
+              `${f.properties.name ?? iso ?? '—'}${iso ? ` (${iso})` : ''}: ${n}${n > 0 ? ' · クリックで対象IoC' : ''}`,
+              { sticky: true, direction: 'top' },
+            );
+            if (n > 0 && iso) lyr.on('click', () => onPickRef.current?.(iso, f.properties.name ?? iso));
           },
         }).addTo(map);
         try {

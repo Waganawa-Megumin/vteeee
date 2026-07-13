@@ -2679,6 +2679,66 @@ button.pv-monitored.link:hover {
   font-size: 12px;
   color: var(--muted);
 }
+/* Drill-down: click a dashboard stat/bar/country → list the IOCs behind it. */
+.mon-bar-row.pickable {
+  cursor: pointer;
+  border-radius: 5px;
+}
+.mon-bar-row.pickable:hover {
+  background: var(--bg3);
+}
+.mon-stat.pickable {
+  cursor: pointer;
+}
+.mon-stat.pickable:hover {
+  border-color: var(--accent);
+}
+.choro-clickable {
+  cursor: pointer;
+}
+.cp-drill {
+  border: 1px solid var(--accent);
+  background: rgba(116, 211, 177, 0.06);
+  border-radius: 8px;
+  padding: 8px 12px 10px;
+  margin: 4px 0 10px;
+}
+.cp-drill-head {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 6px;
+}
+.cp-drill-n {
+  font-size: 12px;
+  color: var(--muted);
+}
+.cp-drill-close {
+  border: none;
+  background: transparent;
+  color: var(--muted);
+  cursor: pointer;
+  font-size: 14px;
+}
+.cp-drill-list {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  max-height: 220px;
+  overflow-y: auto;
+}
+.cp-drill-ioc {
+  border: 1px solid var(--line);
+  background: var(--bg2);
+  color: var(--accent);
+  cursor: pointer;
+  font-size: 12px;
+  padding: 3px 8px;
+  border-radius: 5px;
+}
+.cp-drill-ioc:hover {
+  border-color: var(--accent);
+}
 .cp-sync-note {
   margin: -4px 0 8px;
 }

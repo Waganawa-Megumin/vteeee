@@ -38,15 +38,30 @@ function tlpClass(t: TlpLevel): string {
   return `tlp-${t.toLowerCase().replace('+', '-')}`;
 }
 
-function Tile({ n, label, tone }: { n: number; label: string; tone?: 'bad' | 'warn' }) {
+function Tile({ n, label, tone, onPick }: { n: number; label: string; tone?: 'bad' | 'warn'; onPick?: () => void }) {
   return (
-    <div className={`mon-stat${tone ? ` ${tone}` : ''}`}>
+    <div
+      className={`mon-stat${tone ? ` ${tone}` : ''}${onPick ? ' pickable' : ''}`}
+      onClick={onPick}
+      role={onPick ? 'button' : undefined}
+      title={onPick ? 'クリックで対象IoCを表示' : undefined}
+    >
       <b>{n}</b>
       <span>{label}</span>
     </div>
   );
 }
-function Bars({ title, rows, hrefFor }: { title: string; rows: [string, number][]; hrefFor?: (k: string) => string }) {
+function Bars({
+  title,
+  rows,
+  hrefFor,
+  onPick,
+}: {
+  title: string;
+  rows: [string, number][];
+  hrefFor?: (k: string) => string;
+  onPick?: (k: string) => void;
+}) {
   const max = rows[0]?.[1] ?? 1;
   return (
     <div className="mon-bars">
@@ -55,10 +70,15 @@ function Bars({ title, rows, hrefFor }: { title: string; rows: [string, number][
         <div className="hint">—</div>
       ) : (
         rows.map(([k, n]) => (
-          <div key={k} className="mon-bar-row">
+          <div
+            key={k}
+            className={`mon-bar-row${onPick ? ' pickable' : ''}`}
+            onClick={onPick ? () => onPick(k) : undefined}
+            title={onPick ? 'クリックで対象IoCを表示' : undefined}
+          >
             <span className="mon-bar-label mono">
               {hrefFor ? (
-                <a href={hrefFor(k)} target="_blank" rel="noreferrer">
+                <a href={hrefFor(k)} target="_blank" rel="noreferrer" onClick={(e) => e.stopPropagation()}>
                   {k}
                 </a>
               ) : (
@@ -84,10 +104,15 @@ function CampaignDashboard({ iocs, onOpen }: { iocs: CampaignIoc[]; onOpen?: (v:
     attackN > 0 ? 'attack' : targetN > 0 ? 'target' : 'all',
   );
   const [mapGroup, setMapGroup] = useState('');
+  const [drill, setDrill] = useState<{ label: string; values: string[] } | null>(null);
   const scoped = useMemo(
     () => (scope === 'all' ? iocs : iocs.filter((i) => (i.side ?? 'attack') === scope)),
     [iocs, scope],
   );
+  // Drill-down: "which IOCs are behind this stat?" — set the list from a predicate over the scoped set.
+  const pick = (label: string, pred: (i: CampaignIoc) => boolean) =>
+    setDrill({ label, values: scoped.filter(pred).map((i) => i.value) });
+  const pickCountry = (raw: string) => pick(`国: ${raw}`, (i) => (i.result ? countryOf(i.result) : '') === raw);
 
   const map = useMemo(() => {
     const names = [...new Set(scoped.map((i) => i.group).filter((g): g is string => !!g))].sort((a, b) =>
@@ -169,6 +194,7 @@ function CampaignDashboard({ iocs, onOpen }: { iocs: CampaignIoc[]; onOpen?: (v:
         onClick={() => {
           setScope('attack');
           setMapGroup('');
+          setDrill(null);
         }}
       >
         🗡 Attack ({attackN})
@@ -180,6 +206,7 @@ function CampaignDashboard({ iocs, onOpen }: { iocs: CampaignIoc[]; onOpen?: (v:
         onClick={() => {
           setScope('target');
           setMapGroup('');
+          setDrill(null);
         }}
       >
         🎯 Target ({targetN})
@@ -191,6 +218,7 @@ function CampaignDashboard({ iocs, onOpen }: { iocs: CampaignIoc[]; onOpen?: (v:
         onClick={() => {
           setScope('all');
           setMapGroup('');
+          setDrill(null);
         }}
       >
         All ({iocs.length})
@@ -221,38 +249,71 @@ function CampaignDashboard({ iocs, onOpen }: { iocs: CampaignIoc[]; onOpen?: (v:
   return (
     <>
       {scopeBar}
+      {drill && (
+        <div className="cp-drill">
+          <div className="cp-drill-head">
+            <b>{drill.label}</b>
+            <span className="cp-drill-n">{drill.values.length} 件</span>
+            <span className="spacer" />
+            <button className="cp-drill-close" onClick={() => setDrill(null)} aria-label="閉じる" title="閉じる">
+              ✕
+            </button>
+          </div>
+          {drill.values.length ? (
+            <div className="cp-drill-list">
+              {drill.values.map((v) => (
+                <button key={v} className="cp-drill-ioc mono" onClick={() => onOpen?.(v)} title="詳細を開く">
+                  {v}
+                </button>
+              ))}
+            </div>
+          ) : (
+            <div className="hint">該当なし</div>
+          )}
+        </div>
+      )}
       <div className="mon-stats" role="group" aria-label="campaign overview">
-        <Tile n={d.total} label={target ? 'assets' : 'IOCs'} />
-        <Tile n={d.withIntel} label="with intel" />
+        <Tile n={d.total} label={target ? 'assets' : 'IOCs'} onPick={() => pick(target ? 'assets' : 'IOCs', () => true)} />
+        <Tile n={d.withIntel} label="with intel" onPick={() => pick('with intel', (i) => !!i.result)} />
         {target ? (
           <>
-            {d.hostsPorts > 0 && <Tile n={d.hostsPorts} label="exposed hosts" tone="warn" />}
-            {d.hostsCve > 0 && <Tile n={d.hostsCve} label="hosts w/ CVEs" tone="bad" />}
+            {d.hostsPorts > 0 && (
+              <Tile n={d.hostsPorts} label="exposed hosts" tone="warn" onPick={() => pick('exposed hosts（開放ポートあり）', (i) => (i.result?.shodan?.ports?.length ?? 0) > 0)} />
+            )}
+            {d.hostsCve > 0 && (
+              <Tile n={d.hostsCve} label="hosts w/ CVEs" tone="bad" onPick={() => pick('hosts w/ CVEs', (i) => (i.result?.shodan?.vulns?.length ?? 0) > 0)} />
+            )}
             {d.distinctCves > 0 && <Tile n={d.distinctCves} label="distinct CVEs" />}
-            {d.anon > 0 && <Tile n={d.anon} label="anonymized" />}
+            {d.anon > 0 && (
+              <Tile n={d.anon} label="anonymized" onPick={() => pick('anonymized（VPN/Tor/proxy）', (i) => (i.result?.maxmind?.anonymizerType?.length ?? 0) > 0)} />
+            )}
           </>
         ) : (
           <>
-            {d.mal > 0 && <Tile n={d.mal} label="malicious" tone="bad" />}
-            {d.sus > 0 && <Tile n={d.sus} label="suspicious" tone="warn" />}
-            {d.highAbuse > 0 && <Tile n={d.highAbuse} label="abuse ≥75" tone="bad" />}
+            {d.mal > 0 && <Tile n={d.mal} label="malicious" tone="bad" onPick={() => pick('malicious', (i) => i.result?.verdict === 'malicious')} />}
+            {d.sus > 0 && <Tile n={d.sus} label="suspicious" tone="warn" onPick={() => pick('suspicious', (i) => i.result?.verdict === 'suspicious')} />}
+            {d.highAbuse > 0 && (
+              <Tile n={d.highAbuse} label="abuse ≥75" tone="bad" onPick={() => pick('abuse ≥75', (i) => (i.result?.abuseipdb?.abuseConfidenceScore ?? -1) >= 75)} />
+            )}
             {d.distinctCves > 0 && <Tile n={d.distinctCves} label="distinct CVEs" />}
           </>
         )}
-        <Tile n={d.auto} label="⚡ auto" />
+        <Tile n={d.auto} label="⚡ auto" onPick={() => pick('⚡ auto', (i) => !!i.autoEnrich)} />
       </div>
       <div className="mon-dash mon-dash-nomap">
-        <Bars title="By IOC type" rows={d.byType} />
+        <Bars title="By IOC type" rows={d.byType} onPick={(t) => pick(`type: ${t}`, (i) => i.type === t)} />
         <Bars
           title={target ? '露出脆弱性 Top CVEs' : 'Top CVEs'}
           rows={d.cves}
           hrefFor={(cve) => `https://nvd.nist.gov/vuln/detail/${cve}`}
+          onPick={(cve) => pick(`CVE ${cve}`, (i) => i.result?.shodan?.vulns?.includes(cve) ?? false)}
         />
         {target && (
           <Bars
             title="露出ポート Top"
             rows={d.ports}
             hrefFor={(p) => `https://www.shodan.io/search?query=port%3A${p}`}
+            onPick={(p) => pick(`port ${p}`, (i) => i.result?.shodan?.ports?.includes(Number(p)) ?? false)}
           />
         )}
       </div>
@@ -284,10 +345,21 @@ function CampaignDashboard({ iocs, onOpen }: { iocs: CampaignIoc[]; onOpen?: (v:
         </div>
         <div className="mon-geo-body">
           <div className="mon-geo-stats">
-            <Bars title="By country" rows={map.countryRows} />
+            <Bars title="By country" rows={map.countryRows} onPick={pickCountry} />
           </div>
           <div className="mon-geo-map">
-            <CountryChoropleth counts={map.counts} height={250} />
+            <CountryChoropleth
+              counts={map.counts}
+              height={250}
+              onPick={(iso, name) =>
+                pick(`国: ${name} (${iso})`, (i) => {
+                  const cc = i.result ? countryOf(i.result) : '';
+                  if (!cc) return false;
+                  const u = cc.toUpperCase();
+                  return u === iso || u === name.toUpperCase();
+                })
+              }
+            />
           </div>
         </div>
       </div>
