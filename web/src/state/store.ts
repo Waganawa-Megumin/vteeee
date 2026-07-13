@@ -1717,8 +1717,10 @@ export const useStore = create<State>((set, get) => {
       return { campaigns };
     });
     void pushSharedCampaign(get().settings, id, get().campaigns[id] ?? null);
-    // Enrich the newly-added IOCs (sequential to respect the free-tier rate limit).
+    // Enrich the newly-added IOCs (sequential to respect the free-tier rate limit), then reconcile
+    // once so the fully-enriched campaign is guaranteed shared.
     for (const { value } of iocs) await get().reEnrichCampaignIoc(id, value);
+    await get().refreshCampaigns();
   },
 
   async setCampaignTlp(id, tlp) {
@@ -1875,7 +1877,10 @@ export const useStore = create<State>((set, get) => {
 
   async reEnrichCampaignIocs(id, values) {
     // Sequential to respect the free-tier rate limit; each row shows its own "enriching…" state.
+    // Each reEnrichCampaignIoc already pushes its fresh result; a final two-way sync reconciles the
+    // whole batch so the enriched campaign is guaranteed shared (and teammates' changes pulled in).
     for (const v of values) await get().reEnrichCampaignIoc(id, v);
+    await get().refreshCampaigns();
   },
 
   async setCampaignIocAuto(id, values, on) {

@@ -331,6 +331,7 @@ export function CampaignPage() {
   const summarize = useStore((s) => s.summarizeCampaign);
   const assess = useStore((s) => s.assessCampaign);
   const refreshCampaigns = useStore((s) => s.refreshCampaigns);
+  const syncNote = useStore((s) => s.campaignsSyncNote);
   const [text, setText] = useState('');
   const [groupInput, setGroupInput] = useState('');
   const [tab, setTab] = useState<Tab>('dashboard');
@@ -338,6 +339,16 @@ export function CampaignPage() {
   const [assessing, setAssessing] = useState(false);
   const [bulkBusy, setBulkBusy] = useState(false);
   const [admHelp, setAdmHelp] = useState(false);
+  const [syncing, setSyncing] = useState(false);
+
+  async function onSync() {
+    setSyncing(true);
+    try {
+      await refreshCampaigns();
+    } finally {
+      setSyncing(false);
+    }
+  }
 
   async function bulkReEnrich(values: string[]) {
     if (!values.length || bulkBusy) return;
@@ -951,6 +962,9 @@ export function CampaignPage() {
         </div>
         <span className="cp-title-meta">{iocs.length} IoCs</span>
         <div className="spacer" />
+        <button className="btn btn-sm" onClick={() => void onSync()} disabled={syncing} title="共有と同期（双方向・非破壊）">
+          {syncing ? '⇪ 同期中…' : '⇪ Sync'}
+        </button>
         <button
           className="btn btn-sm btn-danger"
           onClick={() => {
@@ -960,6 +974,7 @@ export function CampaignPage() {
           Delete
         </button>
       </div>
+      {syncNote && <p className={`hint cp-sync-note${syncNote.startsWith('⚠') ? ' err' : ''}`}>{syncNote}</p>}
 
       {(campaign.summary || summarizing) && (
         <div className="cp-marquee" role="status" aria-label="campaign key message">
