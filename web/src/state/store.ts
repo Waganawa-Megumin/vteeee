@@ -59,7 +59,9 @@ import {
   slimCampaign,
   mergeCampaign,
   mergeCampaigns,
+  mergeAssessments,
   type Campaign,
+  type CampaignAssessment,
   type IocSide,
   type TlpLevel,
 } from './campaigns';
@@ -2234,9 +2236,12 @@ export const useStore = create<State>((set, get) => {
     set((s) => {
       const c = s.campaigns[id];
       if (!c) return {};
+      const entry: CampaignAssessment = { text, at, by, tlp: c.tlp ?? 'AMBER' };
+      // Prepend to the history (fold any legacy single assessment in) — never overwrite past reports.
+      const assessments = mergeAssessments([entry], [...(c.assessments ?? []), ...(c.assessment ? [c.assessment] : [])]);
       const campaigns = {
         ...s.campaigns,
-        [id]: { ...c, assessment: { text, at, by, tlp: c.tlp ?? 'AMBER' }, updatedAt: at },
+        [id]: { ...c, assessment: assessments[0], assessments, updatedAt: at },
       };
       saveCampaigns(campaigns);
       return { campaigns };

@@ -1,11 +1,17 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { extractIndicators, type EnrichableType } from '@vteeee/shared';
 import { useStore, type CampaignIoc, type IocSide, type TlpLevel } from '../state/store';
-import { TLP_LEVELS, ADMIRALTY_RELIABILITY, ADMIRALTY_CREDIBILITY } from '../state/campaigns';
+import {
+  TLP_LEVELS,
+  ADMIRALTY_RELIABILITY,
+  ADMIRALTY_CREDIBILITY,
+  type CampaignAssessment,
+} from '../state/campaigns';
 import { VerdictBadge } from './Badges';
 import { Spark } from './Spark';
 import { CountryChoropleth } from './CountryChoropleth';
 import { MarkdownLite } from './MarkdownLite';
+import { copyText, copyElementImage, exportAssessmentPdf } from '../lib/assessment-export';
 import { abuseOf, countryOf, cvesOf, detOf, diffParts, portsOf, rfOf } from '../lib/enrichTrend';
 
 const UNGROUPED = '__ungrouped__';
@@ -401,7 +407,6 @@ export function CampaignPage() {
   const openCampaigns = useStore((s) => s.openCampaigns);
   const addIocs = useStore((s) => s.addCampaignIocs);
   const setGroup = useStore((s) => s.setCampaignIocGroup);
-  const setSide = useStore((s) => s.setCampaignIocSide);
   const setTlp = useStore((s) => s.setCampaignTlp);
   const setAdmiralty = useStore((s) => s.setCampaignAdmiralty);
   const reorderGroup = useStore((s) => s.reorderCampaignGroup);
@@ -425,6 +430,9 @@ export function CampaignPage() {
   const [tab, setTab] = useState<Tab>('dashboard');
   const [summarizing, setSummarizing] = useState(false);
   const [assessing, setAssessing] = useState(false);
+  const [assessSel, setAssessSel] = useState(0); // which past assessment is shown (0 = latest)
+  const [reportMsg, setReportMsg] = useState<string | null>(null); // transient copy/export status
+  const reportRef = useRef<HTMLDivElement>(null);
   const [bulkBusy, setBulkBusy] = useState(false);
   const [admHelp, setAdmHelp] = useState(false);
   const [syncing, setSyncing] = useState(false);
@@ -740,13 +748,6 @@ export function CampaignPage() {
           >
             ⚡ Auto{i.autoEnrich ? ' ✓' : ''}
           </button>
-          <button
-            className="btn btn-sm"
-            onClick={() => void setSide(cid, [i.value], side === 'attack' ? 'target' : 'attack')}
-            title={side === 'attack' ? 'Target Info へ移動（標的側）' : 'Attack Info へ移動（攻撃側）'}
-          >
-            {side === 'attack' ? '→ 🎯 Target' : '→ 🗡 Attack'}
-          </button>
           {r?.links?.gui && (
             <a className="btn btn-sm" href={r.links.gui} target="_blank" rel="noreferrer">
               VT ↗
@@ -1019,15 +1020,53 @@ export function CampaignPage() {
   }
 
   function AssessmentView() {
-    const a = campaign?.assessment;
+    // Full assessment history, newest first (continuous monitoring — keep every past report).
+    const history: CampaignAssessment[] =
+      campaign?.assessments ?? (campaign?.assessment ? [campaign.assessment] : []);
+    const selIdx = history.length ? Math.min(assessSel, history.length - 1) : 0;
+    const a = history[selIdx];
     // Claude is told to lead with a TLP line; drop it since we render a TLP chip ourselves.
     const body = a ? a.text.replace(/^\s*TLP:[^\n]*\n?/i, '') : '';
     async function gen() {
       setAssessing(true);
       try {
         await assess(cid);
+        setAssessSel(0);
       } finally {
         setAssessing(false);
+      }
+    }
+    const flash = (m: string, ms = 1800) => {
+      setReportMsg(m);
+      window.setTimeout(() => setReportMsg(null), ms);
+    };
+    async function copyReport() {
+      if (!a) return;
+      try {
+        await copyText(a.text);
+        flash('📋 テキストをコピーしました');
+      } catch {
+        flash('コピーに失敗しました');
+      }
+    }
+    async function imageReport() {
+      if (!a || !reportRef.current) return;
+      setReportMsg('🖼 画像を生成中…');
+      try {
+        await copyElementImage(reportRef.current);
+        flash('🖼 画像をコピーしました', 2200);
+      } catch {
+        flash('画像コピーに失敗（ブラウザ非対応の可能性）', 2600);
+      }
+    }
+    async function pdfReport() {
+      if (!a) return;
+      setReportMsg('📄 PDFを生成中…');
+      try {
+        await exportAssessmentPdf(body, { title: campaign?.name ?? 'campaign', tlp: a.tlp ?? tlp, model: a.model, at: a.at });
+        flash('📄 PDFを保存しました', 2200);
+      } catch {
+        flash('PDF生成に失敗しました', 2600);
       }
     }
     return (
@@ -1038,25 +1077,56 @@ export function CampaignPage() {
             <span className="hint"> — エンリッチ情報・統計・時系列変化に基づく Claude の脅威分析（Insight）</span>
           </div>
           <span className="spacer" />
-          {a && (
-            <span className="cp-assess-when">
-              最終: {new Date(a.at).toLocaleString()}
-              {a.by ? ` · ${a.by}` : ''}
-              {a.model ? ` · ${a.model}` : ''}
-            </span>
+          {history.length >= 2 && (
+            <label className="urlscan-hist" title="過去のアセスメントを選択（継続モニタリング）">
+              🕓 過去
+              <select
+                className="urlscan-hist-sel"
+                value={selIdx}
+                onChange={(e) => setAssessSel(Number(e.currentTarget.value))}
+              >
+                {history.map((h, i) => (
+                  <option key={h.at} value={i}>
+                    {i === 0 ? '最新' : `#${history.length - i}`} · {new Date(h.at).toLocaleString()}
+                    {h.by ? ` · ${h.by}` : ''}
+                  </option>
+                ))}
+              </select>
+              <span className="hint">{history.length} 版</span>
+            </label>
           )}
           <button className="btn btn-primary btn-sm" onClick={() => void gen()} disabled={assessing || iocs.length === 0}>
-            {assessing ? '生成中…（Claude）' : a ? '🔄 レポート更新' : '🧠 レポート生成'}
+            {assessing ? '生成中…（Claude）' : history.length ? '🔄 レポート更新' : '🧠 レポート生成'}
           </button>
         </div>
-        {assessing && !a && (
-          <div className="hint">Claude が {iocs.length} 件のIoC・統計・時系列を分析してレポートを作成中…（数十秒）</div>
+        {assessing && (
+          <div className="hint">Claude が {iocs.length} 件の情報・統計・時系列を分析してレポートを作成中…（数十秒／長い場合は自動継続）</div>
         )}
         {a ? (
-          <div className="cp-report">
-            <div className={`cp-report-tlp ${tlpClass(a.tlp ?? tlp)}`}>TLP:{a.tlp ?? tlp}</div>
-            <MarkdownLite className="cp-report-md" text={body} />
-          </div>
+          <>
+            <div className="cp-assess-actions">
+              <span className="cp-assess-when">
+                {selIdx === 0 ? '最新' : '過去版'}: {new Date(a.at).toLocaleString()}
+                {a.by ? ` · ${a.by}` : ''}
+                {a.model ? ` · ${a.model}` : ''}
+              </span>
+              <span className="spacer" />
+              <button className="btn btn-sm" onClick={() => void copyReport()} title="レポート本文（Markdown）をコピー">
+                📋 テキスト
+              </button>
+              <button className="btn btn-sm" onClick={() => void imageReport()} title="レポートを画像としてクリップボードにコピー">
+                🖼 画像
+              </button>
+              <button className="btn btn-sm" onClick={() => void pdfReport()} title="レポートをPDFで保存（選択可能テキスト・TLP付き）">
+                📄 PDF
+              </button>
+              {reportMsg && <span className="hint cp-assess-msg">{reportMsg}</span>}
+            </div>
+            <div className="cp-report" ref={reportRef}>
+              <div className={`cp-report-tlp ${tlpClass(a.tlp ?? tlp)}`}>TLP:{a.tlp ?? tlp}</div>
+              <MarkdownLite className="cp-report-md" text={body} />
+            </div>
+          </>
         ) : (
           !assessing && (
             <div className="empty-state">
@@ -1261,7 +1331,7 @@ export function CampaignPage() {
             input then keeps focus across re-renders instead of remounting on every keystroke. */}
         {tab === 'attack' && SideView({ side: 'attack' })}
         {tab === 'target' && SideView({ side: 'target' })}
-        {tab === 'assessment' && <AssessmentView />}
+        {tab === 'assessment' && AssessmentView()}
       </div>
     </section>
   );

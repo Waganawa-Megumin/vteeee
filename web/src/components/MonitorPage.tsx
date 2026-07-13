@@ -448,8 +448,8 @@ export function MonitorPage() {
           {e.error && <div className="mon-err">{e.error}</div>}
         </div>
         <div className="mon-actions">
-          <button className="btn btn-sm" disabled={!r} onClick={() => r && showResult(r)}>
-            Open
+          <button className="btn btn-sm" disabled={!r} onClick={() => r && showResult(r)} title="詳細を開く">
+            Details
           </button>
           {((e.history?.length ?? 0) > 0 || !!e.result) && (
             <button

@@ -84,8 +84,20 @@ export interface Campaign {
   admiraltyCredibility?: string;
   /** Latest overall summary (shared with the campaign so the whole team sees the same key message). */
   summary?: CampaignSummary;
-  /** Latest Claude CTI assessment report (shared). */
+  /** Latest Claude CTI assessment report (shared) — kept for back-compat; also the head of `assessments`. */
   assessment?: CampaignAssessment;
+  /** Full CTI assessment history, newest first (continuous monitoring — pick any past report). */
+  assessments?: CampaignAssessment[];
+}
+
+/** Merge two CTI-assessment histories: union by timestamp (`at`), newest first, capped. */
+export function mergeAssessments(a: CampaignAssessment[] = [], b: CampaignAssessment[] = []): CampaignAssessment[] {
+  const byAt = new Map<number, CampaignAssessment>();
+  for (const e of [...a, ...b]) {
+    if (!e || typeof e.at !== 'number') continue;
+    if (!byAt.has(e.at)) byAt.set(e.at, e);
+  }
+  return [...byAt.values()].sort((x, y) => y.at - x.at).slice(0, 15);
 }
 
 export const CAMPAIGNS_KEY = 'vteeee.campaigns';
@@ -185,10 +197,15 @@ export function mergeCampaign(a: Campaign | undefined, b: Campaign | undefined):
   const iocs: Record<string, CampaignIoc> = {};
   const keys = new Set([...Object.keys(a?.iocs ?? {}), ...Object.keys(b?.iocs ?? {})]);
   for (const k of keys) iocs[k] = mergeIoc(a?.iocs?.[k], b?.iocs?.[k]);
-  // Keep whichever summary/assessment was generated most recently (travels with the shared campaign).
+  // Keep whichever summary was generated most recently (travels with the shared campaign).
   const summary = (b?.summary?.at ?? 0) >= (a?.summary?.at ?? 0) ? b?.summary ?? a?.summary : a?.summary ?? b?.summary;
-  const assessment =
-    (b?.assessment?.at ?? 0) >= (a?.assessment?.at ?? 0) ? b?.assessment ?? a?.assessment : a?.assessment ?? b?.assessment;
+  // Union the full assessment history (continuous monitoring — never drop a past report); the head is
+  // the latest, kept in `assessment` for back-compat. Fold any legacy single `assessment` into the union.
+  const assessments = mergeAssessments(
+    [...(a?.assessments ?? []), ...(a?.assessment ? [a.assessment] : [])],
+    [...(b?.assessments ?? []), ...(b?.assessment ? [b.assessment] : [])],
+  );
+  const assessment = assessments[0];
   return {
     id: base.id,
     name: (newerB ? b?.name : a?.name) ?? base.name,
@@ -201,7 +218,8 @@ export function mergeCampaign(a: Campaign | undefined, b: Campaign | undefined):
     groupOrder: (newerB ? b?.groupOrder : a?.groupOrder) ?? base.groupOrder,
     iocs,
     summary,
-    assessment,
+    ...(assessment ? { assessment } : {}),
+    ...(assessments.length ? { assessments } : {}),
   };
 }
 

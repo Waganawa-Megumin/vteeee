@@ -3005,6 +3005,16 @@ button.pv-monitored.link:hover {
   font-size: 11px;
   color: var(--muted);
 }
+.cp-assess-actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+.cp-assess-msg {
+  color: var(--accent);
+  font-weight: 600;
+}
 .cp-report {
   border: 1px solid var(--line);
   border-radius: 10px;
@@ -3049,6 +3059,50 @@ button.pv-monitored.link:hover {
 }
 .cp-report-md strong {
   color: var(--text);
+}
+.cp-report-md a {
+  color: var(--accent);
+  text-decoration: underline;
+  text-underline-offset: 2px;
+}
+.cp-report-md blockquote {
+  margin: 10px 0;
+  padding: 4px 14px;
+  border-left: 3px solid var(--accent);
+  background: var(--bg3);
+  border-radius: 0 6px 6px 0;
+  color: var(--muted);
+}
+.cp-report-md hr {
+  border: none;
+  border-top: 1px solid var(--line);
+  margin: 16px 0;
+}
+/* GFM tables in the CTI report — scroll horizontally on narrow screens rather than break the layout. */
+.md-table-wrap {
+  overflow-x: auto;
+  margin: 12px 0;
+}
+.cp-report-md .md-table {
+  border-collapse: collapse;
+  width: 100%;
+  font-size: 13px;
+}
+.cp-report-md .md-table th,
+.cp-report-md .md-table td {
+  border: 1px solid var(--line);
+  padding: 6px 10px;
+  text-align: left;
+  vertical-align: top;
+}
+.cp-report-md .md-table thead th {
+  background: var(--bg3);
+  color: var(--accent);
+  font-weight: 700;
+  white-space: nowrap;
+}
+.cp-report-md .md-table tbody tr:nth-child(even) {
+  background: color-mix(in srgb, var(--bg3) 45%, transparent);
 }
 
 /* Results-table monitor indicators. */
