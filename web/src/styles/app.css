@@ -3017,6 +3017,34 @@ button.pv-monitored.link:hover {
   line-height: 1.55;
   resize: vertical;
 }
+/* Per-row 魚拓 (done) control: "済 <when>" link to the latest urlscan result + past-URL select + Re-魚拓. */
+.cp-cap {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+}
+.cp-cap-open {
+  font-size: 11.5px;
+  color: var(--accent);
+  text-decoration: none;
+  padding: 2px 8px;
+  border: 1px solid var(--line);
+  border-radius: 6px;
+  background: color-mix(in srgb, var(--accent) 12%, transparent);
+  white-space: nowrap;
+}
+.cp-cap-open:hover {
+  text-decoration: underline;
+}
+.cp-cap-hist {
+  font-size: 11px;
+  background: var(--bg);
+  color: var(--text);
+  border: 1px solid var(--line);
+  border-radius: 6px;
+  padding: 2px 4px;
+  max-width: 120px;
+}
 .cp-assess {
   display: flex;
   flex-direction: column;

@@ -126,6 +126,11 @@ function intelChips(r: NormalizedResult, type: EnrichableType): ReactNode[] {
   return [];
 }
 
+/** Compact completion time for a 魚拓 (e.g. "7/13 14:30"). */
+function capTime(at: number): string {
+  return new Date(at).toLocaleString(undefined, { month: 'numeric', day: 'numeric', hour: '2-digit', minute: '2-digit' });
+}
+
 function tlpClass(t: TlpLevel): string {
   return `tlp-${t.toLowerCase().replace('+', '-')}`;
 }
@@ -798,39 +803,89 @@ export function CampaignPage() {
             if (!capKey) return null;
             const cap = webCaptures[capKey];
             const cp = cap?.phase;
-            const capRunning = cp === 'submitting' || cp === 'running';
-            const label = capRunning
-              ? '🎣 魚拓中…'
-              : cp === 'done'
-                ? '🎣 魚拓 ✓'
-                : cp === 'stalled' || cp === 'interrupted'
-                  ? '🎣 再確認'
-                  : cp === 'error'
-                    ? '🎣 再試行'
-                    : '🎣 魚拓';
+            const running = cp === 'submitting' || cp === 'running';
+            const history = cap?.history ?? [];
+            if (running) {
+              return (
+                <button className="btn btn-sm" disabled title="urlscan でレンダリング中…（閉じても裏で継続）">
+                  🎣 魚拓中…
+                </button>
+              );
+            }
+            if (cp === 'stalled' || cp === 'interrupted') {
+              return (
+                <button className="btn btn-sm" onClick={() => void startWebCapture(capKey)} title="同じスキャンの結果を再確認（継続）">
+                  🎣 再確認
+                </button>
+              );
+            }
+            if (history.length > 0) {
+              // Done: show WHEN it was captured (latest opens directly), a select to jump to past 魚拓
+              // URLs, and a Re-魚拓 to take a fresh one — no longer a duplicate of "Details".
+              const latest = history[0];
+              return (
+                <span className="cp-cap">
+                  {latest.result?.resultUrl ? (
+                    <a
+                      className="cp-cap-open"
+                      href={latest.result.resultUrl}
+                      target="_blank"
+                      rel="noreferrer"
+                      title={`最新の魚拓（urlscan）を開く · ${new Date(latest.at).toLocaleString()}${latest.by ? ` · ${latest.by}` : ''}`}
+                    >
+                      🎣 済 {capTime(latest.at)} ↗
+                    </a>
+                  ) : (
+                    <span className="cp-cap-open" title="魚拓 完了">🎣 済 {capTime(latest.at)}</span>
+                  )}
+                  {history.length >= 2 && (
+                    <select
+                      className="cp-cap-hist"
+                      title="過去の魚拓を選んで開く（urlscan）"
+                      value=""
+                      onChange={(e) => {
+                        const v = e.currentTarget.value;
+                        if (v !== '') {
+                          const u = history[Number(v)]?.result?.resultUrl;
+                          if (u) window.open(u, '_blank', 'noopener');
+                        }
+                        e.currentTarget.value = '';
+                      }}
+                    >
+                      <option value="">過去 ({history.length}) ▾</option>
+                      {history.map((h, idx) => (
+                        <option key={h.uuid} value={idx}>
+                          {capTime(h.at)}
+                          {h.by ? ` · ${h.by}` : ''}
+                          {idx === 0 ? ' · 最新' : ''}
+                        </option>
+                      ))}
+                    </select>
+                  )}
+                  <button
+                    className="btn btn-sm"
+                    onClick={() => void startWebCapture(capKey)}
+                    title="魚拓を取り直す（最新状態を新たに保全して履歴に追加）"
+                  >
+                    🔄 Re-魚拓
+                  </button>
+                </span>
+              );
+            }
+            // error or never captured → offer a fresh capture
             return (
               <button
-                className={`btn btn-sm${cp === 'done' ? ' btn-primary' : ''}`}
-                disabled={capRunning}
-                onClick={() => {
-                  if (cp === 'done') {
-                    if (r) showResult(r);
-                    else if (cap?.result?.resultUrl) window.open(cap.result.resultUrl, '_blank', 'noopener');
-                    return;
-                  }
-                  void startWebCapture(capKey);
-                }}
+                className="btn btn-sm"
+                onClick={() => void startWebCapture(capKey)}
                 title={
-                  cp === 'done'
-                    ? 'urlscan 魚拓の結果を開く'
-                    : capRunning
-                      ? 'urlscan でレンダリング中…（このページを閉じても裏で継続）'
-                      : i.type === 'ipv4' || i.type === 'ipv6'
-                        ? `urlscan で ${capKey} を魚拓（この資産のWeb面の現状を保全・裏で継続）`
-                        : 'urlscan のサンドボックスで今の状態を魚拓（裏で継続・後で確認可）'
+                  cp === 'error'
+                    ? `再試行: ${cap?.error ?? ''}`
+                    : i.type === 'ipv4' || i.type === 'ipv6'
+                      ? `urlscan で ${capKey} を魚拓（Web面の現状を保全・裏で継続）`
+                      : 'urlscan で今の状態を魚拓（裏で継続・後で確認可）'
                 }
               >
-                {label}
+                {cp === 'error' ? '🎣 再試行' : '🎣 魚拓'}
               </button>
             );
           })()}
@@ -889,6 +944,8 @@ export function CampaignPage() {
       return p === 'submitting' || p === 'running';
     }).length;
     const capDoneN = capturable.filter((i) => webCaptures[captureKey(i)!]?.phase === 'done').length;
+    // Once any target in range has a 魚拓, the bulk action is really a RE-capture — label it so.
+    const capAnyHistory = capturable.some((i) => (webCaptures[captureKey(i)!]?.history?.length ?? 0) > 0);
     return (
       <>
         <p className="hint mon-intro">
@@ -1027,7 +1084,11 @@ export function CampaignPage() {
                     : '攻撃側インフラ（URL/ドメイン + IPのWeb面 https://）を一括で urlscan 魚拓 — 各ジョブは裏で継続・完了時に🔔'
                 }
               >
-                {capRunningN > 0 ? `🎣 魚拓 実行中… (${capRunningN})` : `🎣 魚拓 all (${capturable.length})`}
+                {capRunningN > 0
+                  ? `🎣 魚拓 実行中… (${capRunningN})`
+                  : capAnyHistory
+                    ? `🔄 Re-魚拓 all (${capturable.length})`
+                    : `🎣 魚拓 all (${capturable.length})`}
               </button>
             )}
             {(capRunningN > 0 || capDoneN > 0) && (
