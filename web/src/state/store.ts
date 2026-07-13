@@ -780,9 +780,11 @@ interface State {
   running: boolean;
   error: string | null;
   selected: string | null;
-  view: 'app' | 'admin' | 'monitor' | 'analysis' | 'campaigns' | 'campaign';
+  view: 'app' | 'admin' | 'monitor' | 'analysis' | 'campaigns' | 'campaign' | 'campaign-analysis';
   /** IP whose enrichment-analysis page is open (view === 'analysis'). */
   analysisIp: string | null;
+  /** Campaign IOC whose enrichment-analysis page is open (view === 'campaign-analysis'). */
+  analysisCampaign: { id: string; value: string } | null;
 
   /** CP-Mon campaigns (attack-campaign-organised IOC watchlists), keyed by campaign id. */
   campaigns: Record<string, Campaign>;
@@ -811,9 +813,11 @@ interface State {
   showResult: (r: NormalizedResult) => void;
   restore: (results: NormalizedResult[], input: string) => void;
 
-  setView: (v: 'app' | 'admin' | 'monitor' | 'analysis' | 'campaigns' | 'campaign') => void;
+  setView: (v: 'app' | 'admin' | 'monitor' | 'analysis' | 'campaigns' | 'campaign' | 'campaign-analysis') => void;
   /** Open the full-page enrichment analysis for one monitored IP. */
   openAnalysis: (ip: string) => void;
+  /** Open the full-page enrichment analysis for one campaign IOC (its history timeline). */
+  openCampaignAnalysis: (id: string, value: string) => void;
   applySettings: (s: AppSettings) => void;
   applyUsers: (u: UserRecord[]) => void;
   refreshHealth: () => Promise<void>;
@@ -1023,6 +1027,7 @@ export const useStore = create<State>((set, get) => {
   selected: null,
   view: 'app',
   analysisIp: null,
+  analysisCampaign: null,
   campaigns: loadCampaigns(),
   campaignId: null,
   campaignsSyncNote: null,
@@ -1269,6 +1274,10 @@ export const useStore = create<State>((set, get) => {
 
   openAnalysis(ip) {
     set({ analysisIp: ip, view: 'analysis' });
+  },
+
+  openCampaignAnalysis(id, value) {
+    set({ analysisCampaign: { id, value }, view: 'campaign-analysis' });
   },
 
   applySettings(s) {

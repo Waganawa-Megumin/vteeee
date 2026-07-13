@@ -417,6 +417,7 @@ export function CampaignPage() {
   const rename = useStore((s) => s.renameCampaign);
   const removeCampaign = useStore((s) => s.removeCampaign);
   const showResult = useStore((s) => s.showResult);
+  const openCampaignAnalysis = useStore((s) => s.openCampaignAnalysis);
   const startWebCapture = useStore((s) => s.startWebCapture);
   const startWebCaptureBatch = useStore((s) => s.startWebCaptureBatch);
   const webCaptures = useStore((s) => s.webCaptures);
@@ -696,6 +697,14 @@ export function CampaignPage() {
             }
           >
             Details
+          </button>
+          <button
+            className="btn btn-sm"
+            disabled={!r && !(i.history?.length ?? 0)}
+            onClick={() => openCampaignAnalysis(cid, i.value)}
+            title="エンリッチ履歴の時系列分析（トレンド・指標マトリクス・2点比較・タイムライン）"
+          >
+            📈 Analysis{(i.history?.length ?? 0) > 1 ? ` (${i.history!.length})` : ''}
           </button>
           {(() => {
             const capKey = captureKey(i);

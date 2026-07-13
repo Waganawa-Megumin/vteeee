@@ -16,6 +16,7 @@ import { MonitorPage } from './components/MonitorPage';
 import { MonitorAnalysisPage } from './components/MonitorAnalysisPage';
 import { CampaignsPage } from './components/CampaignsPage';
 import { CampaignPage } from './components/CampaignPage';
+import { CampaignAnalysisPage } from './components/CampaignAnalysisPage';
 import { RuleSearchDialog } from './components/RuleSearchDialog';
 import { EmptyState } from './components/EmptyState';
 import { AdminPanel } from './admin/AdminPanel';
@@ -155,6 +156,10 @@ export default function App() {
       ) : view === 'campaign' ? (
         <div className="page-wrap">
           <CampaignPage />
+        </div>
+      ) : view === 'campaign-analysis' ? (
+        <div className="page-wrap">
+          <CampaignAnalysisPage />
         </div>
       ) : (
         <main className="layout">
