@@ -196,7 +196,7 @@ function loadWebCaptures(): Record<string, WebCaptureJob> {
             : [];
       }
       if (CAP_ACTIVE.includes(j.phase)) {
-        jobs[k] = { ...j, phase: 'interrupted', msg: 'ページ再読込で中断 — 「再確認」で続行できます。' };
+        jobs[k] = { ...j, phase: 'interrupted', msg: 'ページ再読込で中断 — 「再確認」で続行できます。', token: undefined };
       }
     }
     return jobs;
@@ -983,7 +983,9 @@ export const useStore = create<State>((set, get) => {
   const writeJob = (ip: string, token: number, started: number, patch: Partial<ScanJob>): void => {
     set((s) => {
       const cur = s.scanJobs[ip];
-      if (cur && cur.token != null && cur.token !== token) return {};
+      // Block a superseded run's async writes — but let a fresh Re-check CLAIM a settled/parked job
+      // (done/timeout/interrupted), whose stale token would otherwise reject the new run's first write.
+      if (cur && cur.token != null && cur.token !== token && isActiveScan(cur)) return {};
       const m: Partial<ScanJob> = { ...cur, ...patch };
       const next: ScanJob = {
         ip,
@@ -1010,7 +1012,9 @@ export const useStore = create<State>((set, get) => {
   const writeCap = (target: string, token: number, started: number, patch: Partial<WebCaptureJob>): void => {
     set((s) => {
       const cur = s.webCaptures[target];
-      if (cur && cur.token != null && cur.token !== token) return {};
+      // Block a superseded run's async writes — but let a fresh Re-check / Re-魚拓 CLAIM a settled/parked
+      // job (done/stalled/interrupted), whose stale token would otherwise reject the new run's first write.
+      if (cur && cur.token != null && cur.token !== token && isActiveCapture(cur)) return {};
       const m: Partial<WebCaptureJob> = { ...cur, ...patch };
       const next: WebCaptureJob = {
         target,
@@ -1670,21 +1674,34 @@ export const useStore = create<State>((set, get) => {
     const vis = visibility ?? get().settings.urlscanVisibility ?? 'unlisted';
     const alive = () => get().webCaptures[target]?.token === token;
     const wait = (ms: number) => new Promise((res) => setTimeout(res, ms));
+    // Resume path: a stalled / interrupted job already has a uuid — never re-submit (that wastes a
+    // scan and orphans the original), just keep polling for the same uuid's result. A fresh Re-魚拓
+    // (done / error / no job) always submits anew.
+    const resumable = Boolean(existing && (existing.phase === 'stalled' || existing.phase === 'interrupted') && existing.uuid);
+    // Claim the target synchronously — BEFORE the async client import — so the tap gives instant feedback
+    // (live dot, the Re-check button flips) even on mobile or right after a reload, when the client chunk
+    // isn't cached yet and makeClient() takes a moment. Without this the tap looks dead until it resolves.
+    writeCap(
+      target,
+      token,
+      started,
+      resumable
+        ? { phase: 'running', visibility: vis, msg: 'urlscan の結果を再確認中…', error: undefined, seen: false }
+        : { phase: 'submitting', visibility: vis, msg: '魚拓を準備中…', uuid: undefined, result: undefined, error: undefined, seen: false },
+    );
     maybeRequestNotify(); // the button click is a user gesture, so we may ask for notification permission
 
     let client: EnrichClient;
     try {
       client = await makeClient(get().settings);
     } catch (e) {
+      if (!alive()) return;
       writeCap(target, token, started, { phase: 'error', error: (e as Error).message, msg: (e as Error).message });
       return;
     }
+    if (!alive()) return; // a newer run claimed this target while the client chunk loaded
 
-    // Resume path: a stalled / interrupted job already has a uuid — never re-submit (that wastes a
-    // scan and orphans the original), just keep polling for the same uuid's result. A fresh Re-scan
-    // (done / error / no job) always submits anew.
-    const resumable = existing && (existing.phase === 'stalled' || existing.phase === 'interrupted') && existing.uuid;
-    let uuid = resumable ? existing.uuid : undefined;
+    let uuid = resumable ? existing?.uuid : undefined;
     if (!uuid) {
       writeCap(target, token, started, {
         phase: 'submitting',
