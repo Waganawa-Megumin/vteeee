@@ -355,16 +355,19 @@ async function pushSharedMonitorEntry(settings: AppSettings, ip: string, entry: 
 // ---- Shared campaigns sync (proxy KV) ----
 // CP-Mon is an all-shared model too (avoid redundant enrichment): campaigns + their IOC timelines sync
 // via the proxy KV under the same on/off flag as the watchlist.
-async function fetchSharedCampaigns(settings: AppSettings): Promise<Record<string, Campaign> | null> {
-  if (!monitorSharingOn(settings)) return null;
+/** Fetch the shared campaigns with the HTTP status, so the UI can tell 404 (proxy too old) from 401
+ *  (token) from a network/CORS error from "genuinely empty" — instead of one vague "sync failed". */
+async function fetchCampaignsStatus(
+  settings: AppSettings,
+): Promise<{ data: Record<string, Campaign> | null; status: number; netError: boolean }> {
   const base = settings.proxyBaseUrl!.replace(/\/$/, '');
   try {
     const res = await fetch(`${base}/api/campaigns`, { headers: monitorAuth(settings), cache: 'no-store' });
-    if (!res.ok) return null;
+    if (!res.ok) return { data: null, status: res.status, netError: false };
     const j = await res.json();
-    return j && typeof j === 'object' ? (j as Record<string, Campaign>) : {};
+    return { data: (j && typeof j === 'object' ? (j as Record<string, Campaign>) : {}), status: res.status, netError: false };
   } catch {
-    return null;
+    return { data: null, status: 0, netError: true };
   }
 }
 /** Publish local campaigns NON-destructively: re-read the shared blob, UNION it with local (per-field,
@@ -1899,16 +1902,28 @@ export const useStore = create<State>((set, get) => {
 
   async refreshCampaigns() {
     const settings = get().settings;
-    const shared = await fetchSharedCampaigns(settings);
+    if (!monitorSharingOn(settings)) {
+      set({ campaignsSyncNote: '共有OFF/プロキシ未接続 — この端末のみ表示中（Settings で接続すると共有されます）' });
+      return;
+    }
+    const r = await fetchCampaignsStatus(settings);
+    const shared = r.data;
+    let note: string;
+    if (r.netError) {
+      note = '⚠ プロキシに到達できません（ネットワーク/CORS）。データは消えていません。プロキシURL・接続を確認して再試行してください。';
+    } else if (r.status === 404) {
+      note =
+        '⚠ このプロキシに /api/campaigns がありません（CP-Mon 未対応の古いデプロイ）。GitHub Actions の「Deploy Proxy」で最新版を再デプロイしてください。※未対応の間、Campaign はこの端末のローカルのみで、サーバ共有されていません。';
+    } else if (r.status === 401 || r.status === 403) {
+      note = '⚠ 認証エラー（アクセストークン）。Settings のトークンを確認してください。データは消えていません。';
+    } else if (r.status >= 400) {
+      note = `⚠ 同期に失敗（HTTP ${r.status}）。データは消えていません。少し待って再試行してください。`;
+    } else {
+      note = `同期OK · サーバに ${Object.keys(shared ?? {}).length} 件`;
+    }
     set((s) => {
       const campaigns = mergeCampaigns(s.campaigns, shared);
       saveCampaigns(campaigns);
-      // Distinguish "sync failed / not connected" from "genuinely no campaigns yet".
-      const note = !monitorSharingOn(settings)
-        ? '共有OFF/プロキシ未接続 — この端末のみ表示中（Settings で接続すると共有されます）'
-        : shared === null
-          ? '⚠ 同期に失敗しました（通信/認証エラー）。データは消えていません。少し待って再試行してください。'
-          : `同期OK · 共有 ${Object.keys(shared).length} 件`;
       return { campaigns, campaignsSyncNote: note };
     });
     if (shared !== null) void putSharedCampaignsAll(settings, get().campaigns);
