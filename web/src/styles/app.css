@@ -487,6 +487,24 @@ textarea:focus {
   }
 }
 
+/* Full-page views (IP-Mon / CP-Mon / Analysis / Manage) render outside the search .layout wrapper.
+   Constrain them the same way — centered, max-width, and inset from the viewport — so the panel
+   border isn't flush against (or past) the screen edges on wide monitors. */
+.page-wrap {
+  flex: 1;
+  width: 100%;
+  max-width: 1840px;
+  margin: 0 auto;
+  padding: 18px;
+  min-height: 0;
+  overflow-y: auto;
+}
+@media (max-width: 640px) {
+  .page-wrap {
+    padding: 10px;
+  }
+}
+
 /* panels */
 .panel {
   background: var(--panel);

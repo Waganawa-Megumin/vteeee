@@ -130,15 +130,25 @@ export default function App() {
       {error && <div className="error-banner">{error}</div>}
 
       {view === 'admin' ? (
-        <AdminPanel />
+        <div className="page-wrap">
+          <AdminPanel />
+        </div>
       ) : view === 'monitor' ? (
-        <MonitorPage />
+        <div className="page-wrap">
+          <MonitorPage />
+        </div>
       ) : view === 'analysis' ? (
-        <MonitorAnalysisPage />
+        <div className="page-wrap">
+          <MonitorAnalysisPage />
+        </div>
       ) : view === 'campaigns' ? (
-        <CampaignsPage />
+        <div className="page-wrap">
+          <CampaignsPage />
+        </div>
       ) : view === 'campaign' ? (
-        <CampaignPage />
+        <div className="page-wrap">
+          <CampaignPage />
+        </div>
       ) : (
         <main className="layout">
           <div className="col-left">
