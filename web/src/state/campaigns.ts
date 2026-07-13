@@ -39,6 +39,24 @@ export interface CampaignSummary {
 export type TlpLevel = 'CLEAR' | 'GREEN' | 'AMBER' | 'AMBER+STRICT' | 'RED';
 export const TLP_LEVELS: TlpLevel[] = ['CLEAR', 'GREEN', 'AMBER', 'AMBER+STRICT', 'RED'];
 
+/** Admiralty Code (NATO source-evaluation system): source reliability A–F + info credibility 1–6. */
+export const ADMIRALTY_RELIABILITY: [string, string][] = [
+  ['A', '完全に信頼できる (Completely reliable)'],
+  ['B', '通常信頼できる (Usually reliable)'],
+  ['C', 'かなり信頼できる (Fairly reliable)'],
+  ['D', '通常は信頼できない (Not usually reliable)'],
+  ['E', '信頼できない (Unreliable)'],
+  ['F', '信頼性を判定できない (Cannot be judged)'],
+];
+export const ADMIRALTY_CREDIBILITY: [string, string][] = [
+  ['1', '確認済み・他の独立ソースで裏付け (Confirmed)'],
+  ['2', 'おそらく真 (Probably true)'],
+  ['3', '真の可能性あり (Possibly true)'],
+  ['4', '疑わしい (Doubtful)'],
+  ['5', 'ありそうにない (Improbable)'],
+  ['6', '真偽を判定できない (Cannot be judged)'],
+];
+
 /** A Claude-written CTI assessment report (markdown) — context-based insight, not a data dump. */
 export interface CampaignAssessment {
   text: string;
@@ -60,6 +78,10 @@ export interface Campaign {
   groupOrder?: string[];
   /** Traffic Light Protocol marking (analyst-set; defaults to AMBER when unset). */
   tlp?: TlpLevel;
+  /** Admiralty Code — source reliability (A–F). */
+  admiraltyReliability?: string;
+  /** Admiralty Code — information credibility (1–6). */
+  admiraltyCredibility?: string;
   /** Latest overall summary (shared with the campaign so the whole team sees the same key message). */
   summary?: CampaignSummary;
   /** Latest Claude CTI assessment report (shared). */
@@ -146,6 +168,8 @@ export function mergeCampaign(a: Campaign | undefined, b: Campaign | undefined):
     updatedAt: Math.max(a?.updatedAt ?? 0, b?.updatedAt ?? 0),
     note: (newerB ? b?.note : a?.note) ?? base.note,
     tlp: (newerB ? b?.tlp : a?.tlp) ?? base.tlp,
+    admiraltyReliability: (newerB ? b?.admiraltyReliability : a?.admiraltyReliability) ?? base.admiraltyReliability,
+    admiraltyCredibility: (newerB ? b?.admiraltyCredibility : a?.admiraltyCredibility) ?? base.admiraltyCredibility,
     groupOrder: (newerB ? b?.groupOrder : a?.groupOrder) ?? base.groupOrder,
     iocs,
     summary,

@@ -56,6 +56,7 @@ import {
   loadCampaigns,
   saveCampaigns,
   slimCampaign,
+  mergeCampaign,
   mergeCampaigns,
   type Campaign,
   type IocSide,
@@ -365,20 +366,26 @@ async function fetchSharedCampaigns(settings: AppSettings): Promise<Record<strin
     return null;
   }
 }
-/** Replace the whole shared campaigns blob (raw stripped). */
+/** Publish local campaigns NON-destructively: re-read the shared blob, UNION it with local (per-field,
+ *  per-IOC newest-wins via mergeCampaigns), and write the union back. A stale/empty client therefore can
+ *  never wipe campaigns another browser created — it uploads what it has and keeps everything it doesn't. */
 async function putSharedCampaignsAll(settings: AppSettings, map: Record<string, Campaign>): Promise<void> {
   if (!monitorSharingOn(settings)) return;
   const base = settings.proxyBaseUrl!.replace(/\/$/, '');
-  const slim: Record<string, Campaign> = {};
-  for (const [k, v] of Object.entries(map)) slim[k] = slimCampaign(v);
   try {
+    const res = await fetch(`${base}/api/campaigns`, { headers: monitorAuth(settings), cache: 'no-store' });
+    const j = res.ok ? await res.json() : {};
+    const remote = (j && typeof j === 'object' ? j : {}) as Record<string, Campaign>;
+    const merged = mergeCampaigns(map, remote);
+    const slim: Record<string, Campaign> = {};
+    for (const [k, v] of Object.entries(merged)) slim[k] = slimCampaign(v);
     await fetch(`${base}/api/campaigns`, {
       method: 'PUT',
       headers: { ...monitorAuth(settings), 'content-type': 'application/json' },
       body: JSON.stringify(slim),
     });
   } catch {
-    /* offline */
+    /* offline — local copy keeps everything; a later refresh reconciles */
   }
 }
 /** Read-modify-write ONE campaign into the shared blob (set, or delete when null). Best-effort. */
@@ -389,7 +396,9 @@ async function pushSharedCampaign(settings: AppSettings, id: string, campaign: C
     const res = await fetch(`${base}/api/campaigns`, { headers: monitorAuth(settings), cache: 'no-store' });
     const j = res.ok ? await res.json() : {};
     const map = (j && typeof j === 'object' ? j : {}) as Record<string, Campaign>;
-    if (campaign) map[id] = slimCampaign(campaign);
+    // Merge our copy with whatever's already shared so a concurrent edit on the SAME campaign (e.g. a
+    // teammate adding IOCs) isn't clobbered; delete removes it (best-effort — no tombstone).
+    if (campaign) map[id] = slimCampaign(mergeCampaign(map[id], campaign));
     else delete map[id];
     await fetch(`${base}/api/campaigns`, {
       method: 'PUT',
@@ -532,6 +541,10 @@ function buildAssessmentDigest(c: Campaign): unknown {
   return {
     name: c.name,
     tlp: c.tlp ?? 'AMBER',
+    admiralty:
+      c.admiraltyReliability || c.admiraltyCredibility
+        ? `${c.admiraltyReliability ?? '?'}${c.admiraltyCredibility ?? '?'}`
+        : undefined,
     iocCount: iocs.length,
     spanDays: maxAt > minAt && minAt !== Number.MAX_SAFE_INTEGER ? Math.round((maxAt - minAt) / 86_400_000) : 0,
     totalSnapshots,
@@ -703,6 +716,8 @@ interface State {
   setCampaignIocSide: (id: string, values: string[], side: IocSide) => Promise<void>;
   /** Set the campaign's TLP handling marking. */
   setCampaignTlp: (id: string, tlp: TlpLevel) => Promise<void>;
+  /** Set the campaign's Admiralty Code (source reliability A–F, info credibility 1–6). */
+  setCampaignAdmiralty: (id: string, reliability: string, credibility: string) => Promise<void>;
   /** Move a group up/down in the campaign's display order. */
   reorderCampaignGroup: (id: string, group: string, dir: 'up' | 'down') => Promise<void>;
   /** Remove IOCs from a campaign. */
@@ -1704,6 +1719,26 @@ export const useStore = create<State>((set, get) => {
       const cur = s.campaigns[id];
       if (!cur) return {};
       const campaigns = { ...s.campaigns, [id]: { ...cur, tlp, updatedAt: now } };
+      saveCampaigns(campaigns);
+      return { campaigns };
+    });
+    void pushSharedCampaign(get().settings, id, get().campaigns[id] ?? null);
+  },
+
+  async setCampaignAdmiralty(id, reliability, credibility) {
+    const now = Date.now();
+    set((s) => {
+      const cur = s.campaigns[id];
+      if (!cur) return {};
+      const campaigns = {
+        ...s.campaigns,
+        [id]: {
+          ...cur,
+          admiraltyReliability: reliability || undefined,
+          admiraltyCredibility: credibility || undefined,
+          updatedAt: now,
+        },
+      };
       saveCampaigns(campaigns);
       return { campaigns };
     });

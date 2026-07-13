@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { extractIndicators, type EnrichableType } from '@vteeee/shared';
 import { useStore, type CampaignIoc, type IocSide, type TlpLevel } from '../state/store';
-import { TLP_LEVELS } from '../state/campaigns';
+import { TLP_LEVELS, ADMIRALTY_RELIABILITY, ADMIRALTY_CREDIBILITY } from '../state/campaigns';
 import { VerdictBadge } from './Badges';
 import { Spark } from './Spark';
 import { CountryChoropleth } from './CountryChoropleth';
@@ -319,6 +319,7 @@ export function CampaignPage() {
   const setGroup = useStore((s) => s.setCampaignIocGroup);
   const setSide = useStore((s) => s.setCampaignIocSide);
   const setTlp = useStore((s) => s.setCampaignTlp);
+  const setAdmiralty = useStore((s) => s.setCampaignAdmiralty);
   const reorderGroup = useStore((s) => s.reorderCampaignGroup);
   const removeIocs = useStore((s) => s.removeCampaignIocs);
   const reEnrich = useStore((s) => s.reEnrichCampaignIoc);
@@ -329,12 +330,14 @@ export function CampaignPage() {
   const showResult = useStore((s) => s.showResult);
   const summarize = useStore((s) => s.summarizeCampaign);
   const assess = useStore((s) => s.assessCampaign);
+  const refreshCampaigns = useStore((s) => s.refreshCampaigns);
   const [text, setText] = useState('');
   const [groupInput, setGroupInput] = useState('');
   const [tab, setTab] = useState<Tab>('dashboard');
   const [summarizing, setSummarizing] = useState(false);
   const [assessing, setAssessing] = useState(false);
   const [bulkBusy, setBulkBusy] = useState(false);
+  const [admHelp, setAdmHelp] = useState(false);
 
   async function bulkReEnrich(values: string[]) {
     if (!values.length || bulkBusy) return;
@@ -366,6 +369,11 @@ export function CampaignPage() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [id, iocCount, hasSummary]);
 
+  // Pull the latest shared campaigns when opening one, so cross-browser edits are reflected.
+  useEffect(() => {
+    if (id) void refreshCampaigns();
+  }, [id, refreshCampaigns]);
+
   if (!id || !campaign) {
     return (
       <section className="panel monitor-page">
@@ -382,6 +390,8 @@ export function CampaignPage() {
 
   const cid: string = id;
   const tlp: TlpLevel = campaign.tlp ?? 'AMBER';
+  const admRel = campaign.admiraltyReliability ?? '';
+  const admCred = campaign.admiraltyCredibility ?? '';
   const iocs = Object.values(campaign.iocs).sort((a, b) => b.updatedAt - a.updatedAt);
   const attackIocs = iocs.filter((i) => (i.side ?? 'attack') === 'attack');
   const targetIocs = iocs.filter((i) => i.side === 'target');
@@ -867,6 +877,78 @@ export function CampaignPage() {
             ))}
           </select>
         </label>
+        <div className="cp-admiralty" title="Admiralty Code — 情報源の信頼性(A–F) ＋ 情報の確度(1–6)">
+          <span className="cp-admiralty-label">Admiralty</span>
+          <select
+            className="cp-adm-sel"
+            value={admRel}
+            onChange={(e) => void setAdmiralty(cid, e.target.value, admCred)}
+            aria-label="情報源の信頼性 (A–F)"
+            title="情報源の信頼性 (A–F)"
+          >
+            <option value="">—</option>
+            {ADMIRALTY_RELIABILITY.map(([k, desc]) => (
+              <option key={k} value={k} title={desc}>
+                {k}
+              </option>
+            ))}
+          </select>
+          <select
+            className="cp-adm-sel"
+            value={admCred}
+            onChange={(e) => void setAdmiralty(cid, admRel, e.target.value)}
+            aria-label="情報の確度 (1–6)"
+            title="情報の確度 (1–6)"
+          >
+            <option value="">—</option>
+            {ADMIRALTY_CREDIBILITY.map(([k, desc]) => (
+              <option key={k} value={k} title={desc}>
+                {k}
+              </option>
+            ))}
+          </select>
+          <button
+            type="button"
+            className="cp-help-btn"
+            onClick={() => setAdmHelp((v) => !v)}
+            title="Admiralty Code とは？"
+            aria-expanded={admHelp}
+          >
+            ❓
+          </button>
+          {admHelp && (
+            <div className="cp-help-pop" role="dialog" aria-label="Admiralty Code の説明">
+              <div className="cp-help-pop-head">
+                <b>Admiralty Code（NATO 情報評価システム）</b>
+                <button className="cp-help-close" onClick={() => setAdmHelp(false)} aria-label="閉じる">
+                  ✕
+                </button>
+              </div>
+              <p className="hint">
+                情報源の<b>信頼性</b>（A–F）と情報自体の<b>確度</b>（1–6）を組み合わせて評価します。例:{' '}
+                <b>B2</b>＝「通常信頼できる情報源」×「おそらく真」。2軸は独立に評価するのが原則です。
+              </p>
+              <div className="cp-help-cols">
+                <div>
+                  <div className="cp-help-col-title">情報源の信頼性 (Reliability)</div>
+                  {ADMIRALTY_RELIABILITY.map(([k, desc]) => (
+                    <div key={k} className="cp-help-row">
+                      <b>{k}</b> {desc}
+                    </div>
+                  ))}
+                </div>
+                <div>
+                  <div className="cp-help-col-title">情報の確度 (Credibility)</div>
+                  {ADMIRALTY_CREDIBILITY.map(([k, desc]) => (
+                    <div key={k} className="cp-help-row">
+                      <b>{k}</b> {desc}
+                    </div>
+                  ))}
+                </div>
+              </div>
+            </div>
+          )}
+        </div>
         <span className="cp-title-meta">{iocs.length} IoCs</span>
         <div className="spacer" />
         <button
