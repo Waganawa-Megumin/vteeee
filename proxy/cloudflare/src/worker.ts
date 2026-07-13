@@ -26,6 +26,7 @@ import {
   getSharedCampaigns,
   putSharedCampaigns,
   summarizeCampaign,
+  assessCampaign,
   runAllScheduledEnrich,
   getUsers,
   putUsers,
@@ -400,6 +401,13 @@ export default {
           return json({ error: 'daily smart-parse quota reached' }, 429);
         const digest = (await request.json()) as CampaignDigest;
         return json(await summarizeCampaign(digest, proxy));
+      }
+      // CP-Mon CTI assessment report (Claude analytical report from a rich campaign digest).
+      if (url.pathname === '/api/campaign-assessment' && request.method === 'POST') {
+        if (!checkAccess(auth, proxy)) return json({ error: 'unauthorized' }, 401);
+        if (!(await consumeDailyQuota(store, 'parse', proxy.parseDailyCap, 1)))
+          return json({ error: 'daily smart-parse quota reached' }, 429);
+        return json(await assessCampaign(await request.json(), proxy));
       }
       // Manual trigger for the server-side auto re-enrich (also runs on the Cloudflare cron below).
       // Admin-token gated. Node deployments point an external daily cron at this endpoint.

@@ -29,6 +29,7 @@ import {
   getSharedCampaigns,
   putSharedCampaigns,
   summarizeCampaign,
+  assessCampaign,
   runAllScheduledEnrich,
   getUsers,
   putUsers,
@@ -407,6 +408,11 @@ app.put('/api/campaigns', async (req, res) => {
 app.post('/api/campaign-summary', async (req, res) => {
   if (!requireAccess(req, res)) return;
   res.json(await summarizeCampaign(req.body as import('@vteeee/shared').CampaignDigest, env));
+});
+// CP-Mon CTI assessment report (Claude analytical report from a rich campaign digest).
+app.post('/api/campaign-assessment', async (req, res) => {
+  if (!requireAccess(req, res)) return;
+  res.json(await assessCampaign(req.body, env));
 });
 // Server-side auto re-enrich. Point a daily system cron at this (admin-token gated), e.g.:
 //   curl -fsS -X POST -H "Authorization: Bearer $ADMIN_TOKEN" http://localhost:8787/api/cron/auto-enrich

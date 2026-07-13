@@ -52,9 +52,17 @@ import { authenticate, persistSession, restoreSession } from '../auth/session';
 import { makeClient, type EnrichClient } from '../api/client';
 import { saveHistory } from '../lib/historySource';
 import { requestPersistentStorage } from '../lib/durable';
-import { loadCampaigns, saveCampaigns, slimCampaign, mergeCampaigns, type Campaign } from './campaigns';
-export type { Campaign, CampaignIoc } from './campaigns';
-import { countryOf, diffParts } from '../lib/enrichTrend';
+import {
+  loadCampaigns,
+  saveCampaigns,
+  slimCampaign,
+  mergeCampaigns,
+  type Campaign,
+  type IocSide,
+  type TlpLevel,
+} from './campaigns';
+export type { Campaign, CampaignIoc, IocSide, TlpLevel } from './campaigns';
+import { abuseOf, countryOf, detOf, diffParts, rfOf } from '../lib/enrichTrend';
 
 export const indKey = (i: { type: string; value: string }) => `${i.type}|${i.value}`;
 
@@ -463,6 +471,108 @@ async function fetchCampaignSummary(settings: AppSettings, digest: CampaignDiges
   }
 }
 
+/** Rich, privacy-safe digest for the CTI assessment: per-IOC intel highlights + timeline changes so
+ *  Claude has the context to reason (attribution, TTPs, infra), not just aggregates. Capped for cost. */
+function buildAssessmentDigest(c: Campaign): unknown {
+  const iocs = Object.values(c.iocs);
+  const brief = (i: (typeof iocs)[number]) => {
+    const r = i.result;
+    const h = i.history?.length ? [...i.history].sort((a, b) => a.at - b.at) : [];
+    const changes = h.length >= 2 ? diffParts(h[h.length - 1].result, h[h.length - 2].result) : [];
+    return {
+      value: i.value,
+      type: i.type,
+      group: i.group,
+      verdict: r?.verdict,
+      country: r ? countryOf(r) || undefined : undefined,
+      org: r?.maxmind?.organization ?? r?.shodan?.org ?? r?.ip?.asOwner ?? undefined,
+      asn: r?.maxmind?.asn ?? r?.ip?.asn ?? undefined,
+      det: r ? detOf(r) : undefined,
+      abuse: r ? abuseOf(r) ?? undefined : undefined,
+      rf: r ? rfOf(r) ?? undefined : undefined,
+      ports: r?.shodan?.ports?.slice(0, 12),
+      cves: r?.shodan?.vulns?.slice(0, 12),
+      threat: r?.file?.threatLabel ?? r?.gti?.verdict ?? undefined,
+      firstDays: h.length ? Math.round((Date.now() - h[0].at) / 86_400_000) : undefined,
+      recentChange: changes.length ? changes.join(' · ') : undefined,
+    };
+  };
+  const cap = 50;
+  const attack = iocs.filter((i) => (i.side ?? 'attack') === 'attack').slice(0, cap).map(brief);
+  const target = iocs.filter((i) => i.side === 'target').slice(0, cap).map(brief);
+  const byType = new Map<string, number>();
+  const byCountry = new Map<string, number>();
+  const byCve = new Map<string, number>();
+  const byGroup = new Map<string, number>();
+  let minAt = Number.MAX_SAFE_INTEGER;
+  let maxAt = 0;
+  let totalSnapshots = 0;
+  const recentChanges: { value: string; changes: string }[] = [];
+  for (const i of iocs) {
+    byType.set(i.type, (byType.get(i.type) ?? 0) + 1);
+    if (i.group) byGroup.set(i.group, (byGroup.get(i.group) ?? 0) + 1);
+    const r = i.result;
+    if (r) {
+      const cc = countryOf(r);
+      if (cc) byCountry.set(cc, (byCountry.get(cc) ?? 0) + 1);
+      for (const v of r.shodan?.vulns ?? []) byCve.set(v, (byCve.get(v) ?? 0) + 1);
+    }
+    const h = i.history?.length ? [...i.history].sort((a, b) => a.at - b.at) : [];
+    totalSnapshots += h.length;
+    if (h.length) {
+      minAt = Math.min(minAt, h[0].at);
+      maxAt = Math.max(maxAt, h[h.length - 1].at);
+      if (h.length >= 2) {
+        const ch = diffParts(h[h.length - 1].result, h[h.length - 2].result);
+        if (ch.length) recentChanges.push({ value: i.value, changes: ch.join(' · ') });
+      }
+    }
+  }
+  const top = (m: Map<string, number>, n: number) => [...m.entries()].sort((a, b) => b[1] - a[1]).slice(0, n);
+  return {
+    name: c.name,
+    tlp: c.tlp ?? 'AMBER',
+    iocCount: iocs.length,
+    spanDays: maxAt > minAt && minAt !== Number.MAX_SAFE_INTEGER ? Math.round((maxAt - minAt) / 86_400_000) : 0,
+    totalSnapshots,
+    stats: {
+      withIntel: iocs.filter((i) => i.result).length,
+      malicious: iocs.filter((i) => i.result?.verdict === 'malicious').length,
+      suspicious: iocs.filter((i) => i.result?.verdict === 'suspicious').length,
+      highAbuse: iocs.filter((i) => (i.result?.abuseipdb?.abuseConfidenceScore ?? -1) >= 75).length,
+      distinctCves: byCve.size,
+    },
+    bySide: { attack: attack.length, target: target.length },
+    byType: top(byType, 8),
+    topCountries: top(byCountry, 10),
+    topCves: top(byCve, 12),
+    groups: top(byGroup, 20),
+    attack,
+    target,
+    recentChanges: recentChanges.slice(0, 20),
+  };
+}
+
+/** Ask the proxy's Claude for a full CTI assessment report. Returns '' if unavailable (caller handles). */
+async function fetchCampaignAssessment(settings: AppSettings, digest: unknown): Promise<string> {
+  if (!monitorSharingOn(settings)) {
+    return 'アセスメントレポートの生成には Claude（プロキシ接続）が必要です。Settings でプロキシURL＋アクセストークンを設定し、プロキシに ANTHROPIC_API_KEY を登録してください。';
+  }
+  const base = settings.proxyBaseUrl!.replace(/\/$/, '');
+  try {
+    const res = await fetch(`${base}/api/campaign-assessment`, {
+      method: 'POST',
+      headers: { ...monitorAuth(settings), 'content-type': 'application/json' },
+      body: JSON.stringify(digest),
+    });
+    if (!res.ok) return `アセスメント生成に失敗しました（HTTP ${res.status}）。`;
+    const j = (await res.json()) as { text?: string; error?: string };
+    return j.text?.trim() || j.error || 'アセスメントを生成できませんでした。';
+  } catch {
+    return 'アセスメント生成に失敗しました（ネットワーク）。';
+  }
+}
+
 interface State {
   booted: boolean;
   session: Session | null;
@@ -580,10 +690,21 @@ interface State {
   openCampaigns: () => void;
   /** Open one campaign's detail page. */
   openCampaign: (id: string) => void;
-  /** Add IOCs (any type) to a campaign, optionally under a group, and enrich them. */
-  addCampaignIocs: (id: string, iocs: { value: string; type: EnrichableType }[], group?: string) => Promise<void>;
+  /** Add IOCs (any type) to a campaign, optionally under a group + side (attack/target), and enrich. */
+  addCampaignIocs: (
+    id: string,
+    iocs: { value: string; type: EnrichableType }[],
+    group?: string,
+    side?: IocSide,
+  ) => Promise<void>;
   /** Assign (or clear) a group label on IOCs within a campaign. */
   setCampaignIocGroup: (id: string, values: string[], group: string | undefined) => Promise<void>;
+  /** Move IOCs between attack / target sides of the campaign. */
+  setCampaignIocSide: (id: string, values: string[], side: IocSide) => Promise<void>;
+  /** Set the campaign's TLP handling marking. */
+  setCampaignTlp: (id: string, tlp: TlpLevel) => Promise<void>;
+  /** Move a group up/down in the campaign's display order. */
+  reorderCampaignGroup: (id: string, group: string, dir: 'up' | 'down') => Promise<void>;
   /** Remove IOCs from a campaign. */
   removeCampaignIocs: (id: string, values: string[]) => Promise<void>;
   /** Re-enrich one IOC in a campaign (appends a timeline snapshot). */
@@ -594,6 +715,8 @@ interface State {
   refreshCampaigns: () => Promise<void>;
   /** (Re)generate the campaign's Claude key-message summary (電光掲示板); shared with the campaign. */
   summarizeCampaign: (id: string) => Promise<void>;
+  /** Generate a Claude CTI assessment report (context-based insight); shared with the campaign. */
+  assessCampaign: (id: string) => Promise<void>;
 }
 
 function defaultIncludes(parsed: ParsedIndicator[]): Record<string, boolean> {
@@ -1550,7 +1673,7 @@ export const useStore = create<State>((set, get) => {
     set({ view: 'campaign', campaignId: id });
   },
 
-  async addCampaignIocs(id, iocs, group) {
+  async addCampaignIocs(id, iocs, group, side) {
     const now = Date.now();
     const by = get().session?.username;
     const g = group && group.trim() ? group.trim() : undefined;
@@ -1561,8 +1684,8 @@ export const useStore = create<State>((set, get) => {
       for (const { value, type } of iocs) {
         const ex = nextIocs[value];
         nextIocs[value] = ex
-          ? { ...ex, group: g ?? ex.group, updatedAt: now }
-          : { value, type, group: g, addedAt: now, updatedAt: now, addedBy: by, autoEnrich: true };
+          ? { ...ex, group: g ?? ex.group, side: side ?? ex.side, updatedAt: now }
+          : { value, type, side: side ?? 'attack', group: g, addedAt: now, updatedAt: now, addedBy: by, autoEnrich: true };
       }
       const campaigns = { ...s.campaigns, [id]: { ...cur, iocs: nextIocs, updatedAt: now } };
       saveCampaigns(campaigns);
@@ -1571,6 +1694,71 @@ export const useStore = create<State>((set, get) => {
     void pushSharedCampaign(get().settings, id, get().campaigns[id] ?? null);
     // Enrich the newly-added IOCs (sequential to respect the free-tier rate limit).
     for (const { value } of iocs) await get().reEnrichCampaignIoc(id, value);
+  },
+
+  async setCampaignTlp(id, tlp) {
+    const now = Date.now();
+    set((s) => {
+      const cur = s.campaigns[id];
+      if (!cur) return {};
+      const campaigns = { ...s.campaigns, [id]: { ...cur, tlp, updatedAt: now } };
+      saveCampaigns(campaigns);
+      return { campaigns };
+    });
+    void pushSharedCampaign(get().settings, id, get().campaigns[id] ?? null);
+  },
+
+  async setCampaignIocSide(id, values, side) {
+    const now = Date.now();
+    set((s) => {
+      const cur = s.campaigns[id];
+      if (!cur) return {};
+      const nextIocs = { ...cur.iocs };
+      for (const v of values) if (nextIocs[v]) nextIocs[v] = { ...nextIocs[v], side, updatedAt: now };
+      const campaigns = { ...s.campaigns, [id]: { ...cur, iocs: nextIocs, updatedAt: now } };
+      saveCampaigns(campaigns);
+      return { campaigns };
+    });
+    void pushSharedCampaign(get().settings, id, get().campaigns[id] ?? null);
+  },
+
+  async reorderCampaignGroup(id, group, dir) {
+    const now = Date.now();
+    set((s) => {
+      const cur = s.campaigns[id];
+      if (!cur) return {};
+      // Seed the order from the current group set (alphabetical) if none saved yet.
+      const present = [...new Set(Object.values(cur.iocs).map((i) => i.group).filter((x): x is string => !!x))];
+      const base = (cur.groupOrder ?? []).filter((g) => present.includes(g));
+      for (const g of present.sort((a, b) => a.localeCompare(b))) if (!base.includes(g)) base.push(g);
+      const i = base.indexOf(group);
+      const j = dir === 'up' ? i - 1 : i + 1;
+      if (i < 0 || j < 0 || j >= base.length) return {};
+      [base[i], base[j]] = [base[j], base[i]];
+      const campaigns = { ...s.campaigns, [id]: { ...cur, groupOrder: base, updatedAt: now } };
+      saveCampaigns(campaigns);
+      return { campaigns };
+    });
+    void pushSharedCampaign(get().settings, id, get().campaigns[id] ?? null);
+  },
+
+  async assessCampaign(id) {
+    const cur = get().campaigns[id];
+    if (!cur) return;
+    const text = await fetchCampaignAssessment(get().settings, buildAssessmentDigest(cur));
+    const at = Date.now();
+    const by = get().session?.username;
+    set((s) => {
+      const c = s.campaigns[id];
+      if (!c) return {};
+      const campaigns = {
+        ...s.campaigns,
+        [id]: { ...c, assessment: { text, at, by, tlp: c.tlp ?? 'AMBER' }, updatedAt: at },
+      };
+      saveCampaigns(campaigns);
+      return { campaigns };
+    });
+    void pushSharedCampaign(get().settings, id, get().campaigns[id] ?? null);
   },
 
   async setCampaignIocGroup(id, values, group) {

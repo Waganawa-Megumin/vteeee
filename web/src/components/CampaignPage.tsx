@@ -1,12 +1,29 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { extractIndicators, type EnrichableType } from '@vteeee/shared';
-import { useStore, type CampaignIoc } from '../state/store';
+import { useStore, type CampaignIoc, type IocSide, type TlpLevel } from '../state/store';
+import { TLP_LEVELS } from '../state/campaigns';
 import { VerdictBadge } from './Badges';
 import { Spark } from './Spark';
 import { CountryChoropleth } from './CountryChoropleth';
+import { MarkdownLite } from './MarkdownLite';
 import { abuseOf, countryOf, cvesOf, detOf, diffParts, portsOf, rfOf } from '../lib/enrichTrend';
 
 const UNGROUPED = '__ungrouped__';
+
+/** Threat-relevance score so the most dangerous / info-rich IOCs sort to the top within a group. */
+function threatScore(i: CampaignIoc): number {
+  const r = i.result;
+  if (!r) return -1;
+  const sev = r.verdict === 'malicious' ? 1000 : r.verdict === 'suspicious' ? 400 : r.verdict === 'harmless' ? -50 : 0;
+  return (
+    sev + detOf(r) * 10 + (abuseOf(r) ?? 0) * 3 + (rfOf(r) ?? 0) * 2 + cvesOf(r) * 60 + portsOf(r) + (i.history?.length ?? 0) * 2
+  );
+}
+const byThreat = (list: CampaignIoc[]) => [...list].sort((a, b) => threatScore(b) - threatScore(a));
+
+function tlpClass(t: TlpLevel): string {
+  return `tlp-${t.toLowerCase().replace('+', '-')}`;
+}
 
 function Tile({ n, label, tone }: { n: number; label: string; tone?: 'bad' | 'warn' }) {
   return (
@@ -46,15 +63,11 @@ function Bars({ title, rows, hrefFor }: { title: string; rows: [string, number][
   );
 }
 
-/** Campaign analytics — the dashboard is analysis, not just a list: roll-up, distributions, and the
- *  recent enrichment CHANGES across the campaign's IOCs (its evolving picture). */
+/** Campaign analytics — analysis, not just a list: roll-up, distributions, country heatmap, recent changes. */
 function CampaignDashboard({ iocs, onOpen }: { iocs: CampaignIoc[]; onOpen?: (v: string) => void }) {
   const [mapGroup, setMapGroup] = useState('');
-  // Country heatmap for a chosen group within the campaign (darker = more IOCs in that country).
   const map = useMemo(() => {
-    const names = [...new Set(iocs.map((i) => i.group).filter((g): g is string => !!g))].sort((a, b) =>
-      a.localeCompare(b),
-    );
+    const names = [...new Set(iocs.map((i) => i.group).filter((g): g is string => !!g))].sort((a, b) => a.localeCompare(b));
     const hasUngrouped = iocs.some((i) => !i.group);
     const entries =
       !mapGroup ? iocs : mapGroup === UNGROUPED ? iocs.filter((i) => !i.group) : iocs.filter((i) => i.group === mapGroup);
@@ -75,17 +88,13 @@ function CampaignDashboard({ iocs, onOpen }: { iocs: CampaignIoc[]; onOpen?: (v:
     const byType = new Map<string, number>();
     for (const i of iocs) byType.set(i.type, (byType.get(i.type) ?? 0) + 1);
     const byCve = new Map<string, number>();
-    const byCountry = new Map<string, number>();
     let hostsCve = 0;
     for (const i of iocs) {
-      const r = i.result;
-      const v = r?.shodan?.vulns;
+      const v = i.result?.shodan?.vulns;
       if (v?.length) {
         hostsCve++;
         for (const c of v) byCve.set(c, (byCve.get(c) ?? 0) + 1);
       }
-      const cc = r ? countryOf(r) : '';
-      if (cc) byCountry.set(cc, (byCountry.get(cc) ?? 0) + 1);
     }
     const recent: { value: string; at: number; changes: string[] }[] = [];
     for (const i of iocs) {
@@ -100,11 +109,12 @@ function CampaignDashboard({ iocs, onOpen }: { iocs: CampaignIoc[]; onOpen?: (v:
       withIntel: iocs.filter((i) => i.result).length,
       mal: iocs.filter((i) => i.result?.verdict === 'malicious').length,
       sus: iocs.filter((i) => i.result?.verdict === 'suspicious').length,
+      attack: iocs.filter((i) => (i.side ?? 'attack') === 'attack').length,
+      target: iocs.filter((i) => i.side === 'target').length,
       highAbuse: iocs.filter((i) => (i.result?.abuseipdb?.abuseConfidenceScore ?? -1) >= 75).length,
       auto: iocs.filter((i) => i.autoEnrich).length,
       byType: [...byType.entries()].sort((a, b) => b[1] - a[1]) as [string, number][],
       cves: [...byCve.entries()].sort((a, b) => b[1] - a[1]).slice(0, 10) as [string, number][],
-      countries: [...byCountry.entries()].sort((a, b) => b[1] - a[1]).slice(0, 10) as [string, number][],
       distinctCves: byCve.size,
       hostsCve,
       recent: recent.slice(0, 8),
@@ -117,11 +127,12 @@ function CampaignDashboard({ iocs, onOpen }: { iocs: CampaignIoc[]; onOpen?: (v:
     <>
       <div className="mon-stats" role="group" aria-label="campaign overview">
         <Tile n={d.total} label="IOCs" />
+        <Tile n={d.attack} label="🗡 attack" />
+        {d.target > 0 && <Tile n={d.target} label="🎯 target" />}
         <Tile n={d.withIntel} label="with intel" />
         {d.mal > 0 && <Tile n={d.mal} label="malicious" tone="bad" />}
         {d.sus > 0 && <Tile n={d.sus} label="suspicious" tone="warn" />}
         {d.highAbuse > 0 && <Tile n={d.highAbuse} label="abuse ≥75" tone="bad" />}
-        {d.hostsCve > 0 && <Tile n={d.hostsCve} label="hosts w/ CVEs" tone="warn" />}
         {d.distinctCves > 0 && <Tile n={d.distinctCves} label="distinct CVEs" />}
         <Tile n={d.auto} label="⚡ auto" />
       </div>
@@ -138,7 +149,6 @@ function CampaignDashboard({ iocs, onOpen }: { iocs: CampaignIoc[]; onOpen?: (v:
               value={mapGroup}
               onChange={(e) => setMapGroup(e.target.value)}
               aria-label="Group for the country stats + heatmap"
-              title="集計するグループを選択"
             >
               <option value="">All groups</option>
               {map.names.map((g) => (
@@ -180,12 +190,17 @@ function CampaignDashboard({ iocs, onOpen }: { iocs: CampaignIoc[]; onOpen?: (v:
   );
 }
 
+type Tab = 'dashboard' | 'attack' | 'target' | 'assessment';
+
 export function CampaignPage() {
   const id = useStore((s) => s.campaignId);
   const campaign = useStore((s) => (id ? s.campaigns[id] : undefined));
   const openCampaigns = useStore((s) => s.openCampaigns);
   const addIocs = useStore((s) => s.addCampaignIocs);
   const setGroup = useStore((s) => s.setCampaignIocGroup);
+  const setSide = useStore((s) => s.setCampaignIocSide);
+  const setTlp = useStore((s) => s.setCampaignTlp);
+  const reorderGroup = useStore((s) => s.reorderCampaignGroup);
   const removeIocs = useStore((s) => s.removeCampaignIocs);
   const reEnrich = useStore((s) => s.reEnrichCampaignIoc);
   const setAuto = useStore((s) => s.setCampaignIocAuto);
@@ -193,9 +208,12 @@ export function CampaignPage() {
   const removeCampaign = useStore((s) => s.removeCampaign);
   const showResult = useStore((s) => s.showResult);
   const summarize = useStore((s) => s.summarizeCampaign);
+  const assess = useStore((s) => s.assessCampaign);
   const [text, setText] = useState('');
   const [groupInput, setGroupInput] = useState('');
+  const [tab, setTab] = useState<Tab>('dashboard');
   const [summarizing, setSummarizing] = useState(false);
+  const [assessing, setAssessing] = useState(false);
   const autoSummarized = useRef<string | null>(null);
 
   const iocCount = id ? Object.keys(campaign?.iocs ?? {}).length : 0;
@@ -209,8 +227,6 @@ export function CampaignPage() {
       setSummarizing(false);
     }
   }
-  // Auto-write the key message once when a campaign with IOCs is opened and has none yet — so it
-  // "appears" (電光掲示板) without the analyst clicking. The button refreshes it thereafter.
   useEffect(() => {
     if (!id || !iocCount || hasSummary || summarizing) return;
     if (autoSummarized.current === id) return;
@@ -233,30 +249,52 @@ export function CampaignPage() {
     );
   }
 
-  const cid: string = id; // narrowed non-null id for use inside nested closures/renderIoc
+  const cid: string = id;
+  const tlp: TlpLevel = campaign.tlp ?? 'AMBER';
   const iocs = Object.values(campaign.iocs).sort((a, b) => b.updatedAt - a.updatedAt);
-  const groupNames = [...new Set(iocs.map((i) => i.group).filter((g): g is string => !!g))].sort((a, b) =>
-    a.localeCompare(b),
-  );
-  const buckets: { key: string; name: string | null; items: CampaignIoc[] }[] = groupNames.map((g) => ({
-    key: g,
-    name: g,
-    items: iocs.filter((i) => i.group === g),
-  }));
-  const ungrouped = iocs.filter((i) => !i.group);
-  if (ungrouped.length) buckets.push({ key: UNGROUPED, name: null, items: ungrouped });
+  const attackIocs = iocs.filter((i) => (i.side ?? 'attack') === 'attack');
+  const targetIocs = iocs.filter((i) => i.side === 'target');
+  const groupNames = [...new Set(iocs.map((i) => i.group).filter((g): g is string => !!g))];
 
-  function onAdd() {
+  /** Order a side's groups by the campaign's saved order (fallback alphabetical); threat-sort within. */
+  function bucketsFor(list: CampaignIoc[]) {
+    const order = campaign?.groupOrder ?? [];
+    const names = [...new Set(list.map((i) => i.group).filter((g): g is string => !!g))].sort((a, b) => {
+      const ia = order.indexOf(a);
+      const ib = order.indexOf(b);
+      if (ia >= 0 && ib >= 0) return ia - ib;
+      if (ia >= 0) return -1;
+      if (ib >= 0) return 1;
+      return a.localeCompare(b);
+    });
+    const bs: { key: string; name: string | null; items: CampaignIoc[] }[] = names.map((g) => ({
+      key: g,
+      name: g,
+      items: byThreat(list.filter((i) => i.group === g)),
+    }));
+    const ung = list.filter((i) => !i.group);
+    if (ung.length) bs.push({ key: UNGROUPED, name: null, items: byThreat(ung) });
+    return { bs, orderedNames: names };
+  }
+
+  function onAdd(side: IocSide) {
     const { indicators } = extractIndicators(text);
     const add = indicators
       .filter((i) => i.type !== 'unknown' && !i.private)
       .map((i) => ({ value: i.value, type: i.type as EnrichableType }));
     if (!add.length) return;
-    void addIocs(cid, add, groupInput);
+    void addIocs(cid, add, groupInput, side);
     setText('');
   }
 
-  function renderIoc(i: CampaignIoc) {
+  function renameGroup(name: string) {
+    const nn = window.prompt(`グループ名を変更 “${name}”:`, name);
+    if (nn == null) return;
+    const vals = iocs.filter((i) => i.group === name).map((i) => i.value);
+    void setGroup(cid, vals, nn.trim() || undefined);
+  }
+
+  function renderIoc(i: CampaignIoc, side: IocSide) {
     const r = i.result;
     const histAsc = i.history?.length ? [...i.history].sort((a, b) => a.at - b.at) : [];
     const trendChanges =
@@ -329,6 +367,7 @@ export function CampaignPage() {
               {rfOf(r) != null && <span className="mon-chip">RF {rfOf(r)}</span>}
               {portsOf(r) > 0 && <span className="mon-chip mono">{portsOf(r)} ports</span>}
               {cvesOf(r) > 0 && <span className="mon-chip sev-high">{cvesOf(r)} CVE</span>}
+              {countryOf(r) && <span className="mon-chip">{countryOf(r)}</span>}
             </span>
           ) : (
             <span className="mon-nointel">no enrichment yet — press “Re-enrich”</span>
@@ -364,6 +403,13 @@ export function CampaignPage() {
           >
             ⚡ Auto{i.autoEnrich ? ' ✓' : ''}
           </button>
+          <button
+            className="btn btn-sm"
+            onClick={() => void setSide(cid, [i.value], side === 'attack' ? 'target' : 'attack')}
+            title={side === 'attack' ? 'Target Info へ移動（標的側）' : 'Attack Info へ移動（攻撃側）'}
+          >
+            {side === 'attack' ? '→ 🎯 Target' : '→ 🗡 Attack'}
+          </button>
           {r?.links?.gui && (
             <a className="btn btn-sm" href={r.links.gui} target="_blank" rel="noreferrer">
               VT ↗
@@ -377,9 +423,171 @@ export function CampaignPage() {
     );
   }
 
+  /** One IOC-management tab (Attack or Target): add box + threat-sorted, reorderable groups. */
+  function SideView({ side }: { side: IocSide }) {
+    const list = side === 'attack' ? attackIocs : targetIocs;
+    const { bs, orderedNames } = bucketsFor(list);
+    const sideLabel = side === 'attack' ? 'Attack' : 'Target';
+    return (
+      <>
+        <p className="hint mon-intro">
+          {side === 'attack'
+            ? '攻撃側インフラ（C2・マルウェア・フィッシング等）の IoC。'
+            : '標的/被害側（狙われた資産）の IoC。'}
+          任意の <b>Group 名</b>で整理でき、<b>各グループ内は脅威度順（悪性度・検知数・CVE等）</b>に自動整列します。登録IoCは
+          <b>サーバ側で毎日自動エンリッチ</b>・<b>履歴ごとチーム共有</b>されます。
+        </p>
+
+        <div className="cp-add">
+          <div className="cp-add-group">
+            <label className="cp-add-group-label" htmlFor={`cp-grp-${side}`}>
+              Group 名（任意・後から編集/並べ替え可）
+            </label>
+            <input
+              id={`cp-grp-${side}`}
+              className="filter cp-group-field"
+              list={`cp-group-names-${side}`}
+              placeholder="例: C2 Servers / Malicious Hashes / Phishing Domains"
+              value={groupInput}
+              onChange={(e) => setGroupInput(e.target.value)}
+            />
+            <datalist id={`cp-group-names-${side}`}>
+              {groupNames.map((g) => (
+                <option key={g} value={g} />
+              ))}
+            </datalist>
+          </div>
+          <textarea
+            className="cp-add-text mono"
+            placeholder="IoC を貼り付け（改行/カンマ区切り可・defang対応）: 1[.]1[.]1[.]1  hxxp://evil[.]com  44d88612fea8a8f36de82e1278abb02f …"
+            rows={2}
+            value={text}
+            onChange={(e) => setText(e.target.value)}
+          />
+          <button className="btn btn-primary" onClick={() => onAdd(side)} disabled={!text.trim()}>
+            ＋ Add to {sideLabel}
+          </button>
+        </div>
+
+        {list.length === 0 ? (
+          <div className="empty-state">
+            まだ {sideLabel} 側の IoC がありません。上の欄に貼り付けて <b>Add to {sideLabel}</b> で登録してください。
+          </div>
+        ) : (
+          <div className="mon-groups">
+            {bs.map((b) => {
+              const oi = b.name ? orderedNames.indexOf(b.name) : -1;
+              return (
+                <div className="mon-group" key={b.key}>
+                  <div className="mon-group-head">
+                    {b.name ? (
+                      <>
+                        <button
+                          className="mon-group-name mon-group-name-btn"
+                          onClick={() => renameGroup(b.name!)}
+                          title="クリックで名称変更"
+                        >
+                          {b.name} <span className="mon-group-edit" aria-hidden>✎</span>
+                        </button>
+                        <span className="cp-group-reorder">
+                          <button
+                            className="btn btn-sm btn-ghost"
+                            disabled={oi <= 0}
+                            onClick={() => void reorderGroup(cid, b.name!, 'up')}
+                            title="上へ"
+                            aria-label="Move group up"
+                          >
+                            ↑
+                          </button>
+                          <button
+                            className="btn btn-sm btn-ghost"
+                            disabled={oi < 0 || oi >= orderedNames.length - 1}
+                            onClick={() => void reorderGroup(cid, b.name!, 'down')}
+                            title="下へ"
+                            aria-label="Move group down"
+                          >
+                            ↓
+                          </button>
+                        </span>
+                      </>
+                    ) : (
+                      <span className="mon-group-name ungrouped">Ungrouped</span>
+                    )}
+                    <span className="mon-group-count">
+                      {b.items.length} IoC{b.items.length === 1 ? '' : 's'}
+                    </span>
+                  </div>
+                  <ul className="monitor-list">{b.items.map((i) => renderIoc(i, side))}</ul>
+                </div>
+              );
+            })}
+          </div>
+        )}
+      </>
+    );
+  }
+
+  function AssessmentView() {
+    const a = campaign?.assessment;
+    // Claude is told to lead with a TLP line; drop it since we render a TLP chip ourselves.
+    const body = a ? a.text.replace(/^\s*TLP:[^\n]*\n?/i, '') : '';
+    async function gen() {
+      setAssessing(true);
+      try {
+        await assess(cid);
+      } finally {
+        setAssessing(false);
+      }
+    }
+    return (
+      <div className="cp-assess">
+        <div className="cp-assess-head">
+          <div className="cp-assess-title">
+            <b>🧠 CTI アセスメントレポート</b>
+            <span className="hint"> — エンリッチ情報・統計・時系列変化に基づく Claude の脅威分析（Insight）</span>
+          </div>
+          <span className="spacer" />
+          {a && (
+            <span className="cp-assess-when">
+              最終: {new Date(a.at).toLocaleString()}
+              {a.by ? ` · ${a.by}` : ''}
+              {a.model ? ` · ${a.model}` : ''}
+            </span>
+          )}
+          <button className="btn btn-primary btn-sm" onClick={() => void gen()} disabled={assessing || iocs.length === 0}>
+            {assessing ? '生成中…（Claude）' : a ? '🔄 レポート更新' : '🧠 レポート生成'}
+          </button>
+        </div>
+        {assessing && !a && (
+          <div className="hint">Claude が {iocs.length} 件のIoC・統計・時系列を分析してレポートを作成中…（数十秒）</div>
+        )}
+        {a ? (
+          <div className="cp-report">
+            <div className={`cp-report-tlp ${tlpClass(a.tlp ?? tlp)}`}>TLP:{a.tlp ?? tlp}</div>
+            <MarkdownLite className="cp-report-md" text={body} />
+          </div>
+        ) : (
+          !assessing && (
+            <div className="empty-state">
+              まだレポートがありません。<b>レポート生成</b>で、現時点の攻撃キャンペーンの評価（要約・インフラ分析・TTPs・アトリビューション・推奨アクション等）を
+              Claude が作成します（プロキシ＋ANTHROPIC_API_KEY 必要）。
+            </div>
+          )
+        )}
+      </div>
+    );
+  }
+
+  const tabs: { key: Tab; label: string }[] = [
+    { key: 'dashboard', label: '📊 Dashboard' },
+    { key: 'attack', label: `🗡 Attack Info (${attackIocs.length})` },
+    { key: 'target', label: `🎯 Target Info (${targetIocs.length})` },
+    { key: 'assessment', label: '🧠 Assessment' },
+  ];
+
   return (
     <section className="panel monitor-page">
-      <div className="panel-head">
+      <div className="panel-head cp-head">
         <button className="btn btn-sm" onClick={openCampaigns} title="CP-Mon に戻る">
           ← Back
         </button>
@@ -395,6 +603,16 @@ export function CampaignPage() {
             {campaign.name} <span className="cp-title-edit">✎</span>
           </h2>
         </button>
+        <label className={`cp-tlp ${tlpClass(tlp)}`} title="TLP（Traffic Light Protocol）取り扱い区分">
+          <span className="cp-tlp-dot" aria-hidden />
+          <select value={tlp} onChange={(e) => void setTlp(cid, e.target.value as TlpLevel)} aria-label="TLP">
+            {TLP_LEVELS.map((l) => (
+              <option key={l} value={l}>
+                TLP:{l}
+              </option>
+            ))}
+          </select>
+        </label>
         <span className="cp-title-meta">{iocs.length} IoCs</span>
         <div className="spacer" />
         <button
@@ -403,7 +621,7 @@ export function CampaignPage() {
             if (window.confirm(`Delete campaign “${campaign.name}” and all its IOCs?`)) void removeCampaign(id);
           }}
         >
-          Delete campaign
+          Delete
         </button>
       </div>
 
@@ -426,77 +644,46 @@ export function CampaignPage() {
             className="cp-marquee-refresh"
             onClick={() => void onSummarize()}
             disabled={summarizing || iocs.length === 0}
-            title={
-              campaign.summary
-                ? `Claudeで総括を再生成 · 最終: ${new Date(campaign.summary.at).toLocaleString()}${
-                    campaign.summary.by ? ` · ${campaign.summary.by}` : ''
-                  }`
-                : 'Claudeで総括を生成'
-            }
+            title={campaign.summary ? `Claudeで総括を再生成 · 最終: ${new Date(campaign.summary.at).toLocaleString()}` : 'Claudeで総括を生成'}
           >
             {summarizing ? '…' : '🔄'}
           </button>
         </div>
       )}
 
-      <p className="hint mon-intro">
-        任意の <b>Group 名</b>を付けて IoC を登録できます。登録した IoC は<b>サーバ側で毎日自動エンリッチ</b>され、各行に
-        <b>傾向スパークライン＋前回比</b>を表示、<b>履歴ごとチーム共有</b>されます（無駄打ち回避）。
-      </p>
-
-      <CampaignDashboard
-        iocs={iocs}
-        onOpen={(v) => {
-          const ioc = campaign.iocs[v];
-          if (ioc?.result) showResult(ioc.result);
-        }}
-      />
-
-      <div className="cp-add">
-        <input
-          className="filter mon-group-input"
-          list="cp-group-names"
-          placeholder="group name…（任意）"
-          value={groupInput}
-          onChange={(e) => setGroupInput(e.target.value)}
-          aria-label="Group for the added IOCs"
-        />
-        <datalist id="cp-group-names">
-          {groupNames.map((g) => (
-            <option key={g} value={g} />
-          ))}
-        </datalist>
-        <textarea
-          className="cp-add-text mono"
-          placeholder="IoC を貼り付け（改行/カンマ区切り可・defang対応）: 1[.]1[.]1[.]1  hxxp://evil[.]com  44d88612fea8a8f36de82e1278abb02f …"
-          rows={2}
-          value={text}
-          onChange={(e) => setText(e.target.value)}
-        />
-        <button className="btn btn-primary" onClick={onAdd} disabled={!text.trim()}>
-          ＋ Add IOCs
-        </button>
+      <div className="cp-tabs" role="tablist">
+        {tabs.map((t) => (
+          <button
+            key={t.key}
+            role="tab"
+            aria-selected={tab === t.key}
+            className={`cp-tab${tab === t.key ? ' active' : ''}`}
+            onClick={() => setTab(t.key)}
+          >
+            {t.label}
+          </button>
+        ))}
       </div>
 
-      {iocs.length === 0 ? (
-        <div className="empty-state">
-          まだ IoC がありません。上の欄に貼り付けて <b>Add IOCs</b> で登録してください（IP/ドメイン/URL/ハッシュ）。
-        </div>
-      ) : (
-        <div className="mon-groups">
-          {buckets.map((b) => (
-            <div className="mon-group" key={b.key}>
-              <div className="mon-group-head">
-                <span className={`mon-group-name${b.name ? '' : ' ungrouped'}`}>{b.name ?? 'Ungrouped'}</span>
-                <span className="mon-group-count">
-                  {b.items.length} IoC{b.items.length === 1 ? '' : 's'}
-                </span>
-              </div>
-              <ul className="monitor-list">{b.items.map(renderIoc)}</ul>
+      <div className="cp-tabpanel">
+        {tab === 'dashboard' &&
+          (iocs.length === 0 ? (
+            <div className="empty-state">
+              まだ IoC がありません。<b>Attack Info</b> / <b>Target Info</b> タブで登録してください。
             </div>
+          ) : (
+            <CampaignDashboard
+              iocs={iocs}
+              onOpen={(v) => {
+                const ioc = campaign.iocs[v];
+                if (ioc?.result) showResult(ioc.result);
+              }}
+            />
           ))}
-        </div>
-      )}
+        {tab === 'attack' && <SideView side="attack" />}
+        {tab === 'target' && <SideView side="target" />}
+        {tab === 'assessment' && <AssessmentView />}
+      </div>
     </section>
   );
 }

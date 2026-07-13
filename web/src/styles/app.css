@@ -2324,12 +2324,13 @@ button.pv-monitored.link:hover {
   flex: none;
   min-height: 40px;
   margin: 4px 0 12px;
-  border: 1px solid #1c2735;
+  border: 1px solid var(--line);
   border-radius: 8px;
+  /* Ticker feel, but tuned to the chalkboard palette (deep green + teal) instead of a loud amber LED. */
   background:
-    repeating-linear-gradient(90deg, rgba(255, 255, 255, 0.03) 0 1px, transparent 1px 3px),
-    linear-gradient(180deg, #0b0f16, #0a0d12);
-  box-shadow: inset 0 0 22px rgba(0, 0, 0, 0.6), 0 0 0 1px rgba(255, 191, 71, 0.06);
+    repeating-linear-gradient(90deg, rgba(255, 255, 255, 0.02) 0 1px, transparent 1px 3px),
+    linear-gradient(180deg, var(--bg), #1e2e28);
+  box-shadow: inset 0 0 20px rgba(0, 0, 0, 0.35);
   overflow: hidden;
 }
 .cp-marquee-tag {
@@ -2339,8 +2340,8 @@ button.pv-monitored.link:hover {
   font-size: 12px;
   font-weight: 800;
   letter-spacing: 0.14em;
-  color: #0b0f16;
-  background: linear-gradient(180deg, #ffcf5c, #f6b53f);
+  color: var(--accent-ink);
+  background: var(--accent);
   text-shadow: none;
   flex: none;
 }
@@ -2369,8 +2370,8 @@ button.pv-monitored.link:hover {
   font-family: var(--mono, ui-monospace, SFMono-Regular, Menlo, monospace);
   font-size: 14px;
   font-weight: 600;
-  color: #ffd166;
-  text-shadow: 0 0 6px rgba(255, 191, 71, 0.55), 0 0 2px rgba(255, 209, 102, 0.9);
+  color: var(--accent);
+  text-shadow: 0 0 5px rgba(116, 211, 177, 0.35);
 }
 .cp-marquee-pending {
   padding-left: 1.2rem;
@@ -2397,9 +2398,9 @@ button.pv-monitored.link:hover {
 .cp-marquee-refresh {
   flex: none;
   border: none;
-  border-left: 1px solid #1c2735;
+  border-left: 1px solid var(--line);
   background: transparent;
-  color: #ffd166;
+  color: var(--accent);
   cursor: pointer;
   font-size: 14px;
   padding: 0 12px;
@@ -2409,7 +2410,188 @@ button.pv-monitored.link:hover {
   cursor: default;
 }
 .cp-marquee-refresh:hover:not(:disabled) {
-  background: rgba(255, 191, 71, 0.1);
+  background: rgba(116, 211, 177, 0.12);
+}
+
+/* --- CP-Mon tabs, TLP, group field, reorder, and the CTI assessment report ------------------------ */
+.cp-head {
+  flex-wrap: wrap;
+  gap: 10px;
+}
+.cp-tabs {
+  display: flex;
+  gap: 6px;
+  flex-wrap: wrap;
+  border-bottom: 1px solid var(--line);
+  margin: 2px 0 12px;
+}
+.cp-tab {
+  border: 1px solid transparent;
+  border-bottom: none;
+  background: transparent;
+  color: var(--muted);
+  cursor: pointer;
+  font-size: 13px;
+  font-weight: 600;
+  padding: 8px 14px;
+  border-radius: 8px 8px 0 0;
+  margin-bottom: -1px;
+}
+.cp-tab:hover {
+  color: var(--text);
+  background: var(--bg2);
+}
+.cp-tab.active {
+  color: var(--text);
+  background: var(--panel);
+  border-color: var(--line);
+  border-bottom: 1px solid var(--panel);
+}
+.cp-tabpanel {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  min-height: 0;
+}
+
+/* TLP marking (in the header) + report chip. Colours per FIRST.org TLP 2.0. */
+.cp-tlp {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  padding: 2px 8px 2px 10px;
+}
+.cp-tlp-dot {
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+  background: var(--tlp, #9aa);
+  box-shadow: 0 0 0 1px rgba(0, 0, 0, 0.3) inset;
+}
+.cp-tlp select {
+  border: none;
+  background: transparent;
+  color: var(--text);
+  font-size: 12px;
+  font-weight: 700;
+  cursor: pointer;
+  padding: 0;
+}
+.tlp-red {
+  --tlp: #ff4d4d;
+}
+.tlp-amber-strict,
+.tlp-amber {
+  --tlp: #ffb020;
+}
+.tlp-green {
+  --tlp: #49d17a;
+}
+.tlp-clear {
+  --tlp: #e9edf0;
+}
+.cp-report-tlp {
+  display: inline-block;
+  font-weight: 800;
+  font-size: 12px;
+  letter-spacing: 0.06em;
+  color: #10130f;
+  background: var(--tlp, #9aa);
+  border-radius: 4px;
+  padding: 2px 8px;
+  margin-bottom: 10px;
+}
+
+/* Widened, clearly-editable group name field in the add box. */
+.cp-add-group {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+}
+.cp-add-group-label {
+  font-size: 11px;
+  color: var(--muted);
+  font-weight: 600;
+}
+.cp-group-field {
+  width: clamp(240px, 40vw, 460px);
+  max-width: 100%;
+}
+.cp-group-reorder {
+  display: inline-flex;
+  gap: 2px;
+  margin-left: 4px;
+}
+.cp-group-reorder .btn {
+  padding: 0 7px;
+  line-height: 1.6;
+}
+
+/* CTI assessment report. */
+.cp-assess {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+.cp-assess-head {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+.cp-assess-title .hint {
+  font-weight: 400;
+}
+.cp-assess-when {
+  font-size: 11px;
+  color: var(--muted);
+}
+.cp-report {
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  background: var(--bg2);
+  padding: 16px 20px;
+  max-width: 900px;
+}
+.cp-report-md {
+  font-size: 14px;
+  line-height: 1.65;
+  color: var(--text);
+}
+.cp-report-md h3,
+.cp-report-md h4,
+.cp-report-md h5 {
+  color: var(--accent);
+  margin: 18px 0 6px;
+  border-bottom: 1px solid var(--line);
+  padding-bottom: 4px;
+}
+.cp-report-md h3:first-child,
+.cp-report-md h4:first-child {
+  margin-top: 0;
+}
+.cp-report-md p {
+  margin: 8px 0;
+}
+.cp-report-md ul,
+.cp-report-md ol {
+  margin: 8px 0;
+  padding-left: 22px;
+}
+.cp-report-md li {
+  margin: 3px 0;
+}
+.cp-report-md code {
+  font-family: var(--mono);
+  font-size: 12.5px;
+  background: var(--bg3);
+  padding: 1px 5px;
+  border-radius: 4px;
+}
+.cp-report-md strong {
+  color: var(--text);
 }
 
 /* Results-table monitor indicators. */

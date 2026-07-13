@@ -1,0 +1,86 @@
+import { resolveModel } from './parse';
+import type { ProxyEnv } from './types';
+
+// A CTI-analyst prompt that demands context-based INSIGHT (attribution hypotheses w/ confidence, infra
+// clustering, TTP inference, trends from the timeline) — not a data dump. Facts vs. analysis kept distinct.
+const ASSESS_SYSTEM = `あなたは経験豊富なCTI（サイバー脅威インテリジェンス）アナリストです。攻撃キャンペーンの集計・各IOCのエンリッチ情報・時系列変化(JSON)を受け取り、「現時点でのキャンペーン評価レポート」を日本語のMarkdownで作成してください。単なるデータの羅列・整理ではなく、コンテキストに基づく分析的Insightを提供すること。
+
+先頭に必ず1行で \`TLP:<レベル>\`（入力の tlp を使用）を記載。続けて以下の見出し構成で記述する:
+
+## エグゼクティブサマリ
+今この瞬間に何が起きていて、なぜ重要か（リスク/ビジネス観点）。3〜5行。
+
+## キャンペーン概観
+規模・攻撃側/標的側の構成・活動期間・主要な観測事実。
+
+## インフラ分析
+攻撃側インフラの特徴（ホスティング/ASN/組織/地理の傾向、共通点、クラスタリングの示唆、クラウド悪用やbulletproof hostingの兆候など）。
+
+## TTPs / 手口
+観測ポート・CVE・稼働サービスから推測される手口。可能なら MITRE ATT&CK 技術ID（例 T1190）を付す。根拠を示し、断定は避ける。
+
+## アトリビューション評価
+既知の脅威アクター/マルウェアファミリとの関連の仮説。**確度（高/中/低）を明示**し、支持する根拠と反証・代替仮説も述べる。不明なら「不明」と明記。
+
+## 変化・トレンド（情報推移）
+時系列変化から読み取れる、活動の活発化/沈静化、インフラの入れ替わり、悪性度・リスクの上昇/低下など。
+
+## リスク評価
+標的組織にとっての脅威度と切迫度。TLPの取り扱いを尊重。
+
+## 推奨アクション
+優先度付きで具体的に（検知/ブロック/ハンティングクエリの方向性/深掘り調査対象など）。
+
+## インテリジェンスギャップ
+不足している情報、次に収集すべきデータ・ピボット先。
+
+ルール:
+- 事実（データに存在）と推測（分析）を明確に区別する。推測には確度を添える。
+- データに無い事実（IOC値・CVE・アクター名など）を捏造しない。引用するIOC/CVEは入力データのものだけ。
+- 簡潔かつ分析的に。箇条書きを適宜使う。出力はレポート本文(Markdown)のみ。`;
+
+/**
+ * Generate a Claude CTI assessment report from a rich campaign digest. Requires ANTHROPIC_API_KEY;
+ * returns an error string (not a fabricated report) when Claude is unavailable.
+ */
+export async function assessCampaign(
+  digest: unknown,
+  env: ProxyEnv,
+): Promise<{ text: string; model?: string; error?: string }> {
+  if (!env.anthropicApiKey) {
+    return {
+      text: '',
+      error:
+        'このプロキシに ANTHROPIC_API_KEY が未設定のため、CTIアセスメントレポートは生成できません（管理者に登録を依頼してください）。',
+    };
+  }
+  try {
+    const res = await fetch('https://api.anthropic.com/v1/messages', {
+      method: 'POST',
+      headers: {
+        'content-type': 'application/json',
+        'x-api-key': env.anthropicApiKey,
+        'anthropic-version': '2023-06-01',
+      },
+      body: JSON.stringify({
+        model: resolveModel(env.claudeModel),
+        max_tokens: 3200,
+        temperature: 0.4,
+        system: [{ type: 'text', text: ASSESS_SYSTEM, cache_control: { type: 'ephemeral' } }],
+        messages: [{ role: 'user', content: JSON.stringify(digest).slice(0, 60_000) }],
+      }),
+    });
+    if (!res.ok) {
+      return { text: '', error: `Claude API error ${res.status}: ${(await res.text()).slice(0, 200)}` };
+    }
+    const json = (await res.json()) as { model?: string; content?: Array<{ type: string; text?: string }> };
+    const text = (json.content ?? [])
+      .filter((c) => c.type === 'text')
+      .map((c) => c.text ?? '')
+      .join('')
+      .trim();
+    return text ? { text, model: json.model } : { text: '', error: 'Claude から空のレスポンスが返りました。' };
+  } catch {
+    return { text: '', error: 'Claude 呼び出しに失敗しました（ネットワーク）。' };
+  }
+}

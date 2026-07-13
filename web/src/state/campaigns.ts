@@ -3,9 +3,14 @@ import { downsampleHistory } from '@vteeee/shared';
 
 /** One indicator tracked under a campaign. Reuses the IP-Mon enrichment timeline machinery
  *  (result + history via EnrichSnapshot) but for ANY IOC type and without Shodan-alert fields. */
+/** Which side of the campaign an IOC belongs to: attacker infrastructure vs. targeted/victim assets. */
+export type IocSide = 'attack' | 'target';
+
 export interface CampaignIoc {
   value: string;
   type: EnrichableType;
+  /** attack = attacker infrastructure (C2, malware, phishing); target = victim-side asset. Default attack. */
+  side?: IocSide;
   /** Analyst-assigned group label within the campaign (arbitrary; empty = ungrouped). */
   group?: string;
   addedAt: number;
@@ -30,6 +35,20 @@ export interface CampaignSummary {
   model?: string;
 }
 
+/** Traffic Light Protocol handling marking for the campaign / its assessment. */
+export type TlpLevel = 'CLEAR' | 'GREEN' | 'AMBER' | 'AMBER+STRICT' | 'RED';
+export const TLP_LEVELS: TlpLevel[] = ['CLEAR', 'GREEN', 'AMBER', 'AMBER+STRICT', 'RED'];
+
+/** A Claude-written CTI assessment report (markdown) — context-based insight, not a data dump. */
+export interface CampaignAssessment {
+  text: string;
+  at: number;
+  by?: string;
+  model?: string;
+  /** TLP the report was generated under (snapshotted so the report carries its own marking). */
+  tlp?: TlpLevel;
+}
+
 export interface Campaign {
   id: string;
   name: string;
@@ -37,8 +56,14 @@ export interface Campaign {
   updatedAt: number;
   note?: string;
   iocs: Record<string, CampaignIoc>;
+  /** Analyst-defined display order of group names (groups not listed fall back to alphabetical). */
+  groupOrder?: string[];
+  /** Traffic Light Protocol marking (analyst-set; defaults to AMBER when unset). */
+  tlp?: TlpLevel;
   /** Latest overall summary (shared with the campaign so the whole team sees the same key message). */
   summary?: CampaignSummary;
+  /** Latest Claude CTI assessment report (shared). */
+  assessment?: CampaignAssessment;
 }
 
 export const CAMPAIGNS_KEY = 'vteeee.campaigns';
@@ -90,6 +115,7 @@ export function mergeIoc(a: CampaignIoc | undefined, b: CampaignIoc | undefined)
   return {
     value: (B.value ?? A.value) as string,
     type: (B.type ?? A.type) as EnrichableType,
+    side: B.side ?? A.side,
     group: B.group ?? A.group,
     addedAt: Math.min(A.addedAt ?? Number.MAX_SAFE_INTEGER, B.addedAt ?? Number.MAX_SAFE_INTEGER),
     updatedAt: Math.max(A.updatedAt ?? 0, B.updatedAt ?? 0),
@@ -109,16 +135,21 @@ export function mergeCampaign(a: Campaign | undefined, b: Campaign | undefined):
   const iocs: Record<string, CampaignIoc> = {};
   const keys = new Set([...Object.keys(a?.iocs ?? {}), ...Object.keys(b?.iocs ?? {})]);
   for (const k of keys) iocs[k] = mergeIoc(a?.iocs?.[k], b?.iocs?.[k]);
-  // Keep whichever summary was generated most recently (it travels with the shared campaign).
+  // Keep whichever summary/assessment was generated most recently (travels with the shared campaign).
   const summary = (b?.summary?.at ?? 0) >= (a?.summary?.at ?? 0) ? b?.summary ?? a?.summary : a?.summary ?? b?.summary;
+  const assessment =
+    (b?.assessment?.at ?? 0) >= (a?.assessment?.at ?? 0) ? b?.assessment ?? a?.assessment : a?.assessment ?? b?.assessment;
   return {
     id: base.id,
     name: (newerB ? b?.name : a?.name) ?? base.name,
     createdAt: Math.min(a?.createdAt ?? Number.MAX_SAFE_INTEGER, b?.createdAt ?? Number.MAX_SAFE_INTEGER),
     updatedAt: Math.max(a?.updatedAt ?? 0, b?.updatedAt ?? 0),
     note: (newerB ? b?.note : a?.note) ?? base.note,
+    tlp: (newerB ? b?.tlp : a?.tlp) ?? base.tlp,
+    groupOrder: (newerB ? b?.groupOrder : a?.groupOrder) ?? base.groupOrder,
     iocs,
     summary,
+    assessment,
   };
 }
 
