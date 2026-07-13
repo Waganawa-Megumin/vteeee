@@ -70,10 +70,15 @@ export default function App() {
   return (
     <div className="app">
       <header className="topbar">
-        <div className="brand">
+        <button
+          className="brand brand-btn"
+          onClick={() => setView('app')}
+          title="ホーム（メイン検索）に戻る"
+          aria-label="Home — main search"
+        >
           <span className="logo">vteeee</span>
           <span className="tagline">bulk IOC search</span>
-        </div>
+        </button>
         <IntegrationStatus onManage={() => setSettingsOpen(true)} />
         <div className="spacer" />
         <ScanTracker />

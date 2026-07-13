@@ -1023,11 +1023,12 @@ export const useStore = create<State>((set, get) => {
   },
 
   showResult(r) {
-    // Merge the snapshot in and open its detail as an overlay WITHOUT changing the view — so opening
-    // from the IP-Mon dashboard keeps you on IP-Mon (closing the detail returns you there).
+    // Open its detail as an overlay WITHOUT changing the view (so opening from IP-Mon/CP-Mon keeps you
+    // there). Make the result available to the detail panel via `results[value]`, but do NOT add it to
+    // `order` — otherwise IP-Mon/CP-Mon IOCs you merely opened would pile up in the main search table.
+    // Past searches are recoverable from History; the main table only shows what was actually searched.
     set((s) => ({
       results: { ...s.results, [r.value]: r },
-      order: s.order.includes(r.value) ? s.order : [...s.order, r.value],
       selected: r.value,
     }));
   },
