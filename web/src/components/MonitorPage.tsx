@@ -88,26 +88,33 @@ function countryOf(e: MonitorEntry): string | undefined {
   return r?.maxmind?.countryCode ?? r?.abuseipdb?.countryCode ?? r?.shodan?.country ?? r?.ip?.country;
 }
 
-function StatTile({ n, label, tone }: { n: number; label: string; tone?: 'bad' | 'warn' }) {
+function StatTile({ n, label, tone, onPick }: { n: number; label: string; tone?: 'bad' | 'warn'; onPick?: () => void }) {
   return (
-    <div className={`mon-stat${tone ? ` ${tone}` : ''}`}>
+    <div
+      className={`mon-stat${tone ? ` ${tone}` : ''}${onPick ? ' pickable' : ''}`}
+      onClick={onPick}
+      role={onPick ? 'button' : undefined}
+      title={onPick ? 'クリックで対象IPを表示' : undefined}
+    >
       <b>{n}</b>
       <span>{label}</span>
     </div>
   );
 }
 
-/** Horizontal bar list (country / CVE breakdowns). */
+/** Horizontal bar list (country / CVE breakdowns). Rows are clickable when onPick is given. */
 function BarList({
   title,
   rows,
   max,
   hrefFor,
+  onPick,
 }: {
   title: string;
   rows: [string, number][];
   max: number;
   hrefFor?: (k: string) => string;
+  onPick?: (k: string) => void;
 }) {
   return (
     <div className="mon-bars">
@@ -116,10 +123,15 @@ function BarList({
         <div className="hint">—</div>
       ) : (
         rows.map(([k, n]) => (
-          <div key={k} className="mon-bar-row">
+          <div
+            key={k}
+            className={`mon-bar-row${onPick ? ' pickable' : ''}`}
+            onClick={onPick ? () => onPick(k) : undefined}
+            title={onPick ? 'クリックで対象IPを表示' : undefined}
+          >
             <span className="mon-bar-label mono">
               {hrefFor ? (
-                <a href={hrefFor(k)} target="_blank" rel="noreferrer">
+                <a href={hrefFor(k)} target="_blank" rel="noreferrer" onClick={(e) => e.stopPropagation()}>
                   {k}
                 </a>
               ) : (
@@ -149,6 +161,7 @@ export function MonitorPage() {
   const setGroup = useStore((s) => s.setMonitorGroup);
   const openAnalysis = useStore((s) => s.openAnalysis);
   const setAutoEnrich = useStore((s) => s.setAutoEnrich);
+  const [drill, setDrill] = useState<{ label: string; values: string[] } | null>(null);
   const [checked, setChecked] = useState<Set<string>>(new Set());
   const [groupInput, setGroupInput] = useState('');
   const [mapGroup, setMapGroup] = useState('');
@@ -180,6 +193,9 @@ export function MonitorPage() {
   }, []);
 
   const list = Object.values(monitors).sort((a, b) => b.addedAt - a.addedAt);
+  // Drill-down: "which IPs are behind this stat?" — list them from a predicate over the watchlist.
+  const pick = (label: string, pred: (e: MonitorEntry) => boolean) =>
+    setDrill({ label, values: list.filter(pred).map((e) => e.ip) });
 
   // Overview roll-up.
   const total = list.length;
@@ -598,16 +614,57 @@ export function MonitorPage() {
         </div>
       ) : (
         <>
+          {drill && (
+            <div className="cp-drill">
+              <div className="cp-drill-head">
+                <b>{drill.label}</b>
+                <span className="cp-drill-n">{drill.values.length} 件</span>
+                <span className="spacer" />
+                <button className="cp-drill-close" onClick={() => setDrill(null)} aria-label="閉じる" title="閉じる">
+                  ✕
+                </button>
+              </div>
+              {drill.values.length ? (
+                <div className="cp-drill-list">
+                  {drill.values.map((ip) => (
+                    <button
+                      key={ip}
+                      className="cp-drill-ioc mono"
+                      onClick={() => {
+                        const e = monitors[ip];
+                        if (e?.result) showResult(e.result);
+                      }}
+                      title="詳細を開く"
+                    >
+                      {ip}
+                    </button>
+                  ))}
+                </div>
+              ) : (
+                <div className="hint">該当なし</div>
+              )}
+            </div>
+          )}
           <div className="mon-stats" role="group" aria-label="overview">
-            <StatTile n={total} label="monitored" />
-            <StatTile n={live} label="live on Shodan" />
-            <StatTile n={withIntel} label="with intel" />
-            {malicious > 0 && <StatTile n={malicious} label="malicious" tone="bad" />}
-            {suspicious > 0 && <StatTile n={suspicious} label="suspicious" tone="warn" />}
-            {highAbuse > 0 && <StatTile n={highAbuse} label="abuse ≥75" tone="bad" />}
-            {hostsWithCves > 0 && <StatTile n={hostsWithCves} label="hosts w/ CVEs" tone="warn" />}
+            <StatTile n={total} label="monitored" onPick={() => pick('monitored', () => true)} />
+            <StatTile n={live} label="live on Shodan" onPick={() => pick('live on Shodan', (e) => !!e.live)} />
+            <StatTile n={withIntel} label="with intel" onPick={() => pick('with intel', (e) => !!e.result)} />
+            {malicious > 0 && (
+              <StatTile n={malicious} label="malicious" tone="bad" onPick={() => pick('malicious', (e) => e.result?.verdict === 'malicious')} />
+            )}
+            {suspicious > 0 && (
+              <StatTile n={suspicious} label="suspicious" tone="warn" onPick={() => pick('suspicious', (e) => e.result?.verdict === 'suspicious')} />
+            )}
+            {highAbuse > 0 && (
+              <StatTile n={highAbuse} label="abuse ≥75" tone="bad" onPick={() => pick('abuse ≥75', (e) => (e.result?.abuseipdb?.abuseConfidenceScore ?? -1) >= 75)} />
+            )}
+            {hostsWithCves > 0 && (
+              <StatTile n={hostsWithCves} label="hosts w/ CVEs" tone="warn" onPick={() => pick('hosts w/ CVEs', (e) => (e.result?.shodan?.vulns?.length ?? 0) > 0)} />
+            )}
             {byCve.size > 0 && <StatTile n={byCve.size} label="distinct CVEs" />}
-            {changedCount > 0 && <StatTile n={changedCount} label="changed since baseline" tone="warn" />}
+            {changedCount > 0 && (
+              <StatTile n={changedCount} label="changed since baseline" tone="warn" onPick={() => pick('changed since baseline', (e) => !!e.check?.changed)} />
+            )}
             <StatTile n={byCountry.size} label="countries" />
           </div>
 
@@ -625,6 +682,7 @@ export function MonitorPage() {
                   rows={cves}
                   max={maxCve}
                   hrefFor={(cve) => `https://nvd.nist.gov/vuln/detail/${cve}`}
+                  onPick={(cve) => pick(`CVE ${cve}`, (e) => e.result?.shodan?.vulns?.includes(cve) ?? false)}
                 />
               </div>
               <div className="mon-geo-map">
@@ -668,10 +726,26 @@ export function MonitorPage() {
             </div>
             <div className="mon-geo-body">
               <div className="mon-geo-stats">
-                <BarList title="By country" rows={mapCountryRows} max={mapCountryMax} />
+                <BarList
+                  title="By country"
+                  rows={mapCountryRows}
+                  max={mapCountryMax}
+                  onPick={(cc) => pick(`国: ${cc}`, (e) => countryOf(e) === cc)}
+                />
               </div>
               <div className="mon-geo-map">
-                <CountryChoropleth counts={mapCounts} height={250} />
+                <CountryChoropleth
+                  counts={mapCounts}
+                  height={250}
+                  onPick={(iso, name) =>
+                    pick(`国: ${name} (${iso})`, (e) => {
+                      const cc = countryOf(e);
+                      if (!cc) return false;
+                      const u = cc.toUpperCase();
+                      return u === iso || u === name.toUpperCase();
+                    })
+                  }
+                />
               </div>
             </div>
           </div>
