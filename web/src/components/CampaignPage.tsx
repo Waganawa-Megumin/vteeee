@@ -1,5 +1,5 @@
-import { useEffect, useMemo, useRef, useState } from 'react';
-import { extractIndicators, type EnrichableType } from '@vteeee/shared';
+import { useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
+import { extractIndicators, type EnrichableType, type NormalizedResult } from '@vteeee/shared';
 import { useStore, type CampaignIoc, type IocSide, type TlpLevel } from '../state/store';
 import {
   TLP_LEVELS,
@@ -39,6 +39,92 @@ function exposureScore(i: CampaignIoc): number {
   );
 }
 const byExposure = (list: CampaignIoc[]) => [...list].sort((a, b) => exposureScore(b) - exposureScore(a));
+
+// ---- Per-row intel chips (type-specific), so a row shows the concrete facts, not just a verdict ----
+/** IP: Shodan (org/ports/CVEs/OS/hostname) + MaxMind (geo/ASN/ISP/anonymizer). */
+function ipInfraChips(r: NormalizedResult): ReactNode[] {
+  const out: ReactNode[] = [];
+  const geo = [r.maxmind?.city, countryOf(r)].filter(Boolean).join(', ');
+  if (geo) out.push(<span key="geo" className="mon-chip">📍 {geo}</span>);
+  const net =
+    r.maxmind?.asn != null
+      ? `AS${r.maxmind.asn}${r.maxmind.organization ? ` ${r.maxmind.organization}` : ''}`
+      : (r.shodan?.org ?? r.ip?.asOwner ?? '');
+  if (net) out.push(<span key="net" className="mon-chip" title="ASN / 所有組織">{net}</span>);
+  if (r.maxmind?.isp && r.maxmind.isp !== r.maxmind.organization)
+    out.push(<span key="isp" className="mon-chip">ISP {r.maxmind.isp}</span>);
+  const ports = r.shodan?.ports ?? [];
+  if (ports.length)
+    out.push(
+      <span key="ports" className="mon-chip mono sev-med" title={ports.join(', ')}>
+        {ports.length} ports: {ports.slice(0, 6).join(',')}
+        {ports.length > 6 ? '…' : ''}
+      </span>,
+    );
+  const vulns = r.shodan?.vulns ?? [];
+  if (vulns.length)
+    out.push(
+      <span key="cve" className="mon-chip sev-high" title={vulns.join(', ')}>
+        ⚠ {vulns.length} CVE: {vulns.slice(0, 3).join(', ')}
+        {vulns.length > 3 ? '…' : ''}
+      </span>,
+    );
+  if (r.shodan?.os) out.push(<span key="os" className="mon-chip">OS {r.shodan.os}</span>);
+  if (r.shodan?.hostnames?.length) out.push(<span key="host" className="mon-chip mono">{r.shodan.hostnames[0]}</span>);
+  if (r.maxmind?.anonymizerType?.length)
+    out.push(<span key="anon" className="mon-chip sev-med">{r.maxmind.anonymizerType.join('/')}</span>);
+  return out;
+}
+/** Domain: DomainTools (risk/registrar/created/NS) + DNSLytics + CTI actor/malware. */
+function domainChips(r: NormalizedResult): ReactNode[] {
+  const out: ReactNode[] = [];
+  const dt = r.domaintools;
+  if (dt?.riskScore != null)
+    out.push(
+      <span key="dtr" className={`mon-chip ${dt.riskScore >= 70 ? 'sev-high' : 'sev-med'}`} title="DomainTools risk">
+        DTリスク {dt.riskScore}
+      </span>,
+    );
+  if (dt?.registrar) out.push(<span key="reg" className="mon-chip" title="Registrar">reg: {dt.registrar}</span>);
+  const created = dt?.created ?? dt?.firstSeen;
+  if (created) out.push(<span key="cre" className="mon-chip" title="登録/初観測">🗓 {String(created).slice(0, 10)}</span>);
+  const ns = dt?.nameServers ?? r.dnslytics?.nameServers ?? [];
+  if (ns.length) out.push(<span key="ns" className="mon-chip mono" title={ns.join(', ')}>NS {ns[0]}</span>);
+  if (r.dnslytics?.threat) out.push(<span key="dns" className="mon-chip sev-high">DNSLytics: {r.dnslytics.threat}</span>);
+  const actors = [...new Set([...(r.threatvision?.adversaries ?? []), ...(r.cyfirma?.threatActors ?? [])])];
+  if (actors.length) out.push(<span key="act" className="mon-chip sev-high" title="関連アクター">🎭 {actors.slice(0, 2).join(', ')}</span>);
+  const malware = [
+    ...new Set([
+      ...(r.threatvision?.malwareFamilies ?? []),
+      ...(r.intel471?.malwareFamily ? [r.intel471.malwareFamily] : []),
+      ...(r.cyfirma?.malware ?? []),
+    ]),
+  ];
+  if (malware.length) out.push(<span key="mal" className="mon-chip sev-high" title="関連マルウェア">🦠 {malware.slice(0, 2).join(', ')}</span>);
+  return out;
+}
+/** Hash: malware family / VT threat label / categories / file type. */
+function hashChips(r: NormalizedResult): ReactNode[] {
+  const out: ReactNode[] = [];
+  if (r.file?.threatLabel) out.push(<span key="lbl" className="mon-chip sev-high" title="VT 脅威ラベル">🦠 {r.file.threatLabel}</span>);
+  const fam = [
+    ...new Set([...(r.threatvision?.malwareFamilies ?? []), ...(r.intel471?.malwareFamily ? [r.intel471.malwareFamily] : [])]),
+  ];
+  if (fam.length) out.push(<span key="fam" className="mon-chip sev-high">{fam.slice(0, 2).join(', ')}</span>);
+  if (r.file?.threatCategories?.length)
+    out.push(<span key="cat" className="mon-chip">{r.file.threatCategories.slice(0, 3).join(', ')}</span>);
+  if (r.file?.meaningfulName) out.push(<span key="nm" className="mon-chip mono" title="ファイル名">{r.file.meaningfulName}</span>);
+  if (r.file?.typeDescription) out.push(<span key="ty" className="mon-chip">{r.file.typeDescription}</span>);
+  if (r.file?.size) out.push(<span key="sz" className="mon-chip">{Math.round(r.file.size / 1024)} KB</span>);
+  return out;
+}
+/** Type-appropriate intel chips for an enriched IOC row. */
+function intelChips(r: NormalizedResult, type: EnrichableType): ReactNode[] {
+  if (type === 'ipv4' || type === 'ipv6') return ipInfraChips(r);
+  if (type === 'domain') return domainChips(r);
+  if (type === 'md5' || type === 'sha1' || type === 'sha256') return hashChips(r);
+  return [];
+}
 
 function tlpClass(t: TlpLevel): string {
   return `tlp-${t.toLowerCase().replace('+', '-')}`;
@@ -408,6 +494,7 @@ export function CampaignPage() {
   const addIocs = useStore((s) => s.addCampaignIocs);
   const setGroup = useStore((s) => s.setCampaignIocGroup);
   const setTlp = useStore((s) => s.setCampaignTlp);
+  const setNote = useStore((s) => s.setCampaignNote);
   const setAdmiralty = useStore((s) => s.setCampaignAdmiralty);
   const reorderGroup = useStore((s) => s.reorderCampaignGroup);
   const removeIocs = useStore((s) => s.removeCampaignIocs);
@@ -652,6 +739,8 @@ export function CampaignPage() {
               </span>
             ) : (
               <span className="mon-summary">
+                {/* Attack = threat verdict FIRST, then type-specific intel: IP→Shodan/MaxMind,
+                    domain→DomainTools/DNSLytics/CTI, hash→malware family/labels. */}
                 <VerdictBadge verdict={r.verdict} status={r.status} />
                 {r.detection && (
                   <span className="mon-chip">
@@ -660,9 +749,7 @@ export function CampaignPage() {
                 )}
                 {abuseOf(r) != null && <span className="mon-chip">abuse {abuseOf(r)}</span>}
                 {rfOf(r) != null && <span className="mon-chip">RF {rfOf(r)}</span>}
-                {portsOf(r) > 0 && <span className="mon-chip mono">{portsOf(r)} ports</span>}
-                {cvesOf(r) > 0 && <span className="mon-chip sev-high">{cvesOf(r)} CVE</span>}
-                {countryOf(r) && <span className="mon-chip">{countryOf(r)}</span>}
+                {intelChips(r, i.type)}
               </span>
             )
           ) : (
@@ -1322,20 +1409,44 @@ export function CampaignPage() {
       </div>
 
       <div className="cp-tabpanel">
-        {tab === 'dashboard' &&
-          (iocs.length === 0 ? (
-            <div className="empty-state">
-              まだ IoC がありません。<b>Attack Info</b> / <b>Target Info</b> タブで登録してください。
+        {tab === 'dashboard' && (
+          <>
+            <div className="cp-note">
+              <label className="cp-note-label" htmlFor="cp-note-field">
+                📝 背景・アナリストコメント
+                <span className="hint">
+                  {' '}
+                  （自由記述。記入するとアセスメントレポート生成時の文脈として考慮されます。空欄でも構いません）
+                </span>
+              </label>
+              <textarea
+                id="cp-note-field"
+                key={cid}
+                className="cp-note-field"
+                defaultValue={campaign.note ?? ''}
+                placeholder="例: 特定業種を狙った資格情報窃取と推定。◯◯社の報告（2026-07）と関連の可能性。△△.example は誤検知の疑い。次は登録者情報のピボットを予定…"
+                rows={3}
+                onBlur={(e) => {
+                  const v = e.currentTarget.value;
+                  if ((campaign.note ?? '') !== v) void setNote(cid, v);
+                }}
+              />
             </div>
-          ) : (
-            <CampaignDashboard
-              iocs={iocs}
-              onOpen={(v) => {
-                const ioc = campaign.iocs[v];
-                if (ioc?.result) showResult(ioc.result);
-              }}
-            />
-          ))}
+            {iocs.length === 0 ? (
+              <div className="empty-state">
+                まだ IoC がありません。<b>Attack Info</b> / <b>Target Info</b> タブで登録してください。
+              </div>
+            ) : (
+              <CampaignDashboard
+                iocs={iocs}
+                onOpen={(v) => {
+                  const ioc = campaign.iocs[v];
+                  if (ioc?.result) showResult(ioc.result);
+                }}
+              />
+            )}
+          </>
+        )}
         {/* Called as a function (not <SideView/>) so it inlines into this component's tree — the filter
             input then keeps focus across re-renders instead of remounting on every keystroke. */}
         {tab === 'attack' && SideView({ side: 'attack' })}

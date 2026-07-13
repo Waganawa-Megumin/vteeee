@@ -711,6 +711,8 @@ function buildAssessmentDigest(c: Campaign): unknown {
   return {
     name: c.name,
     tlp: c.tlp ?? 'AMBER',
+    // Free-text analyst context/background (empty → omitted). Claude weighs it as reporting context.
+    analystNote: c.note && c.note.trim() ? c.note.trim().slice(0, 4000) : undefined,
     admiralty:
       c.admiraltyReliability || c.admiraltyCredibility
         ? `${c.admiraltyReliability ?? '?'}${c.admiraltyCredibility ?? '?'}`
@@ -916,6 +918,8 @@ interface State {
   setCampaignIocSide: (id: string, values: string[], side: IocSide) => Promise<void>;
   /** Set the campaign's TLP handling marking. */
   setCampaignTlp: (id: string, tlp: TlpLevel) => Promise<void>;
+  /** Set the campaign's free-text analyst context / background note (shared; fed into the assessment). */
+  setCampaignNote: (id: string, note: string) => Promise<void>;
   /** Set the campaign's Admiralty Code (source reliability A–F, info credibility 1–6). */
   setCampaignAdmiralty: (id: string, reliability: string, credibility: string) => Promise<void>;
   /** Move a group up/down in the campaign's display order. */
@@ -2176,6 +2180,19 @@ export const useStore = create<State>((set, get) => {
       const cur = s.campaigns[id];
       if (!cur) return {};
       const campaigns = { ...s.campaigns, [id]: { ...cur, tlp, updatedAt: now } };
+      saveCampaigns(campaigns);
+      return { campaigns };
+    });
+    void pushSharedCampaign(get().settings, id, get().campaigns[id] ?? null);
+  },
+
+  async setCampaignNote(id, note) {
+    const now = Date.now();
+    const n = note.trim() ? note : undefined;
+    set((s) => {
+      const cur = s.campaigns[id];
+      if (!cur) return {};
+      const campaigns = { ...s.campaigns, [id]: { ...cur, note: n, updatedAt: now } };
       saveCampaigns(campaigns);
       return { campaigns };
     });
