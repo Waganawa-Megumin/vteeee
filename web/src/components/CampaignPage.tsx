@@ -400,6 +400,9 @@ export function CampaignPage() {
   const rename = useStore((s) => s.renameCampaign);
   const removeCampaign = useStore((s) => s.removeCampaign);
   const showResult = useStore((s) => s.showResult);
+  const startWebCapture = useStore((s) => s.startWebCapture);
+  const startWebCaptureBatch = useStore((s) => s.startWebCaptureBatch);
+  const webCaptures = useStore((s) => s.webCaptures);
   const summarize = useStore((s) => s.summarizeCampaign);
   const assess = useStore((s) => s.assessCampaign);
   const refreshCampaigns = useStore((s) => s.refreshCampaigns);
@@ -432,6 +435,7 @@ export function CampaignPage() {
       setBulkBusy(false);
     }
   }
+
   const autoSummarized = useRef<string | null>(null);
 
   const iocCount = id ? Object.keys(campaign?.iocs ?? {}).length : 0;
@@ -661,6 +665,44 @@ export function CampaignPage() {
           >
             {side === 'target' ? '🎣 詳細/魚拓' : 'Open'}
           </button>
+          {(i.type === 'url' || i.type === 'domain') &&
+            (() => {
+              const cap = webCaptures[i.value];
+              const cp = cap?.phase;
+              const capRunning = cp === 'submitting' || cp === 'running';
+              const label = capRunning
+                ? '🎣 魚拓中…'
+                : cp === 'done'
+                  ? '🎣 魚拓 ✓'
+                  : cp === 'stalled' || cp === 'interrupted'
+                    ? '🎣 再確認'
+                    : cp === 'error'
+                      ? '🎣 再試行'
+                      : '🎣 魚拓';
+              return (
+                <button
+                  className={`btn btn-sm${cp === 'done' ? ' btn-primary' : ''}`}
+                  disabled={capRunning}
+                  onClick={() => {
+                    if (cp === 'done') {
+                      if (r) showResult(r);
+                      else if (cap?.result?.resultUrl) window.open(cap.result.resultUrl, '_blank', 'noopener');
+                      return;
+                    }
+                    void startWebCapture(i.value);
+                  }}
+                  title={
+                    cp === 'done'
+                      ? 'urlscan 魚拓の結果を開く'
+                      : capRunning
+                        ? 'urlscan でレンダリング中…（このページを閉じても裏で継続）'
+                        : 'urlscan のサンドボックスで今の状態を魚拓（裏で継続・後で確認可）'
+                  }
+                >
+                  {label}
+                </button>
+              );
+            })()}
           <button className="btn btn-sm" disabled={i.enriching} onClick={() => void reEnrich(cid, i.value)}>
             {i.enriching ? 'Enriching…' : 'Re-enrich'}
           </button>
@@ -716,6 +758,13 @@ export function CampaignPage() {
     const { bs, orderedNames } = bucketsFor(list, side);
     const unEnriched = list.filter((i) => !i.result);
     const enrichingN = list.filter((i) => i.enriching).length;
+    // URL/domain IOCs in range can be 魚拓'd (urlscan). Track live capture progress for the toolbar note.
+    const capturable = list.filter((i) => i.type === 'url' || i.type === 'domain');
+    const capRunningN = capturable.filter((i) => {
+      const p = webCaptures[i.value]?.phase;
+      return p === 'submitting' || p === 'running';
+    }).length;
+    const capDoneN = capturable.filter((i) => webCaptures[i.value]?.phase === 'done').length;
     return (
       <>
         <p className="hint mon-intro">
@@ -837,6 +886,27 @@ export function CampaignPage() {
             >
               ⚡ Auto on all
             </button>
+            {capturable.length > 0 && (
+              <button
+                className="btn btn-sm"
+                disabled={capRunningN > 0}
+                onClick={() => void startWebCaptureBatch(capturable.map((i) => i.value))}
+                title={
+                  filter
+                    ? '絞り込み結果の URL/ドメインを一括で urlscan 魚拓（各ジョブは裏で継続・完了時に🔔通知）'
+                    : 'この範囲の URL/ドメインを一括で urlscan 魚拓（各ジョブは裏で継続・完了時に🔔通知）'
+                }
+              >
+                {capRunningN > 0 ? `🎣 魚拓 実行中… (${capRunningN})` : `🎣 魚拓 all (${capturable.length})`}
+              </button>
+            )}
+            {(capRunningN > 0 || capDoneN > 0) && (
+              <span className="cp-side-toolbar-note">
+                🎣 魚拓 {capRunningN > 0 ? `実行中 ${capRunningN}` : ''}
+                {capRunningN > 0 && capDoneN > 0 ? ' · ' : ''}
+                {capDoneN > 0 ? `完了 ${capDoneN}/${capturable.length}` : ''}
+              </span>
+            )}
             {unEnriched.length > 0 && !bulkBusy && (
               <span className="cp-side-toolbar-note">
                 ⚠ {unEnriched.length} 件が未エンリッチ（追加時の失敗/レート制限の可能性）。上のボタンで再取得できます。

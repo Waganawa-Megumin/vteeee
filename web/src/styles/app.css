@@ -1385,6 +1385,105 @@ a.i471-search-item:hover {
   gap: 4px;
   flex: 0 0 auto;
 }
+
+/* --- 🔔 Notification bell + log --- */
+.notif-bell-wrap {
+  position: relative;
+}
+.notif-bell {
+  position: relative;
+}
+.notif-bell.has-unread {
+  border-color: var(--accent);
+  color: var(--accent);
+}
+.notif-badge {
+  position: absolute;
+  top: -6px;
+  right: -6px;
+  min-width: 16px;
+  height: 16px;
+  padding: 0 4px;
+  border-radius: 8px;
+  background: var(--bad, #d66);
+  color: #fff;
+  font-size: 10px;
+  font-weight: 800;
+  line-height: 16px;
+  text-align: center;
+  box-shadow: 0 0 0 2px var(--bg, #1b2620);
+}
+.notif-menu {
+  position: absolute;
+  right: 0;
+  top: calc(100% + 6px);
+  z-index: 41;
+  width: min(380px, 92vw);
+  max-height: 66vh;
+  overflow-y: auto;
+  background: var(--bg2, #1f2a24);
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  box-shadow: 0 10px 30px rgba(0, 0, 0, 0.35);
+  padding: 6px;
+}
+.notif-perm {
+  padding: 6px 6px 4px;
+  border-bottom: 1px solid var(--line);
+}
+.notif-empty {
+  padding: 18px 8px;
+  text-align: center;
+  color: var(--muted);
+  font-size: 12.5px;
+}
+.notif-list {
+  display: flex;
+  flex-direction: column;
+}
+.notif-row {
+  display: flex;
+  align-items: flex-start;
+  gap: 9px;
+  padding: 9px 6px;
+  border-bottom: 1px solid var(--line);
+}
+.notif-row:last-child {
+  border-bottom: none;
+}
+.notif-row.unread {
+  background: color-mix(in srgb, var(--accent) 12%, transparent);
+}
+.notif-icon {
+  flex: none;
+  font-size: 15px;
+  line-height: 1.3;
+  width: 20px;
+  text-align: center;
+}
+.notif-main {
+  min-width: 0;
+  flex: 1 1 auto;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+.notif-title {
+  font-size: 12.5px;
+  font-weight: 700;
+  color: var(--text);
+}
+.notif-body {
+  font-size: 12px;
+  color: var(--muted);
+  word-break: break-word;
+}
+.notif-time {
+  font-size: 10.5px;
+  color: var(--muted);
+  opacity: 0.8;
+}
+
 /* Shodan Monitor watchlist. */
 .monitor-list {
   list-style: none;
@@ -2327,35 +2426,69 @@ button.pv-monitored.link:hover {
   color: var(--muted);
 }
 
-/* --- 電光掲示板: the campaign key-message ticker (clean + readable in BOTH light and dark themes) --- */
+/* --- 電光掲示板: the campaign key-message ticker — a dark LED dot-matrix scoreboard in BOTH themes.
+   A real 電光掲示板 is a dark cabinet with bright LEDs, so keeping it dark (green LEDs in dark theme,
+   warm amber LEDs in light theme) stays legible on a light page AND keeps that cool scoreboard feel. */
 .cp-marquee {
+  position: relative;
   display: flex;
   align-items: stretch;
   gap: 0;
   /* The campaign panel is a flex column; without flex:none this row collapses to its borders. */
   flex: none;
-  min-height: 40px;
+  min-height: 42px;
   margin: 4px 0 12px;
-  border: 1px solid var(--line);
-  border-left: 3px solid var(--accent);
-  border-radius: 8px;
-  background: var(--bg2);
+  border-radius: 9px;
+  border: 1px solid #03110b;
+  /* dark LED cabinet with a faint center bloom */
+  background:
+    radial-gradient(120% 140% at 50% 30%, rgba(94, 240, 175, 0.06), transparent 55%),
+    linear-gradient(180deg, #0d1c17 0%, #091510 55%, #060d0a 100%);
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.05),
+    inset 0 0 26px rgba(0, 0, 0, 0.55),
+    0 1px 3px rgba(0, 0, 0, 0.4);
   overflow: hidden;
 }
+/* LED dot-matrix grid + faint scanlines, above the cabinet but below the text */
+.cp-marquee::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  z-index: 0;
+  background-image:
+    radial-gradient(rgba(120, 255, 200, 0.05) 0.6px, transparent 0.7px),
+    repeating-linear-gradient(0deg, rgba(0, 0, 0, 0.22) 0, rgba(0, 0, 0, 0.22) 1px, transparent 1px, transparent 3px);
+  background-size: 3px 3px, 100% 3px;
+}
+/* soft edge vignette so text scrolls in/out of the cabinet */
+.cp-marquee::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  z-index: 2;
+  background: linear-gradient(90deg, rgba(6, 13, 10, 0.9), transparent 6%, transparent 94%, rgba(6, 13, 10, 0.9));
+}
 .cp-marquee-tag {
+  position: relative;
+  z-index: 3;
   display: flex;
   align-items: center;
-  padding: 0 12px;
-  font-size: 12px;
+  padding: 0 13px;
+  font-size: 11.5px;
   font-weight: 800;
-  letter-spacing: 0.14em;
-  color: var(--accent-ink);
-  background: var(--accent);
+  letter-spacing: 0.16em;
+  color: #06251c;
+  background: linear-gradient(180deg, #7ef0bb, #47c795);
+  box-shadow: 0 0 12px rgba(93, 242, 168, 0.4);
   text-shadow: none;
   flex: none;
 }
 .cp-marquee-viewport {
   position: relative;
+  z-index: 1;
   flex: 1;
   min-width: 0;
   overflow: hidden;
@@ -2378,15 +2511,19 @@ button.pv-monitored.link:hover {
   padding: 0 3rem 0 1.2rem;
   font-family: var(--mono, ui-monospace, SFMono-Regular, Menlo, monospace);
   font-size: 13.5px;
-  font-weight: 600;
-  color: var(--text);
-  text-shadow: none;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  color: #7ff8bf;
+  text-shadow: 0 0 2px rgba(127, 248, 191, 0.9), 0 0 7px rgba(93, 242, 168, 0.5);
 }
 .cp-marquee-pending {
+  position: relative;
+  z-index: 1;
   padding-left: 1.2rem;
   font-family: var(--mono, ui-monospace, monospace);
   font-size: 13px;
-  color: #7c8794;
+  color: rgba(127, 248, 191, 0.6);
+  text-shadow: 0 0 6px rgba(93, 242, 168, 0.35);
 }
 @keyframes cp-marquee-scroll {
   from {
@@ -2405,21 +2542,67 @@ button.pv-monitored.link:hover {
   }
 }
 .cp-marquee-refresh {
+  position: relative;
+  z-index: 3;
   flex: none;
   border: none;
-  border-left: 1px solid var(--line);
+  border-left: 1px solid rgba(127, 248, 191, 0.18);
   background: transparent;
-  color: var(--accent);
+  color: #7ff8bf;
   cursor: pointer;
   font-size: 14px;
   padding: 0 12px;
+  text-shadow: 0 0 6px rgba(93, 242, 168, 0.4);
 }
 .cp-marquee-refresh:disabled {
   opacity: 0.4;
   cursor: default;
 }
 .cp-marquee-refresh:hover:not(:disabled) {
-  background: rgba(116, 211, 177, 0.12);
+  background: rgba(127, 248, 191, 0.12);
+}
+
+/* Light theme: keep the dark LED cabinet (it pops on the cream page) but switch to classic warm AMBER
+   LEDs, so each theme has its own crafted character while both stay highly legible. */
+:root[data-theme='light'] .cp-marquee {
+  border-color: #170f06;
+  background:
+    radial-gradient(120% 140% at 50% 30%, rgba(255, 190, 90, 0.08), transparent 55%),
+    linear-gradient(180deg, #241d13 0%, #1a140c 55%, #120d07 100%);
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.06),
+    inset 0 0 26px rgba(0, 0, 0, 0.5),
+    0 2px 7px rgba(60, 45, 20, 0.3);
+}
+:root[data-theme='light'] .cp-marquee::before {
+  background-image:
+    radial-gradient(rgba(255, 200, 120, 0.06) 0.6px, transparent 0.7px),
+    repeating-linear-gradient(0deg, rgba(0, 0, 0, 0.24) 0, rgba(0, 0, 0, 0.24) 1px, transparent 1px, transparent 3px);
+  background-size: 3px 3px, 100% 3px;
+}
+:root[data-theme='light'] .cp-marquee::after {
+  background: linear-gradient(90deg, rgba(18, 13, 7, 0.92), transparent 6%, transparent 94%, rgba(18, 13, 7, 0.92));
+}
+:root[data-theme='light'] .cp-marquee-tag {
+  color: #2a1c05;
+  background: linear-gradient(180deg, #ffcf7a, #f0a63f);
+  box-shadow: 0 0 12px rgba(255, 178, 74, 0.45);
+}
+:root[data-theme='light'] .cp-marquee-text {
+  color: #ffce7a;
+  text-shadow: 0 0 2px rgba(255, 206, 122, 0.9), 0 0 7px rgba(255, 178, 74, 0.5);
+}
+:root[data-theme='light'] .cp-marquee-pending {
+  color: rgba(255, 206, 122, 0.62);
+  text-shadow: 0 0 6px rgba(255, 178, 74, 0.35);
+}
+:root[data-theme='light'] .cp-marquee-refresh {
+  border-left-color: rgba(255, 206, 122, 0.2);
+  color: #ffce7a;
+  text-shadow: 0 0 6px rgba(255, 178, 74, 0.4);
+}
+:root[data-theme='light'] .cp-marquee-refresh:hover:not(:disabled) {
+  background: rgba(255, 206, 122, 0.12);
 }
 
 /* --- CP-Mon tabs, TLP, group field, reorder, and the CTI assessment report ------------------------ */

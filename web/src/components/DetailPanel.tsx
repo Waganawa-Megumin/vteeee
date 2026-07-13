@@ -26,7 +26,6 @@ import type {
   SocPrimeRuleSearchResult,
   ThreatVisionAdversary,
   ThreatVisionContext,
-  UrlscanResult,
 } from '@vteeee/shared';
 import { useStore } from '../state/store';
 import { GtiBadge, VerdictBadge } from './Badges';
@@ -1829,71 +1828,32 @@ const SIZE_STEPS: { key: DetailSize; title: string }[] = [
  * malicious verdict + contacted hosts. Submissions default to `unlisted` (configurable in Settings).
  */
 function UrlscanCapture({ target, buttonLabel }: { target: string; buttonLabel?: string }) {
-  const submit = useStore((s) => s.urlscanSubmit);
-  const poll = useStore((s) => s.urlscanResult);
+  // Read this target's capture from the store, so the job keeps running (and stays viewable) after the
+  // detail panel is closed, survives a page reload, and can be launched in bulk from CP-Mon.
+  const job = useStore((s) => s.webCaptures[target]);
+  const start = useStore((s) => s.startWebCapture);
+  const markSeen = useStore((s) => s.markCaptureSeen);
   const visibility = useStore((s) => s.settings.urlscanVisibility ?? 'unlisted');
-  const [state, setState] = useState<{
-    phase: 'idle' | 'running' | 'done' | 'error' | 'stalled';
-    msg?: string;
-    uuid?: string;
-    startedAt?: number;
-    data?: UrlscanResult;
-  }>({ phase: 'idle' });
   const [imgOk, setImgOk] = useState(true);
-  // The visibility urlscan actually used — the proxy may clamp `public` → `unlisted` for OPSEC.
-  const [effVis, setEffVis] = useState<string | null>(null);
-  const aliveRef = useRef(true);
-  useEffect(() => () => void (aliveRef.current = false), []);
 
-  // Poll the result until it materializes. urlscan queues scans — a busy/slow site can take well over
-  // a minute, and the result URL 404s ("Scan is not finished yet") until it's ready, so we poll
-  // patiently and, if it's still not done, park in a `stalled` state with a "Check again" that resumes
-  // this SAME scan (never re-submits — that would waste a scan and lose the original).
-  async function pollUntilDone(uuid: string, startedAt: number) {
-    for (let i = 0; i < 30; i++) {
-      await new Promise((res) => setTimeout(res, i === 0 ? 5000 : 4000));
-      if (!aliveRef.current) return;
-      const elapsed = Math.round((Date.now() - startedAt) / 1000);
-      setState({ phase: 'running', uuid, startedAt, msg: `Rendering at urlscan… ${elapsed}s` });
-      const result = await poll(uuid);
-      if (!aliveRef.current) return;
-      if (result.error) {
-        setState({ phase: 'error', uuid, msg: result.error, data: result });
-        return;
-      }
-      if (!result.pending) {
-        setState({ phase: 'done', uuid, data: result });
-        return;
-      }
-    }
-    setState({
-      phase: 'stalled',
-      uuid,
-      startedAt,
-      msg: `Still rendering at urlscan after ~${Math.round((Date.now() - startedAt) / 1000)}s — a busy or slow site can take a while. Keep waiting?`,
-    });
-  }
+  const phase = job?.phase ?? 'idle';
+  const running = phase === 'submitting' || phase === 'running';
+  const resumable = phase === 'stalled' || phase === 'interrupted';
+  const d = job?.result;
+  const effVis = job?.visibility ?? null;
 
-  async function run() {
+  // Clear the "new" badge once a finished capture is on screen.
+  useEffect(() => {
+    if (job && phase === 'done' && !job.seen) markSeen(target);
+  }, [job, phase, target, markSeen]);
+
+  function run() {
     setImgOk(true);
-    setEffVis(null);
-    setState({ phase: 'running', msg: 'Submitting to urlscan…' });
-    const sub = await submit(target, visibility);
-    if (!aliveRef.current) return;
-    if (sub.error || !sub.uuid) {
-      setState({ phase: 'error', msg: sub.error ?? 'urlscan did not return a scan id' });
-      return;
-    }
-    setEffVis(sub.visibility ?? visibility);
-    await pollUntilDone(sub.uuid, Date.now());
+    // For a stalled/interrupted job the store resumes the SAME uuid (never re-submits); otherwise it
+    // submits a fresh scan.
+    void start(target, visibility);
   }
 
-  async function resume() {
-    if (!state.uuid) return;
-    await pollUntilDone(state.uuid, state.startedAt ?? Date.now());
-  }
-
-  const d = state.data;
   const verdictLine = d
     ? [d.malicious != null ? (d.malicious ? '⚠ malicious' : 'no verdict') : '', d.score != null ? `score ${d.score}` : '']
         .filter(Boolean)
@@ -1903,18 +1863,15 @@ function UrlscanCapture({ target, buttonLabel }: { target: string; buttonLabel?:
   return (
     <div className="urlscan-capture">
       <div className="i471-actions">
-        <button className="btn btn-ghost btn-sm" onClick={run} disabled={state.phase === 'running'}>
-          {state.phase === 'running'
-            ? (state.msg ?? 'Scanning…')
-            : d || state.phase === 'stalled'
-              ? 'Re-scan'
-              : (buttonLabel ?? `Scan now (${visibility})`)}
+        <button className="btn btn-ghost btn-sm" onClick={run} disabled={running}>
+          {running
+            ? (job?.msg ?? 'Scanning…')
+            : resumable
+              ? '再確認 · Check again'
+              : d || phase === 'error'
+                ? 'Re-scan'
+                : (buttonLabel ?? `Scan now (${visibility})`)}
         </button>
-        {state.phase === 'stalled' && (
-          <button className="btn btn-ghost btn-sm" onClick={resume}>
-            Check again
-          </button>
-        )}
         {/* Only link out once the result is ready — while pending the result page 404s. */}
         {d?.resultUrl && (
           <a className="btn btn-ghost shodan-link" href={d.resultUrl} target="_blank" rel="noreferrer">
@@ -1931,14 +1888,16 @@ function UrlscanCapture({ target, buttonLabel }: { target: string; buttonLabel?:
                 : ''}
           </span>
         )}
-        {state.phase === 'done' && d?.malicious != null && (
+        {phase === 'done' && d?.malicious != null && (
           <span className="hint">{d.malicious ? `⚠ malicious · ${d.score ?? '?'}` : 'no verdict'}</span>
         )}
       </div>
 
-      {(state.phase === 'error' || state.phase === 'stalled') && <div className="detail-note">{state.msg}</div>}
+      {(phase === 'error' || phase === 'stalled' || phase === 'interrupted') && job?.msg && (
+        <div className="detail-note">{job.msg}</div>
+      )}
 
-      {state.phase === 'done' && d && !d.error && (
+      {phase === 'done' && d && !d.error && (
         <>
           {d.screenshotUrl && imgOk && (
             <figure className="urlscan-shot" data-noimage="true">

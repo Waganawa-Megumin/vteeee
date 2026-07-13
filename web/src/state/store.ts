@@ -121,6 +121,49 @@ function saveScanJobs(jobs: Record<string, ScanJob>): void {
     /* storage full / disabled — in-memory tracking still works */
   }
 }
+
+// urlscan web captures (魚拓) are tracked in the store too, keyed by target — so a capture keeps running
+// (and stays viewable) after the detail panel is closed, and a bulk capture can run many at once.
+export interface WebCaptureJob {
+  target: string;
+  phase: 'submitting' | 'running' | 'done' | 'error' | 'stalled' | 'interrupted';
+  uuid?: string;
+  visibility?: string;
+  msg?: string;
+  startedAt: number;
+  updatedAt: number;
+  result?: UrlscanResult;
+  error?: string;
+  /** Whether a finished capture has been viewed (drives "new" badges). */
+  seen: boolean;
+  /** Guard token so a superseded poll loop can't clobber a newer capture. */
+  token?: number;
+}
+const CAP_ACTIVE: WebCaptureJob['phase'][] = ['submitting', 'running'];
+export const isActiveCapture = (j: WebCaptureJob): boolean => CAP_ACTIVE.includes(j.phase);
+const WEBCAP_KEY = 'vteeee.webCaptures';
+function loadWebCaptures(): Record<string, WebCaptureJob> {
+  try {
+    const raw = localStorage.getItem(WEBCAP_KEY);
+    if (!raw) return {};
+    const jobs = JSON.parse(raw) as Record<string, WebCaptureJob>;
+    for (const k of Object.keys(jobs)) {
+      if (jobs[k] && CAP_ACTIVE.includes(jobs[k].phase)) {
+        jobs[k] = { ...jobs[k], phase: 'interrupted', msg: 'ページ再読込で中断 — 「再確認」で続行できます。' };
+      }
+    }
+    return jobs;
+  } catch {
+    return {};
+  }
+}
+function saveWebCaptures(jobs: Record<string, WebCaptureJob>): void {
+  try {
+    localStorage.setItem(WEBCAP_KEY, JSON.stringify(jobs));
+  } catch {
+    /* storage full / disabled */
+  }
+}
 function maybeRequestNotify(): void {
   try {
     if (typeof Notification !== 'undefined' && Notification.permission === 'default') void Notification.requestPermission();
@@ -128,13 +171,56 @@ function maybeRequestNotify(): void {
     /* ignore */
   }
 }
+// Users can mute OS notifications from the 🔔 bell while still keeping the in-app log.
+const NOTIF_MUTE_KEY = 'vteeee.notifyMuted';
+function notifyMuted(): boolean {
+  try {
+    return localStorage.getItem(NOTIF_MUTE_KEY) === '1';
+  } catch {
+    return false;
+  }
+}
 function browserNotify(title: string, body: string, tag: string): void {
   try {
+    if (notifyMuted()) return;
     if (typeof Notification !== 'undefined' && Notification.permission === 'granted') {
       new Notification(title, { body, tag });
     }
   } catch {
     /* ignore */
+  }
+}
+
+// ---- Notification log (🔔) ----
+// A persisted, in-app activity log of "something finished while you were elsewhere" events — bulk
+// re-enrich / bulk 魚拓 completions plus individual background-job finishes. The 🔔 bell shows it, so a
+// completion is never lost just because you navigated to another page (or missed the OS notification).
+export type NotifKind = 'capture' | 'reenrich' | 'scan' | 'info';
+export interface NotifItem {
+  id: string;
+  at: number;
+  title: string;
+  body?: string;
+  kind: NotifKind;
+  read: boolean;
+}
+const NOTIF_KEY = 'vteeee.notifications';
+const NOTIF_MAX = 60;
+function loadNotifs(): NotifItem[] {
+  try {
+    const raw = localStorage.getItem(NOTIF_KEY);
+    if (!raw) return [];
+    const arr = JSON.parse(raw) as NotifItem[];
+    return Array.isArray(arr) ? arr.slice(0, NOTIF_MAX) : [];
+  } catch {
+    return [];
+  }
+}
+function saveNotifs(items: NotifItem[]): void {
+  try {
+    localStorage.setItem(NOTIF_KEY, JSON.stringify(items.slice(0, NOTIF_MAX)));
+  } catch {
+    /* storage full / disabled */
   }
 }
 
@@ -681,6 +767,28 @@ interface State {
   /** Remove all finished scan jobs (keeps still-running ones). */
   clearFinishedScans: () => void;
 
+  /** Background urlscan web captures (魚拓), keyed by target (URL/domain) — survive closing the detail panel. */
+  webCaptures: Record<string, WebCaptureJob>;
+  /** Kick a urlscan capture that submits + polls to completion in the store (not the panel). No-op if already active. */
+  startWebCapture: (target: string, visibility?: string, opts?: { silent?: boolean }) => Promise<void>;
+  /** Bulk 魚拓 a set of targets (staggered submits); logs ONE completion notification when the batch settles. */
+  startWebCaptureBatch: (targets: string[], visibility?: string) => Promise<void>;
+  /** Mark a finished capture's result as viewed (clears "new" badges). */
+  markCaptureSeen: (target: string) => void;
+  /** Remove one capture job from the tracker. */
+  dismissWebCapture: (target: string) => void;
+  /** Remove all finished capture jobs (keeps still-running ones). */
+  clearFinishedWebCaptures: () => void;
+
+  /** In-app notification log (🔔) — completion events that survive navigating away. Newest first. */
+  notifications: NotifItem[];
+  /** Append a notification to the log AND fire an OS notification (unless muted). */
+  notify: (n: { title: string; body?: string; kind: NotifKind }) => void;
+  /** Mark all log entries read (clears the bell's unread badge). */
+  markNotifsRead: () => void;
+  /** Empty the notification log. */
+  clearNotifs: () => void;
+
   /** Shodan Monitor watchlist (IPs + last vteeee enrichment snapshot), keyed by IP. */
   monitors: Record<string, MonitorEntry>;
   /** Register an IP to Shodan Monitor and snapshot its current enrichment. */
@@ -779,6 +887,32 @@ export const useStore = create<State>((set, get) => {
     });
   };
 
+  // Patch a web-capture job with a token guard (same pattern as writeJob) so a superseded poll loop
+  // can't clobber a newer capture of the same target.
+  const writeCap = (target: string, token: number, started: number, patch: Partial<WebCaptureJob>): void => {
+    set((s) => {
+      const cur = s.webCaptures[target];
+      if (cur && cur.token != null && cur.token !== token) return {};
+      const m: Partial<WebCaptureJob> = { ...cur, ...patch };
+      const next: WebCaptureJob = {
+        target,
+        phase: m.phase ?? 'submitting',
+        uuid: m.uuid,
+        visibility: m.visibility,
+        msg: m.msg,
+        startedAt: m.startedAt ?? started,
+        updatedAt: Date.now(),
+        result: m.result,
+        error: m.error,
+        seen: m.seen ?? false,
+        token,
+      };
+      const webCaptures = { ...s.webCaptures, [target]: next };
+      saveWebCaptures(webCaptures);
+      return { webCaptures };
+    });
+  };
+
   return {
   booted: false,
   session: null,
@@ -787,6 +921,8 @@ export const useStore = create<State>((set, get) => {
   mode: 'demo',
   health: null,
   scanJobs: loadScanJobs(),
+  webCaptures: loadWebCaptures(),
+  notifications: loadNotifs(),
   monitors: loadMonitors(),
 
   rawInput: '',
@@ -1333,7 +1469,7 @@ export const useStore = create<State>((set, get) => {
         if (!alive()) return;
         if (host.found && host.lastUpdate && host.lastUpdate !== baseline) {
           writeJob(ip, token, started, { phase: 'done', creditsLeft: credits, host, seen: false, msg: undefined });
-          browserNotify('Shodan re-scan complete', `${ip}${host.ports?.length ? ` · ports ${host.ports.slice(0, 8).join(', ')}` : ''}`, `vteeee-shodan-${ip}`);
+          get().notify({ title: 'Shodan re-scan complete', body: `${ip}${host.ports?.length ? ` · ports ${host.ports.slice(0, 8).join(', ')}` : ''}`, kind: 'scan' });
           return;
         }
       }
@@ -1343,7 +1479,7 @@ export const useStore = create<State>((set, get) => {
       creditsLeft: credits,
       msg: 'Shodan has not refreshed this host within ~15 min — the scan may still be queued. Re-check later.',
     });
-    browserNotify('Shodan re-scan still pending', `${ip} — not refreshed yet; re-check later.`, `vteeee-shodan-${ip}`);
+    get().notify({ title: 'Shodan re-scan still pending', body: `${ip} — not refreshed yet; re-check later.`, kind: 'scan' });
   },
 
   async recheckShodanHost(ip) {
@@ -1363,7 +1499,7 @@ export const useStore = create<State>((set, get) => {
       writeJob(ip, token, started, { phase: 'error', msg: host.error });
     } else {
       writeJob(ip, token, started, { phase: 'done', host, seen: false, msg: undefined });
-      browserNotify('Shodan banners updated', `${ip}${host.ports?.length ? ` · ports ${host.ports.slice(0, 8).join(', ')}` : ''}`, `vteeee-shodan-${ip}`);
+      get().notify({ title: 'Shodan banners updated', body: `${ip}${host.ports?.length ? ` · ports ${host.ports.slice(0, 8).join(', ')}` : ''}`, kind: 'scan' });
     }
   },
 
@@ -1393,6 +1529,173 @@ export const useStore = create<State>((set, get) => {
       for (const [k, v] of Object.entries(s.scanJobs)) if (isActiveScan(v)) scanJobs[k] = v;
       saveScanJobs(scanJobs);
       return { scanJobs };
+    });
+  },
+
+  async startWebCapture(target, visibility, opts) {
+    const existing = get().webCaptures[target];
+    if (existing && isActiveCapture(existing)) return; // a capture for this target is already running
+    const silent = opts?.silent ?? false; // a bulk batch fires ONE summary instead of per-item notifs
+    const token = Date.now() + Math.random();
+    const started = existing?.startedAt ?? Date.now();
+    const vis = visibility ?? get().settings.urlscanVisibility ?? 'unlisted';
+    const alive = () => get().webCaptures[target]?.token === token;
+    const wait = (ms: number) => new Promise((res) => setTimeout(res, ms));
+    maybeRequestNotify(); // the button click is a user gesture, so we may ask for notification permission
+
+    let client: EnrichClient;
+    try {
+      client = await makeClient(get().settings);
+    } catch (e) {
+      writeCap(target, token, started, { phase: 'error', error: (e as Error).message, msg: (e as Error).message });
+      return;
+    }
+
+    // Resume path: a stalled / interrupted job already has a uuid — never re-submit (that wastes a
+    // scan and orphans the original), just keep polling for the same uuid's result. A fresh Re-scan
+    // (done / error / no job) always submits anew.
+    const resumable = existing && (existing.phase === 'stalled' || existing.phase === 'interrupted') && existing.uuid;
+    let uuid = resumable ? existing.uuid : undefined;
+    if (!uuid) {
+      writeCap(target, token, started, {
+        phase: 'submitting',
+        visibility: vis,
+        msg: 'urlscan に魚拓を送信中…',
+        uuid: undefined,
+        result: undefined,
+        error: undefined,
+        seen: false,
+      });
+      const sub = await client.urlscanSubmit(target, vis);
+      if (!alive()) return;
+      if (sub.error || !sub.uuid) {
+        writeCap(target, token, started, {
+          phase: 'error',
+          error: sub.error ?? 'urlscan did not return a scan id',
+          msg: sub.error ?? 'urlscan が受け付けませんでした',
+        });
+        return;
+      }
+      uuid = sub.uuid;
+      writeCap(target, token, started, { phase: 'running', uuid, visibility: sub.visibility ?? vis, msg: 'urlscan でレンダリング中…' });
+    } else {
+      writeCap(target, token, started, { phase: 'running', uuid, msg: 'urlscan の結果を確認中…', error: undefined });
+    }
+
+    // Poll the result until it materializes. urlscan queues scans — a busy/slow site can take over a
+    // minute, and the result 404s / reports `pending` until it's ready — so poll patiently, then park
+    // in `stalled` (re-runnable — it resumes THIS uuid, never re-submits).
+    for (let i = 0; i < 30; i++) {
+      await wait(i === 0 ? 5000 : 4000);
+      if (!alive()) return;
+      const elapsed = Math.round((Date.now() - started) / 1000);
+      writeCap(target, token, started, { phase: 'running', uuid, msg: `urlscan でレンダリング中… ${elapsed}s` });
+      const result = await client.urlscanResult(uuid);
+      if (!alive()) return;
+      if (result.error) {
+        writeCap(target, token, started, { phase: 'error', uuid, error: result.error, msg: result.error, result });
+        return;
+      }
+      if (!result.pending) {
+        writeCap(target, token, started, { phase: 'done', uuid, result, seen: false, msg: undefined, error: undefined });
+        if (!silent) get().notify({ title: '魚拓が完了しました', body: `${target}${result.malicious ? ' · ⚠ malicious' : ''}`, kind: 'capture' });
+        return;
+      }
+    }
+    writeCap(target, token, started, {
+      phase: 'stalled',
+      uuid,
+      msg: `urlscan がまだレンダリング中です（~${Math.round((Date.now() - started) / 1000)}s）— 混雑/低速サイトは時間がかかります。「再確認」で続行できます。`,
+    });
+    if (!silent) get().notify({ title: '魚拓がまだ保留中です', body: `${target} — まだ完了していません。後で再確認してください。`, kind: 'capture' });
+  },
+
+  async startWebCaptureBatch(targets, visibility) {
+    const uniq = [...new Set(targets)].filter(Boolean);
+    if (!uniq.length) return;
+    const wait = (ms: number) => new Promise((res) => setTimeout(res, ms));
+    // Kick each capture (each runs its own background poll in the store). Stagger the SUBMITS a little
+    // so urlscan's submission rate limit isn't tripped; run them silently so we can fire ONE summary.
+    const proms: Promise<void>[] = [];
+    for (const t of uniq) {
+      proms.push(get().startWebCapture(t, visibility, { silent: true }));
+      await wait(1500);
+    }
+    await Promise.all(proms);
+    // Summarize the batch from the store's final state and log ONE completion notification.
+    const caps = get().webCaptures;
+    const done = uniq.filter((t) => caps[t]?.phase === 'done');
+    const mal = done.filter((t) => caps[t]?.result?.malicious).length;
+    const pending = uniq.filter((t) => {
+      const p = caps[t]?.phase;
+      return p === 'stalled' || p === 'error' || p === 'interrupted';
+    }).length;
+    get().notify({
+      title: '一括魚拓が完了しました',
+      body: `${done.length}/${uniq.length} 完了${mal ? ` · ⚠ 悪性 ${mal}` : ''}${pending ? ` · 保留/失敗 ${pending}` : ''}`,
+      kind: 'capture',
+    });
+  },
+
+  notify(n) {
+    set((s) => {
+      const item: NotifItem = {
+        id: `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
+        at: Date.now(),
+        title: n.title,
+        body: n.body,
+        kind: n.kind,
+        read: false,
+      };
+      const notifications = [item, ...s.notifications].slice(0, NOTIF_MAX);
+      saveNotifs(notifications);
+      return { notifications };
+    });
+    browserNotify(n.title, n.body ?? '', `vteeee-notif-${n.kind}`);
+  },
+
+  markNotifsRead() {
+    set((s) => {
+      if (!s.notifications.some((n) => !n.read)) return {};
+      const notifications = s.notifications.map((n) => (n.read ? n : { ...n, read: true }));
+      saveNotifs(notifications);
+      return { notifications };
+    });
+  },
+
+  clearNotifs() {
+    set(() => {
+      saveNotifs([]);
+      return { notifications: [] };
+    });
+  },
+
+  markCaptureSeen(target) {
+    set((s) => {
+      const cur = s.webCaptures[target];
+      if (!cur || cur.seen) return {};
+      const webCaptures = { ...s.webCaptures, [target]: { ...cur, seen: true } };
+      saveWebCaptures(webCaptures);
+      return { webCaptures };
+    });
+  },
+
+  dismissWebCapture(target) {
+    set((s) => {
+      if (!s.webCaptures[target]) return {};
+      const webCaptures = { ...s.webCaptures };
+      delete webCaptures[target];
+      saveWebCaptures(webCaptures);
+      return { webCaptures };
+    });
+  },
+
+  clearFinishedWebCaptures() {
+    set((s) => {
+      const webCaptures: Record<string, WebCaptureJob> = {};
+      for (const [k, v] of Object.entries(s.webCaptures)) if (isActiveCapture(v)) webCaptures[k] = v;
+      saveWebCaptures(webCaptures);
+      return { webCaptures };
     });
   },
 
@@ -1885,6 +2188,14 @@ export const useStore = create<State>((set, get) => {
     // whole batch so the enriched campaign is guaranteed shared (and teammates' changes pulled in).
     for (const v of values) await get().reEnrichCampaignIoc(id, v);
     await get().refreshCampaigns();
+    if (values.length > 1) {
+      const name = get().campaigns[id]?.name;
+      get().notify({
+        title: '一括 Re-enrich が完了しました',
+        body: `${name ? `${name} · ` : ''}${values.length} 件のエンリッチを更新`,
+        kind: 'reenrich',
+      });
+    }
   },
 
   async setCampaignIocAuto(id, values, on) {
