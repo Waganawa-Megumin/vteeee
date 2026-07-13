@@ -1,6 +1,22 @@
 import { useState } from 'react';
 import { useStore, isActiveScan, isActiveCapture } from '../state/store';
 
+/** Local date-time WITH the timezone shown (e.g. "2026/07/13 15:30 JST"), so log times are unambiguous. */
+function fmtWhen(at: number): string {
+  try {
+    return new Date(at).toLocaleString(undefined, {
+      year: 'numeric',
+      month: '2-digit',
+      day: '2-digit',
+      hour: '2-digit',
+      minute: '2-digit',
+      timeZoneName: 'short',
+    });
+  } catch {
+    return new Date(at).toLocaleString();
+  }
+}
+
 /**
  * Header readout of background jobs — Shodan re-scans AND urlscan 魚拓 captures. Because both run in
  * the store (not the detail panel), you can close the panel (or the CP-Mon page) and still see
@@ -92,6 +108,7 @@ export function ScanTracker() {
                           {isActiveScan(j) && <span className="live-dot" aria-hidden />}
                           {statusText}
                         </span>
+                        <span className="stm-when">🕒 {fmtWhen(j.updatedAt)}</span>
                       </div>
                       <div className="stm-actions">
                         {canOpen && (
@@ -150,6 +167,17 @@ export function ScanTracker() {
                           {isActiveCapture(c) && <span className="live-dot" aria-hidden />}
                           {statusText}
                         </span>
+                        {(() => {
+                          // Completion time = when the latest capture finished (done) / last update otherwise.
+                          const whenAt = c.phase === 'done' ? (c.history?.[0]?.at ?? c.updatedAt) : c.updatedAt;
+                          const by = c.phase === 'done' ? c.history?.[0]?.by : undefined;
+                          return (
+                            <span className="stm-when">
+                              🕒 {fmtWhen(whenAt)}
+                              {by ? ` · ${by}` : ''}
+                            </span>
+                          );
+                        })()}
                       </div>
                       <div className="stm-actions">
                         {canOpen && (

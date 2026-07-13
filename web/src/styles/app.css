@@ -1380,6 +1380,13 @@ a.i471-search-item:hover {
 .stm-row.phase-error .stm-status {
   color: var(--bad, #d66);
 }
+.stm-when {
+  display: block;
+  font-size: 10.5px;
+  color: var(--muted);
+  opacity: 0.85;
+  margin-top: 1px;
+}
 .stm-actions {
   display: flex;
   gap: 4px;
@@ -1485,7 +1492,10 @@ a.i471-search-item:hover {
 .notif-time {
   font-size: 10.5px;
   color: var(--muted);
-  opacity: 0.8;
+  opacity: 0.85;
+}
+.notif-rel {
+  opacity: 0.75;
 }
 
 /* Shodan Monitor watchlist. */

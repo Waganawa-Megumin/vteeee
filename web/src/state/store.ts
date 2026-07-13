@@ -882,7 +882,7 @@ interface State {
   /** Kick a urlscan capture that submits + polls to completion in the store (not the panel). No-op if already active. */
   startWebCapture: (target: string, visibility?: string, opts?: { silent?: boolean }) => Promise<void>;
   /** Bulk 魚拓 a set of targets (staggered submits); logs ONE completion notification when the batch settles. */
-  startWebCaptureBatch: (targets: string[], visibility?: string) => Promise<void>;
+  startWebCaptureBatch: (targets: string[], visibility?: string, label?: string) => Promise<void>;
   /** Mark a finished capture's result as viewed (clears "new" badges). */
   markCaptureSeen: (target: string) => void;
   /** Remove one capture job from the tracker. */
@@ -1744,7 +1744,7 @@ export const useStore = create<State>((set, get) => {
     if (!silent) get().notify({ title: '魚拓がまだ保留中です', body: `${target} — まだ完了していません。後で再確認してください。`, kind: 'capture' });
   },
 
-  async startWebCaptureBatch(targets, visibility) {
+  async startWebCaptureBatch(targets, visibility, label) {
     const uniq = [...new Set(targets)].filter(Boolean);
     if (!uniq.length) return;
     const wait = (ms: number) => new Promise((res) => setTimeout(res, ms));
@@ -1756,17 +1756,24 @@ export const useStore = create<State>((set, get) => {
       await wait(1500);
     }
     await Promise.all(proms);
-    // Summarize the batch from the store's final state and log ONE completion notification.
+    // Summarize the batch from the store's final state and log ONE completion notification — naming the
+    // actual targets (which are malicious / pending) and the source (campaign · side) so it's actionable.
     const caps = get().webCaptures;
+    const short = (t: string) => t.replace(/^https?:\/\//, '');
+    const sample = (arr: string[]) =>
+      arr.length ? ` [${arr.slice(0, 3).map(short).join(', ')}${arr.length > 3 ? ` …他${arr.length - 3}` : ''}]` : '';
     const done = uniq.filter((t) => caps[t]?.phase === 'done');
-    const mal = done.filter((t) => caps[t]?.result?.malicious).length;
-    const pending = uniq.filter((t) => {
+    const malT = done.filter((t) => caps[t]?.result?.malicious);
+    const pendingT = uniq.filter((t) => {
       const p = caps[t]?.phase;
       return p === 'stalled' || p === 'error' || p === 'interrupted';
-    }).length;
+    });
     get().notify({
-      title: '一括魚拓が完了しました',
-      body: `${done.length}/${uniq.length} 完了${mal ? ` · ⚠ 悪性 ${mal}` : ''}${pending ? ` · 保留/失敗 ${pending}` : ''}`,
+      title: `一括魚拓 完了${label ? `：${label}` : ''}`,
+      body:
+        `${done.length}/${uniq.length} 件完了` +
+        (malT.length ? ` · ⚠悪性 ${malT.length}${sample(malT)}` : '') +
+        (pendingT.length ? ` · 保留/失敗 ${pendingT.length}${sample(pendingT)}` : ''),
       kind: 'capture',
     });
   },

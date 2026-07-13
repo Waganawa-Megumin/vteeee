@@ -1000,7 +1000,13 @@ export function CampaignPage() {
               <button
                 className="btn btn-sm"
                 disabled={capRunningN > 0}
-                onClick={() => void startWebCaptureBatch(capturable.map((i) => captureKey(i)!))}
+                onClick={() =>
+                  void startWebCaptureBatch(
+                    capturable.map((i) => captureKey(i)!),
+                    undefined,
+                    `${campaign?.name ?? 'Campaign'} · ${side === 'attack' ? '🗡Attack' : '🎯Target'}`,
+                  )
+                }
                 title={
                   side === 'target'
                     ? '標的資産（URL/ドメイン + IPのWeb面 https://）を一括で urlscan 魚拓 — 各ジョブは裏で継続・完了時に🔔'

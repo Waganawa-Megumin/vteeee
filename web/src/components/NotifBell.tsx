@@ -17,7 +17,23 @@ function relTime(at: number): string {
   if (m < 60) return `${m}分前`;
   const h = Math.round(m / 60);
   if (h < 24) return `${h}時間前`;
-  return new Date(at).toLocaleString();
+  const d = Math.round(h / 24);
+  return `${d}日前`;
+}
+/** Absolute local date-time WITH the timezone (e.g. "2026/07/13 15:30 JST"), so log times are unambiguous. */
+function absTime(at: number): string {
+  try {
+    return new Date(at).toLocaleString(undefined, {
+      year: 'numeric',
+      month: '2-digit',
+      day: '2-digit',
+      hour: '2-digit',
+      minute: '2-digit',
+      timeZoneName: 'short',
+    });
+  } catch {
+    return new Date(at).toLocaleString();
+  }
 }
 
 /**
@@ -135,7 +151,9 @@ export function NotifBell() {
                     <div className="notif-main">
                       <div className="notif-title">{n.title}</div>
                       {n.body && <div className="notif-body">{n.body}</div>}
-                      <div className="notif-time">{relTime(n.at)}</div>
+                      <div className="notif-time">
+                        🕒 {absTime(n.at)} <span className="notif-rel">· {relTime(n.at)}</span>
+                      </div>
                     </div>
                   </div>
                 ))}
