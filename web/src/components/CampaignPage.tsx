@@ -385,13 +385,13 @@ type Tab = 'dashboard' | 'attack' | 'target' | 'assessment';
 
 /**
  * The urlscan 魚拓 target for an IOC, or null if it has no web surface. URLs/domains capture as-is;
- * on the Target side, monitored IP assets capture their primary web endpoint (https://<ip>) so an
- * analyst can snapshot the asset's current exposure in bulk. Hashes are never web-capturable.
+ * IP assets (either side) capture their primary web endpoint (https://<ip>) so an analyst can snapshot
+ * the current exposure in bulk. Hashes are never web-capturable.
  */
-function captureKey(i: CampaignIoc, side: IocSide): string | null {
+function captureKey(i: CampaignIoc): string | null {
   if (i.type === 'url' || i.type === 'domain') return i.value;
-  if (side === 'target' && i.type === 'ipv4') return `https://${i.value}`;
-  if (side === 'target' && i.type === 'ipv6') return `https://[${i.value}]`;
+  if (i.type === 'ipv4') return `https://${i.value}`;
+  if (i.type === 'ipv6') return `https://[${i.value}]`;
   return null;
 }
 
@@ -686,7 +686,7 @@ export function CampaignPage() {
             Details
           </button>
           {(() => {
-            const capKey = captureKey(i, side);
+            const capKey = captureKey(i);
             if (!capKey) return null;
             const cap = webCaptures[capKey];
             const cp = cap?.phase;
@@ -782,12 +782,12 @@ export function CampaignPage() {
     const unEnriched = list.filter((i) => !i.result);
     const enrichingN = list.filter((i) => i.enriching).length;
     // Web-capturable IOCs in range (urlscan 魚拓): URL/domain always; on Target, IP assets too.
-    const capturable = list.filter((i) => captureKey(i, side) !== null);
+    const capturable = list.filter((i) => captureKey(i) !== null);
     const capRunningN = capturable.filter((i) => {
-      const p = webCaptures[captureKey(i, side)!]?.phase;
+      const p = webCaptures[captureKey(i)!]?.phase;
       return p === 'submitting' || p === 'running';
     }).length;
-    const capDoneN = capturable.filter((i) => webCaptures[captureKey(i, side)!]?.phase === 'done').length;
+    const capDoneN = capturable.filter((i) => webCaptures[captureKey(i)!]?.phase === 'done').length;
     return (
       <>
         <p className="hint mon-intro">
@@ -849,14 +849,20 @@ export function CampaignPage() {
               )}
             </div>
           </div>
-          <textarea
-            className="cp-add-text mono"
-            placeholder="IoC を貼り付け（改行/カンマ区切り可・defang対応）: 1[.]1[.]1[.]1  hxxp://evil[.]com  44d88612fea8a8f36de82e1278abb02f …"
-            rows={2}
-            value={text}
-            onChange={(e) => setText(e.target.value)}
-          />
-          <button className="btn btn-primary" onClick={() => onAdd(side)} disabled={!text.trim()}>
+          <div className="cp-add-paste">
+            <label className="cp-add-group-label" htmlFor={`cp-paste-${side}`}>
+              {side === 'target' ? '標的の情報を貼り付け' : '攻撃側の IoC を貼り付け'}（IP / ドメイン / URL / ハッシュ・改行/カンマ区切り・defang対応）
+            </label>
+            <textarea
+              id={`cp-paste-${side}`}
+              className="cp-add-text mono"
+              placeholder="例: 1[.]1[.]1[.]1  hxxp://evil[.]com  44d88612fea8a8f36de82e1278abb02f …"
+              rows={3}
+              value={text}
+              onChange={(e) => setText(e.target.value)}
+            />
+          </div>
+          <button className="btn btn-primary cp-add-btn" onClick={() => onAdd(side)} disabled={!text.trim()}>
             ＋ Add to {sideLabel}
           </button>
         </div>
@@ -913,11 +919,11 @@ export function CampaignPage() {
               <button
                 className="btn btn-sm"
                 disabled={capRunningN > 0}
-                onClick={() => void startWebCaptureBatch(capturable.map((i) => captureKey(i, side)!))}
+                onClick={() => void startWebCaptureBatch(capturable.map((i) => captureKey(i)!))}
                 title={
                   side === 'target'
                     ? '標的資産（URL/ドメイン + IPのWeb面 https://）を一括で urlscan 魚拓 — 各ジョブは裏で継続・完了時に🔔'
-                    : '攻撃側の URL/ドメインを一括で urlscan 魚拓 — 各ジョブは裏で継続・完了時に🔔'
+                    : '攻撃側インフラ（URL/ドメイン + IPのWeb面 https://）を一括で urlscan 魚拓 — 各ジョブは裏で継続・完了時に🔔'
                 }
               >
                 {capRunningN > 0 ? `🎣 魚拓 実行中… (${capRunningN})` : `🎣 魚拓 all (${capturable.length})`}

@@ -2385,19 +2385,31 @@ button.pv-monitored.link:hover {
   display: flex;
   flex-wrap: wrap;
   align-items: flex-start;
-  gap: 8px;
-  margin: 6px 0 10px;
+  gap: 10px;
+  margin: 6px 0 12px;
+}
+.cp-add-paste {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  flex: 2 1 380px;
+  min-width: 260px;
 }
 .cp-add-text {
-  flex: 1 1 420px;
-  min-width: 240px;
+  width: 100%;
+  min-height: 78px;
   background: var(--bg);
   border: 1px solid var(--line);
   border-radius: 6px;
   color: var(--text);
   padding: 8px 10px;
   font-size: 12px;
+  line-height: 1.5;
   resize: vertical;
+}
+/* Sits at the bottom of the row so it lines up with the paste box's lower edge, not the labels. */
+.cp-add-btn {
+  align-self: flex-end;
 }
 .cp-recent {
   border: 1px solid var(--line);
@@ -2794,12 +2806,18 @@ button.pv-monitored.link:hover {
 .cp-add-group {
   display: flex;
   flex-direction: column;
-  gap: 3px;
+  gap: 4px;
+  flex: 1 1 280px;
+  min-width: 240px;
 }
 .cp-add-group-label {
   font-size: 11px;
   color: var(--muted);
   font-weight: 600;
+  /* keep labels one line so the Group and paste fields align at the same baseline */
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 .cp-add-group-row {
   display: flex;
@@ -2808,10 +2826,12 @@ button.pv-monitored.link:hover {
   flex-wrap: wrap;
 }
 .cp-group-field {
-  width: clamp(240px, 40vw, 460px);
+  flex: 1 1 180px;
+  min-width: 150px;
   max-width: 100%;
 }
 .cp-group-pick {
+  flex: 0 1 auto;
   max-width: 190px;
 }
 .cp-group-clear {
