@@ -1049,6 +1049,10 @@ export const useStore = create<State>((set, get) => {
     });
     void get().refreshHealth();
     void get().refreshCaptures(); // pull the team's shared 魚拓 history (best-effort)
+    // Pull the shared campaigns on boot too, so CP-Mon's header count + list populate on load like
+    // IP-Mon (whose count comes from localStorage) — instead of only appearing after opening CP-Mon /
+    // pressing Sync. Non-destructive merge; a local-only device (no proxy) just keeps its local copy.
+    void get().refreshCampaigns();
   },
 
   async login(username, password) {
