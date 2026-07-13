@@ -70,7 +70,7 @@ describe('saveCampaigns quota resilience', () => {
     saveCampaigns(m);
     const loaded = loadCampaigns();
     expect(Object.keys(loaded)).toEqual(['c1']);
-    // slimForLocal caps the local cache to the latest 3 reports (the rest stay on the shared proxy).
-    expect(loaded.c1.assessments?.length).toBe(3);
+    // slimForLocal caps the local cache to the latest few reports (the rest stay on the shared proxy).
+    expect(loaded.c1.assessments?.length).toBe(8);
   });
 });

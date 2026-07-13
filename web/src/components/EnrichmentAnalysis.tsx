@@ -108,9 +108,18 @@ export function EnrichmentAnalysis({
   const n = asc.length;
   const [ai, setAi] = useState(0);
   const [bi, setBi] = useState(0);
+  const [expanded, setExpanded] = useState<Set<string>>(new Set());
+  const toggleExpanded = (k: string) =>
+    setExpanded((prev) => {
+      const next = new Set(prev);
+      if (next.has(k)) next.delete(k);
+      else next.add(k);
+      return next;
+    });
   useEffect(() => {
     setBi(n > 0 ? n - 1 : 0);
     setAi(n > 1 ? n - 2 : 0);
+    setExpanded(new Set());
   }, [resetKey, n]);
 
   if (n === 0) {
@@ -272,13 +281,20 @@ export function EnrichmentAnalysis({
         </>
       )}
 
-      {/* ---- Timeline ---- */}
+      {/* ---- Timeline: recent shown; older change points collapse into expandable monthly periods.
+              No data is dropped — only the DISPLAY is thinned; expand a period to see all its points. ---- */}
       <div className="ana-section-title">Timeline</div>
-      <ol className="hist-timeline">
-        {[...asc].reverse().map((h, i, arr) => {
-          const older = arr[i + 1];
+      {(() => {
+        const DAY = 86_400_000;
+        const now = Date.now();
+        const desc = [...asc].reverse(); // newest first
+        const prevOf = new Map<number, AnalysisPoint>();
+        desc.forEach((h, i) => {
+          if (desc[i + 1]) prevOf.set(h.at, desc[i + 1]);
+        });
+        const renderPoint = (h: AnalysisPoint, isLatest: boolean) => {
+          const older = prevOf.get(h.at);
           const changes = older ? diffParts(h.result, older.result) : [];
-          const isLatest = i === 0;
           return (
             <li key={h.at} className={`hist-item${isLatest ? ' latest' : ''}`}>
               <div className="hist-when">
@@ -305,8 +321,61 @@ export function EnrichmentAnalysis({
               {changes.length > 0 && <div className="hist-diff changed">▲ vs 前回: {changes.join(' · ')}</div>}
             </li>
           );
-        })}
-      </ol>
+        };
+        const recent = desc.filter((h) => now - h.at < 7 * DAY);
+        const older = desc.filter((h) => now - h.at >= 7 * DAY);
+        const periods: { key: string; label: string; items: AnalysisPoint[] }[] = [];
+        for (const h of older) {
+          const d = new Date(h.at);
+          const key = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`;
+          let p = periods.find((x) => x.key === key);
+          if (!p) {
+            p = { key, label: `${d.getFullYear()}年${d.getMonth() + 1}月`, items: [] };
+            periods.push(p);
+          }
+          p.items.push(h);
+        }
+        return (
+          <>
+            {recent.length > 0 && <ol className="hist-timeline">{recent.map((h, i) => renderPoint(h, i === 0))}</ol>}
+            {recent.length > 0 && periods.length > 0 && (
+              <div className="ana-periods-label">7日より前（変更点のみ・期間を開くと全件）</div>
+            )}
+            {periods.length > 0 && (
+              <div className="ana-periods">
+                {periods.map((p, pi) => {
+                  const isEx = expanded.has(p.key) || (recent.length === 0 && pi === 0);
+                  const head = p.items[0];
+                  return (
+                    <div key={p.key} className="ana-period">
+                      <button className="ana-period-head" onClick={() => toggleExpanded(p.key)} aria-expanded={isEx}>
+                        <span className="ana-period-caret" aria-hidden>
+                          {isEx ? '▾' : '▸'}
+                        </span>
+                        <b>{p.label}</b>
+                        <span className="ana-period-n">{p.items.length} 変化点</span>
+                        {!isEx && head && (
+                          <span className="ana-period-peek">
+                            <VerdictBadge verdict={head.result.verdict} status={head.result.status} />
+                            <span className="mon-chip">
+                              det {detOf(head.result)}/{head.result.detection?.total ?? 0}
+                            </span>
+                            {cvesOf(head.result) > 0 && <span className="mon-chip sev-high">{cvesOf(head.result)} CVE</span>}
+                          </span>
+                        )}
+                      </button>
+                      {isEx && <ol className="hist-timeline">{p.items.map((h) => renderPoint(h, false))}</ol>}
+                    </div>
+                  );
+                })}
+              </div>
+            )}
+            {recent.length === 0 && periods.length === 0 && (
+              <ol className="hist-timeline">{desc.map((h, i) => renderPoint(h, i === 0))}</ol>
+            )}
+          </>
+        );
+      })()}
     </>
   );
 }

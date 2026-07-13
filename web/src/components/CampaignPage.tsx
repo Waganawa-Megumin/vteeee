@@ -821,7 +821,13 @@ export function CampaignPage() {
               VT ↗
             </a>
           )}
-          <button className="btn btn-sm btn-danger" onClick={() => void removeIocs(cid, [i.value])}>
+          <button
+            className="btn btn-sm btn-danger"
+            onClick={() => {
+              if (window.confirm(`IoC「${i.value}」をこのキャンペーンから削除しますか？\nエンリッチ履歴・魚拓の記録も失われ、チーム共有からも消えます。`))
+                void removeIocs(cid, [i.value]);
+            }}
+          >
             Remove
           </button>
         </div>

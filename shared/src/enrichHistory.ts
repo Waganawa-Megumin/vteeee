@@ -9,7 +9,7 @@ export interface EnrichSnapshot {
   result: NormalizedResult;
 }
 
-const MAX_HISTORY = 40; // hard backstop after age-based downsampling
+const MAX_HISTORY = 400; // safety backstop only — every change point is kept; Tr-Analysis thins the DISPLAY
 
 /** Compact signature of the triage-relevant fields. Two snapshots with the same signature represent
  *  the "same state", so consecutive duplicates are collapsed — the timeline stays meaningful & small. */
@@ -33,38 +33,20 @@ export function snapSig(r: NormalizedResult): string {
   ].join('|');
 }
 
-/** Age-based bucket key so the timeline can't grow without bound however often an IP is re-enriched:
- *  recent is fine-grained, older is progressively coarser. Tiers ≈ ≤1wk daily · 2wk ~5pts · 3–4wk ~2 ·
- *  5–6wk ~1 · older monthly. */
-function ageBucket(at: number, now: number): string {
-  const day = 86_400_000;
-  const ageDays = (now - at) / day;
-  if (ageDays < 7) return 'd' + Math.floor(at / day);
-  if (ageDays < 14) return 'a' + Math.floor(at / (1.4 * day));
-  if (ageDays < 28) return 'b' + Math.floor(at / (7 * day));
-  if (ageDays < 42) return 'c' + Math.floor(at / (14 * day));
-  return 'm' + Math.floor(at / (30 * day));
-}
-
-/** Normalise snapshots into a bounded timeline: unique by time, thinned to the newest per age bucket,
- *  consecutive same-state runs collapsed to their onset, hard-capped. */
-export function downsampleHistory(list: EnrichSnapshot[], now: number): EnrichSnapshot[] {
+/**
+ * Normalise snapshots into a CHANGE-POINT timeline: unique by time, then keep only points where the
+ * triage state actually changed (consecutive identical snapshots collapse to their onset — lossless).
+ * There is NO age-based deletion, so a change from a year ago is preserved just like yesterday's; the
+ * only bound is a high safety cap. Tr-Analysis thins the DISPLAY (collapsing old periods) instead of
+ * throwing data away.
+ */
+export function downsampleHistory(list: EnrichSnapshot[], _now: number): EnrichSnapshot[] {
   const byAt = new Map<number, EnrichSnapshot>();
   for (const s of list) if (s && s.result && !byAt.has(s.at)) byAt.set(s.at, s);
   const sorted = [...byAt.values()].sort((a, b) => a.at - b.at);
-  const seen = new Set<string>();
-  const kept: EnrichSnapshot[] = [];
-  for (let i = sorted.length - 1; i >= 0; i--) {
-    const bk = ageBucket(sorted[i].at, now);
-    if (!seen.has(bk)) {
-      seen.add(bk);
-      kept.push(sorted[i]);
-    }
-  }
-  kept.reverse();
   const out: EnrichSnapshot[] = [];
   let lastSig: string | null = null;
-  for (const s of kept) {
+  for (const s of sorted) {
     const sig = snapSig(s.result);
     if (sig !== lastSig) {
       out.push(s);

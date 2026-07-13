@@ -97,7 +97,8 @@ export function mergeAssessments(a: CampaignAssessment[] = [], b: CampaignAssess
     if (!e || typeof e.at !== 'number') continue;
     if (!byAt.has(e.at)) byAt.set(e.at, e);
   }
-  return [...byAt.values()].sort((x, y) => y.at - x.at).slice(0, 15);
+  // Keep a long history so the assessment time-series is preserved (the whole point of tracking it).
+  return [...byAt.values()].sort((x, y) => y.at - x.at).slice(0, 60);
 }
 
 export const CAMPAIGNS_KEY = 'vteeee.campaigns';
@@ -155,7 +156,8 @@ function capIocHistories(iocs: Record<string, CampaignIoc>, n: number): Record<s
  */
 function slimForLocal(c: Campaign): Campaign {
   const base = slimCampaign(c);
-  return { ...base, assessments: base.assessments?.slice(0, 3) };
+  // Keep the recent reports in the local cache; the full assessment history lives on the shared proxy.
+  return { ...base, assessments: base.assessments?.slice(0, 8) };
 }
 
 export function saveCampaigns(m: Record<string, Campaign>): void {

@@ -155,6 +155,8 @@ export interface WebCaptureJob {
   token?: number;
   /** All completed captures for this target, newest first (never overwritten). */
   history: WebCaptureEntry[];
+  /** Hidden from the 🎣 tracker log (via Clear/✕) — the capture + history are kept, just not shown there. */
+  dismissed?: boolean;
 }
 const CAP_ACTIVE: WebCaptureJob['phase'][] = ['submitting', 'running'];
 export const isActiveCapture = (j: WebCaptureJob): boolean => CAP_ACTIVE.includes(j.phase);
@@ -1023,6 +1025,8 @@ export const useStore = create<State>((set, get) => {
         seen: m.seen ?? false,
         token,
         history: m.history ?? cur?.history ?? [],
+        // A fresh submit/run un-hides the target in the tracker; other patches keep the current flag.
+        dismissed: m.phase === 'submitting' || m.phase === 'running' ? false : (m.dismissed ?? cur?.dismissed),
       };
       const webCaptures = { ...s.webCaptures, [target]: next };
       saveWebCaptures(webCaptures);
@@ -1811,19 +1815,29 @@ export const useStore = create<State>((set, get) => {
   },
 
   dismissWebCapture(target) {
+    // Hide from the tracker log ONLY — the capture + its 魚拓 history are kept (per-row 済/過去 + Tr分析).
     set((s) => {
-      if (!s.webCaptures[target]) return {};
-      const webCaptures = { ...s.webCaptures };
-      delete webCaptures[target];
+      const cur = s.webCaptures[target];
+      if (!cur || cur.dismissed) return {};
+      const webCaptures = { ...s.webCaptures, [target]: { ...cur, dismissed: true } };
       saveWebCaptures(webCaptures);
       return { webCaptures };
     });
   },
 
   clearFinishedWebCaptures() {
+    // "Clear finished" is a LOG action: it hides finished entries from the tracker but never deletes
+    // the 魚拓 URLs/history (those stay on the rows, the shared timeline and Tr-Analysis).
     set((s) => {
-      const webCaptures: Record<string, WebCaptureJob> = {};
-      for (const [k, v] of Object.entries(s.webCaptures)) if (isActiveCapture(v)) webCaptures[k] = v;
+      const webCaptures = { ...s.webCaptures };
+      let changed = false;
+      for (const [k, v] of Object.entries(s.webCaptures)) {
+        if (!isActiveCapture(v) && !v.dismissed) {
+          webCaptures[k] = { ...v, dismissed: true };
+          changed = true;
+        }
+      }
+      if (!changed) return {};
       saveWebCaptures(webCaptures);
       return { webCaptures };
     });

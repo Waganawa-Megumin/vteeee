@@ -23,7 +23,10 @@ export function ScanTracker() {
   const [open, setOpen] = useState(false);
 
   const list = Object.values(jobs).sort((a, b) => b.updatedAt - a.updatedAt);
-  const caps = Object.values(captures).sort((a, b) => b.updatedAt - a.updatedAt);
+  // Dismissed captures are hidden from the tracker LOG, but their 魚拓 history is kept (rows / Tr-Analysis).
+  const caps = Object.values(captures)
+    .filter((c) => !c.dismissed)
+    .sort((a, b) => b.updatedAt - a.updatedAt);
   if (list.length === 0 && caps.length === 0) return null;
 
   const active = list.filter(isActiveScan).length + caps.filter(isActiveCapture).length;
@@ -114,9 +117,13 @@ export function ScanTracker() {
             {caps.length > 0 && (
               <>
                 <div className="stm-head">
-                  <span>urlscan 魚拓</span>
-                  <button className="btn btn-ghost btn-sm" onClick={clearFinishedCaps}>
-                    Clear finished
+                  <span>urlscan 魚拓（実行ログ）</span>
+                  <button
+                    className="btn btn-ghost btn-sm"
+                    onClick={clearFinishedCaps}
+                    title="このログ表示だけを消します。魚拓のURL/履歴は各行・Tr-Analysisに残ります（削除されません）"
+                  >
+                    ログを消す
                   </button>
                 </div>
                 {caps.map((c) => {
@@ -158,7 +165,7 @@ export function ScanTracker() {
                         <button
                           className="btn btn-ghost btn-sm"
                           onClick={() => dismissCap(c.target)}
-                          title="Remove from tracker"
+                          title="ログから隠す（魚拓のURL/履歴は残ります）"
                         >
                           ✕
                         </button>

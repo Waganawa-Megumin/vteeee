@@ -517,7 +517,13 @@ export function MonitorPage() {
           >
             Shodan ↗
           </a>
-          <button className="btn btn-sm btn-danger" onClick={() => void remove(e.ip)}>
+          <button
+            className="btn btn-sm btn-danger"
+            onClick={() => {
+              if (window.confirm(`監視IP「${e.ip}」を停止・削除しますか？\nエンリッチ履歴・魚拓の記録も失われ、チーム共有からも消えます。`))
+                void remove(e.ip);
+            }}
+          >
             Remove
           </button>
         </div>

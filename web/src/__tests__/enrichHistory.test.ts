@@ -42,26 +42,33 @@ function snap(daysAgo: number, mal = daysAgo): Snap {
 }
 const ageDays = (s: Snap) => (NOW - s.at) / DAY;
 
-describe('enrichment history downsampling (avoids unbounded log growth)', () => {
-  it('keeps recent daily detail but thins old points, staying bounded', () => {
+describe('enrichment history = change-point timeline (never age-deletes data)', () => {
+  it('keeps EVERY change point regardless of age (old points are not thrown away)', () => {
     const all: Snap[] = [];
-    for (let d = 0; d <= 6; d++) all.push(snap(d)); // last week — one per day
-    for (let d = 7; d <= 13; d++) all.push(snap(d)); // week 2
-    for (let d = 14; d <= 27; d++) all.push(snap(d)); // weeks 3–4
-    for (let d = 28; d <= 41; d++) all.push(snap(d)); // weeks 5–6
-    for (let d = 42; d <= 250; d++) all.push(snap(d)); // 200+ old points
+    for (let d = 0; d <= 250; d++) all.push(snap(d)); // 251 distinct-state points across ~8 months
 
     const out = downsampleHistory(all, NOW);
 
-    // Hard bound regardless of how many raw points went in (>220 here).
-    expect(all.length).toBeGreaterThan(220);
-    expect(out.length).toBeLessThanOrEqual(40);
-    // The last week keeps one point per day (daily detail).
-    expect(out.filter((s) => ageDays(s) < 7).length).toBe(7);
-    // The 200+ ancient points collapse to ~monthly — a handful, not hundreds.
-    expect(out.filter((s) => ageDays(s) >= 42).length).toBeLessThanOrEqual(9);
+    // Every distinct change point survives — no age-based deletion.
+    expect(out.length).toBe(251);
+    // Old change points (a point ~200 days old) are still present, not collapsed away.
+    expect(out.some((s) => ageDays(s) >= 200)).toBe(true);
     // Ascending order, unique timestamps.
     for (let i = 1; i < out.length; i++) expect(out[i].at).toBeGreaterThan(out[i - 1].at);
+  });
+
+  it('collapses consecutive identical states but keeps real changes (lossless)', () => {
+    const same = Array.from({ length: 10 }, (_, i) => snap(20 - i, 5)); // days 20..11, same state
+    const changed = snap(10, 9); // day 10 — a real change
+    const out = downsampleHistory([...same, changed], NOW);
+    expect(out.length).toBe(2); // onset of the run + the change, not 11 points
+  });
+
+  it('caps at a high safety bound (keeps the newest points)', () => {
+    const many = Array.from({ length: 500 }, (_, i) => snap(500 - i, i)); // 500 distinct states
+    const out = downsampleHistory(many, NOW);
+    expect(out.length).toBe(400);
+    expect(ageDays(out[out.length - 1])).toBeLessThan(ageDays(out[0])); // newest kept, ascending
   });
 
   it('does not grow when the state is unchanged, but records real changes on new days', () => {
