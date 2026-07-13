@@ -677,9 +677,13 @@ export function CampaignPage() {
             className="btn btn-sm"
             disabled={!r}
             onClick={() => r && showResult(r)}
-            title={side === 'target' ? '詳細を開く（urlscan 魚拓・Live ports 等の露出調査）' : 'Open detail'}
+            title={
+              side === 'target'
+                ? '詳細を開く（OSINT露出・Live ports・urlscan 魚拓 など）'
+                : '詳細を開く'
+            }
           >
-            {side === 'target' ? '🎣 詳細/魚拓' : 'Open'}
+            Details
           </button>
           {(() => {
             const capKey = captureKey(i, side);
@@ -794,9 +798,9 @@ export function CampaignPage() {
             </>
           ) : (
             <>
-              標的/被害側（狙われた資産）の IoC。脅威判定より <b>OSINT 露出・リスク</b>の観点で、
+              標的/被害側（狙われた資産）の情報。IoC とは限らず、監視対象の資産・アカウント・ドメイン等を含みます。脅威判定より <b>OSINT 露出・リスク</b>の観点で、
               <b>Shodan（開放ポート・サービス・CVE・OS）＋ MaxMind（所在地・ASN/ISP・匿名化）</b>を表示。
-              <b>各グループ内は露出度順</b>に整列し、行の <b>🎣 詳細/魚拓</b> で urlscan 魚拓・Live ports を確認できます。
+              <b>各グループ内は露出度順</b>に整列。行の <b>Details</b> で詳細（Live ports・urlscan 魚拓 など）、<b>🎣 魚拓</b> で即時に魚拓できます。
             </>
           )}{' '}
           登録IoCは<b>サーバ側で毎日自動エンリッチ</b>・<b>履歴ごとチーム共有</b>されます。

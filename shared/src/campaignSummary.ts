@@ -33,7 +33,7 @@ export interface CampaignDigest {
  */
 export function fallbackSummary(d: CampaignDigest): string {
   const parts: string[] = [`🎯 ${d.name}`];
-  const head: string[] = [`${d.iocCount} IOCs`];
+  const head: string[] = [`計 ${d.iocCount}件`];
   if (d.withIntel) head.push(`intel ${d.withIntel}`);
   if (d.malicious) head.push(`🔴 malicious ${d.malicious}`);
   if (d.suspicious) head.push(`🟠 suspicious ${d.suspicious}`);

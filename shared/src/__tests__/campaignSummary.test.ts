@@ -29,7 +29,7 @@ describe('fallbackSummary', () => {
   it('folds name, counts, top countries and recent changes into one line', () => {
     const s = fallbackSummary(base);
     expect(s).toContain('APT-Test');
-    expect(s).toContain('5 IOCs');
+    expect(s).toContain('計 5件');
     expect(s).toContain('malicious 2');
     expect(s).toContain('RU(3)');
     expect(s).toContain('1.2.3.4');
@@ -53,6 +53,6 @@ describe('fallbackSummary', () => {
       totalSnapshots: 0,
     });
     expect(s).toContain('APT-Test');
-    expect(s).toContain('0 IOCs');
+    expect(s).toContain('計 0件');
   });
 });

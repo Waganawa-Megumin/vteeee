@@ -26,7 +26,7 @@ describe('summarizeCampaign', () => {
     const env = {} as ProxyEnv;
     const r = await summarizeCampaign(digest, env);
     expect(r.text).toContain('X-Campaign');
-    expect(r.text).toContain('1 IOCs');
+    expect(r.text).toContain('計 1件');
     expect(r.model).toBeUndefined();
   });
 });
