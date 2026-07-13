@@ -28,6 +28,8 @@ import {
   putSharedMonitors,
   getSharedCampaigns,
   putSharedCampaigns,
+  getSharedCaptures,
+  putSharedCaptures,
   summarizeCampaign,
   assessCampaign,
   runAllScheduledEnrich,
@@ -402,6 +404,16 @@ app.get('/api/campaigns', async (req, res) => {
 app.put('/api/campaigns', async (req, res) => {
   if (!requireAccess(req, res)) return;
   await putSharedCampaigns(store, req.body);
+  res.json({ ok: true });
+});
+// Shared urlscan 魚拓 history (per-target capture timeline), team-wide like campaigns.
+app.get('/api/captures', async (req, res) => {
+  if (!requireAccess(req, res)) return;
+  res.json(await getSharedCaptures(store));
+});
+app.put('/api/captures', async (req, res) => {
+  if (!requireAccess(req, res)) return;
+  await putSharedCaptures(store, req.body);
   res.json({ ok: true });
 });
 // CP-Mon 電光掲示板: Claude-written one-line key message from a compact campaign digest.

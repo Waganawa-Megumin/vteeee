@@ -124,6 +124,19 @@ function saveScanJobs(jobs: Record<string, ScanJob>): void {
 
 // urlscan web captures (魚拓) are tracked in the store too, keyed by target — so a capture keeps running
 // (and stays viewable) after the detail panel is closed, and a bulk capture can run many at once.
+// Every completed capture is kept in `history` (newest-first, never overwritten) and shared team-wide via
+// the proxy, so an analyst can pick a past 魚拓 ("過去") and always take a fresh one.
+export interface WebCaptureEntry {
+  /** urlscan scan uuid — the snapshot's identity (also its result page). */
+  uuid: string;
+  /** When this capture completed (ms). */
+  at: number;
+  /** Who ran it (username), when known. */
+  by?: string;
+  visibility?: string;
+  result: UrlscanResult;
+}
+const CAP_HISTORY_MAX = 20;
 export interface WebCaptureJob {
   target: string;
   phase: 'submitting' | 'running' | 'done' | 'error' | 'stalled' | 'interrupted';
@@ -138,9 +151,30 @@ export interface WebCaptureJob {
   seen: boolean;
   /** Guard token so a superseded poll loop can't clobber a newer capture. */
   token?: number;
+  /** All completed captures for this target, newest first (never overwritten). */
+  history: WebCaptureEntry[];
 }
 const CAP_ACTIVE: WebCaptureJob['phase'][] = ['submitting', 'running'];
 export const isActiveCapture = (j: WebCaptureJob): boolean => CAP_ACTIVE.includes(j.phase);
+/** Strip heavy/volatile fields before persisting or sharing a capture result. */
+function slimCaptureResult(r: UrlscanResult): UrlscanResult {
+  const { raw: _raw, ...rest } = r;
+  return {
+    ...rest,
+    contactedDomains: rest.contactedDomains?.slice(0, 40),
+    contactedIps: rest.contactedIps?.slice(0, 40),
+  };
+}
+/** Merge two capture-history lists for the same target: union by uuid, newest first, capped. */
+function mergeCaptureEntries(a: WebCaptureEntry[] = [], b: WebCaptureEntry[] = []): WebCaptureEntry[] {
+  const byUuid = new Map<string, WebCaptureEntry>();
+  for (const e of [...a, ...b]) {
+    if (!e || !e.uuid) continue;
+    const prev = byUuid.get(e.uuid);
+    if (!prev || (e.at ?? 0) >= (prev.at ?? 0)) byUuid.set(e.uuid, e);
+  }
+  return [...byUuid.values()].sort((x, y) => (y.at ?? 0) - (x.at ?? 0)).slice(0, CAP_HISTORY_MAX);
+}
 const WEBCAP_KEY = 'vteeee.webCaptures';
 function loadWebCaptures(): Record<string, WebCaptureJob> {
   try {
@@ -148,8 +182,17 @@ function loadWebCaptures(): Record<string, WebCaptureJob> {
     if (!raw) return {};
     const jobs = JSON.parse(raw) as Record<string, WebCaptureJob>;
     for (const k of Object.keys(jobs)) {
-      if (jobs[k] && CAP_ACTIVE.includes(jobs[k].phase)) {
-        jobs[k] = { ...jobs[k], phase: 'interrupted', msg: 'ページ再読込で中断 — 「再確認」で続行できます。' };
+      const j = jobs[k];
+      if (!j) continue;
+      // Migrate pre-history jobs: seed history from the last result so nothing is lost.
+      if (!Array.isArray(j.history)) {
+        j.history =
+          j.result && (j.result.uuid ?? j.uuid)
+            ? [{ uuid: (j.result.uuid ?? j.uuid)!, at: j.updatedAt ?? Date.now(), visibility: j.visibility, result: j.result }]
+            : [];
+      }
+      if (CAP_ACTIVE.includes(j.phase)) {
+        jobs[k] = { ...j, phase: 'interrupted', msg: 'ページ再読込で中断 — 「再確認」で続行できます。' };
       }
     }
     return jobs;
@@ -500,6 +543,41 @@ async function pushSharedCampaign(settings: AppSettings, id: string, campaign: C
   }
 }
 
+// ---- Shared 魚拓 capture history sync (proxy KV, key 'captures') ----
+// Executed captures are shared team-wide so everyone sees the same 魚拓 timeline. The blob is
+// Record<target, WebCaptureEntry[]>; the proxy is dumb storage and the merge (union by uuid) happens
+// client-side on every write, so a stale client can never wipe another analyst's captures.
+async function fetchSharedCaptures(settings: AppSettings): Promise<Record<string, WebCaptureEntry[]> | null> {
+  if (!monitorSharingOn(settings)) return null;
+  const base = settings.proxyBaseUrl!.replace(/\/$/, '');
+  try {
+    const res = await fetch(`${base}/api/captures`, { headers: monitorAuth(settings), cache: 'no-store' });
+    if (!res.ok) return null;
+    const j = await res.json();
+    return j && typeof j === 'object' ? (j as Record<string, WebCaptureEntry[]>) : {};
+  } catch {
+    return null;
+  }
+}
+/** Read-modify-write ONE target's capture history into the shared blob (union by uuid). Best-effort. */
+async function pushSharedCapture(settings: AppSettings, target: string, history: WebCaptureEntry[]): Promise<void> {
+  if (!monitorSharingOn(settings)) return;
+  const base = settings.proxyBaseUrl!.replace(/\/$/, '');
+  try {
+    const res = await fetch(`${base}/api/captures`, { headers: monitorAuth(settings), cache: 'no-store' });
+    const j = res.ok ? await res.json() : {};
+    const map = (j && typeof j === 'object' ? j : {}) as Record<string, WebCaptureEntry[]>;
+    map[target] = mergeCaptureEntries(history, map[target] ?? []);
+    await fetch(`${base}/api/captures`, {
+      method: 'PUT',
+      headers: { ...monitorAuth(settings), 'content-type': 'application/json' },
+      body: JSON.stringify(map),
+    });
+  } catch {
+    /* offline — local copy keeps it; a later refresh reconciles */
+  }
+}
+
 /** Build the compact digest the summarizer consumes (aggregates + short change strings only). */
 function buildCampaignDigest(c: Campaign): CampaignDigest {
   const iocs = Object.values(c.iocs);
@@ -779,6 +857,8 @@ interface State {
   dismissWebCapture: (target: string) => void;
   /** Remove all finished capture jobs (keeps still-running ones). */
   clearFinishedWebCaptures: () => void;
+  /** Pull the shared 魚拓 histories (proxy KV) and merge them into local captures (team-wide sharing). */
+  refreshCaptures: () => Promise<void>;
 
   /** In-app notification log (🔔) — completion events that survive navigating away. Newest first. */
   notifications: NotifItem[];
@@ -906,6 +986,7 @@ export const useStore = create<State>((set, get) => {
         error: m.error,
         seen: m.seen ?? false,
         token,
+        history: m.history ?? cur?.history ?? [],
       };
       const webCaptures = { ...s.webCaptures, [target]: next };
       saveWebCaptures(webCaptures);
@@ -960,6 +1041,7 @@ export const useStore = create<State>((set, get) => {
       ...(imported ? { view: 'monitor' as const } : {}),
     });
     void get().refreshHealth();
+    void get().refreshCaptures(); // pull the team's shared 魚拓 history (best-effort)
   },
 
   async login(username, password) {
@@ -1597,8 +1679,13 @@ export const useStore = create<State>((set, get) => {
         return;
       }
       if (!result.pending) {
-        writeCap(target, token, started, { phase: 'done', uuid, result, seen: false, msg: undefined, error: undefined });
+        // Append to this target's history (never overwrite) and share the snapshot team-wide.
+        const slim = slimCaptureResult(result);
+        const entry: WebCaptureEntry = { uuid: uuid!, at: Date.now(), by: get().session?.username, visibility: vis, result: slim };
+        const history = mergeCaptureEntries([entry], get().webCaptures[target]?.history ?? []);
+        writeCap(target, token, started, { phase: 'done', uuid, result: slim, history, seen: false, msg: undefined, error: undefined });
         if (!silent) get().notify({ title: '魚拓が完了しました', body: `${target}${result.malicious ? ' · ⚠ malicious' : ''}`, kind: 'capture' });
+        void pushSharedCapture(get().settings, target, history);
         return;
       }
     }
@@ -1694,6 +1781,48 @@ export const useStore = create<State>((set, get) => {
     set((s) => {
       const webCaptures: Record<string, WebCaptureJob> = {};
       for (const [k, v] of Object.entries(s.webCaptures)) if (isActiveCapture(v)) webCaptures[k] = v;
+      saveWebCaptures(webCaptures);
+      return { webCaptures };
+    });
+  },
+
+  async refreshCaptures() {
+    const remote = await fetchSharedCaptures(get().settings);
+    if (!remote) return;
+    set((s) => {
+      const webCaptures = { ...s.webCaptures };
+      for (const [target, remoteHist] of Object.entries(remote)) {
+        if (!Array.isArray(remoteHist) || !remoteHist.length) continue;
+        const cur = webCaptures[target];
+        const history = mergeCaptureEntries(cur?.history ?? [], remoteHist);
+        if (!history.length) continue;
+        if (cur) {
+          // Don't disturb an in-flight capture — just merge the history. For an idle/finished job,
+          // surface the latest snapshot (keep an error/stalled/interrupted affordance intact).
+          const keepPhase =
+            isActiveCapture(cur) || cur.phase === 'error' || cur.phase === 'stalled' || cur.phase === 'interrupted';
+          webCaptures[target] = {
+            ...cur,
+            history,
+            ...(keepPhase ? {} : { phase: 'done', result: history[0].result, uuid: history[0].uuid }),
+          };
+        } else {
+          const latest = history[0];
+          webCaptures[target] = {
+            target,
+            phase: 'done',
+            uuid: latest.uuid,
+            visibility: latest.visibility,
+            msg: undefined,
+            startedAt: latest.at,
+            updatedAt: latest.at,
+            result: latest.result,
+            error: undefined,
+            seen: true, // pulled from the shared timeline — not a "new" local completion
+            history,
+          };
+        }
+      }
       saveWebCaptures(webCaptures);
       return { webCaptures };
     });

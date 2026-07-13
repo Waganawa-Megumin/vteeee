@@ -3106,6 +3106,23 @@ button.pv-monitored.link:hover {
 .urlscan-capture {
   margin-top: 2px;
 }
+/* 過去 (history) selector for a target's 魚拓 timeline */
+.urlscan-hist {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 11.5px;
+  color: var(--muted);
+}
+.urlscan-hist-sel {
+  background: var(--bg);
+  color: var(--text);
+  border: 1px solid var(--line);
+  border-radius: 6px;
+  padding: 3px 6px;
+  font-size: 11.5px;
+  max-width: 260px;
+}
 .rf-evidence + .rf-evidence {
   border-top: 1px solid var(--line);
   padding-top: 6px;

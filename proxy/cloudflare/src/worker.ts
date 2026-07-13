@@ -25,6 +25,8 @@ import {
   putSharedMonitors,
   getSharedCampaigns,
   putSharedCampaigns,
+  getSharedCaptures,
+  putSharedCaptures,
   summarizeCampaign,
   assessCampaign,
   runAllScheduledEnrich,
@@ -392,6 +394,17 @@ export default {
         if (origin && !originAllowed(origin, allowed)) return json({ error: 'origin not allowed' }, 403);
         if (!checkAccess(auth, proxy)) return json({ error: 'unauthorized' }, 401);
         await putSharedCampaigns(store, await request.json());
+        return json({ ok: true });
+      }
+      // Shared urlscan 魚拓 history (per-target capture timeline), team-wide like campaigns.
+      if (url.pathname === '/api/captures' && request.method === 'GET') {
+        if (!checkAccess(auth, proxy)) return json({ error: 'unauthorized' }, 401);
+        return json(await getSharedCaptures(store));
+      }
+      if (url.pathname === '/api/captures' && request.method === 'PUT') {
+        if (origin && !originAllowed(origin, allowed)) return json({ error: 'origin not allowed' }, 403);
+        if (!checkAccess(auth, proxy)) return json({ error: 'unauthorized' }, 401);
+        await putSharedCaptures(store, await request.json());
         return json({ ok: true });
       }
       // CP-Mon 電光掲示板: Claude-written one-line key message from a compact campaign digest.

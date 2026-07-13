@@ -418,6 +418,7 @@ export function CampaignPage() {
   const summarize = useStore((s) => s.summarizeCampaign);
   const assess = useStore((s) => s.assessCampaign);
   const refreshCampaigns = useStore((s) => s.refreshCampaigns);
+  const refreshCaptures = useStore((s) => s.refreshCaptures);
   const syncNote = useStore((s) => s.campaignsSyncNote);
   const [text, setText] = useState('');
   const [groupInput, setGroupInput] = useState('');
@@ -473,10 +474,13 @@ export function CampaignPage() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [id, iocCount, campaign, summarizing]);
 
-  // Pull the latest shared campaigns when opening one, so cross-browser edits are reflected.
+  // Pull the latest shared campaigns + 魚拓 history when opening one, so cross-browser edits are reflected.
   useEffect(() => {
-    if (id) void refreshCampaigns();
-  }, [id, refreshCampaigns]);
+    if (id) {
+      void refreshCampaigns();
+      void refreshCaptures();
+    }
+  }, [id, refreshCampaigns, refreshCaptures]);
 
   if (!id || !campaign) {
     return (

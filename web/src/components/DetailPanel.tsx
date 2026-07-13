@@ -1829,18 +1829,32 @@ const SIZE_STEPS: { key: DetailSize; title: string }[] = [
  */
 function UrlscanCapture({ target, buttonLabel }: { target: string; buttonLabel?: string }) {
   // Read this target's capture from the store, so the job keeps running (and stays viewable) after the
-  // detail panel is closed, survives a page reload, and can be launched in bulk from CP-Mon.
+  // detail panel is closed, survives a reload, is shared team-wide, and keeps a full 魚拓 history — you
+  // can always take a fresh capture, and pick a past one with the 過去 selector.
   const job = useStore((s) => s.webCaptures[target]);
   const start = useStore((s) => s.startWebCapture);
   const markSeen = useStore((s) => s.markCaptureSeen);
   const visibility = useStore((s) => s.settings.urlscanVisibility ?? 'unlisted');
   const [imgOk, setImgOk] = useState(true);
+  const [sel, setSel] = useState(0); // which history snapshot is shown (0 = latest)
 
   const phase = job?.phase ?? 'idle';
   const running = phase === 'submitting' || phase === 'running';
   const resumable = phase === 'stalled' || phase === 'interrupted';
-  const d = job?.result;
-  const effVis = job?.visibility ?? null;
+  const history = job?.history ?? [];
+  const selIdx = history.length ? Math.min(sel, history.length - 1) : 0;
+  const shown = history[selIdx];
+  const d = history.length ? shown?.result : job?.result;
+  const effVis = shown?.visibility ?? job?.visibility ?? null;
+  const hasShot = (history.length > 0 || phase === 'done') && !!d && !d.error;
+
+  // Reset the selection when the target changes; reset image state when the shown snapshot changes.
+  useEffect(() => {
+    setSel(0);
+  }, [target]);
+  useEffect(() => {
+    setImgOk(true);
+  }, [shown?.uuid]);
 
   // Clear the "new" badge once a finished capture is on screen.
   useEffect(() => {
@@ -1848,9 +1862,9 @@ function UrlscanCapture({ target, buttonLabel }: { target: string; buttonLabel?:
   }, [job, phase, target, markSeen]);
 
   function run() {
-    setImgOk(true);
+    setSel(0);
     // For a stalled/interrupted job the store resumes the SAME uuid (never re-submits); otherwise it
-    // submits a fresh scan.
+    // submits a FRESH scan and appends it to the history (a prior 魚拓 never blocks taking a new one).
     void start(target, visibility);
   }
 
@@ -1868,15 +1882,44 @@ function UrlscanCapture({ target, buttonLabel }: { target: string; buttonLabel?:
             ? (job?.msg ?? 'Scanning…')
             : resumable
               ? '再確認 · Check again'
-              : d || phase === 'error'
-                ? 'Re-scan'
-                : (buttonLabel ?? `Scan now (${visibility})`)}
+              : history.length > 0
+                ? '最新を再取得 · Re-scan'
+                : phase === 'error'
+                  ? 'Re-scan'
+                  : (buttonLabel ?? `Scan now (${visibility})`)}
         </button>
+        {/* 過去: pick a past 魚拓 snapshot (shared team-wide). Shown once there's more than one. */}
+        {history.length >= 2 && (
+          <label className="urlscan-hist">
+            🕓 過去
+            <select
+              className="urlscan-hist-sel"
+              value={selIdx}
+              onChange={(e) => setSel(Number(e.currentTarget.value))}
+              title="過去の魚拓を選択（いつ・誰が取得したか）"
+            >
+              {history.map((h, i) => (
+                <option key={h.uuid} value={i}>
+                  {i === 0 ? '最新' : `#${history.length - i}`} · {new Date(h.at).toLocaleString()}
+                  {h.by ? ` · ${h.by}` : ''}
+                </option>
+              ))}
+            </select>
+            <span className="hint">{history.length} 件</span>
+          </label>
+        )}
         {/* Only link out once the result is ready — while pending the result page 404s. */}
         {d?.resultUrl && (
           <a className="btn btn-ghost shodan-link" href={d.resultUrl} target="_blank" rel="noreferrer">
             Open on urlscan ↗
           </a>
+        )}
+        {shown && (
+          <span className="hint">
+            🕓 {new Date(shown.at).toLocaleString()}
+            {shown.by ? ` · ${shown.by}` : ''}
+            {selIdx > 0 ? ' · 過去の魚拓' : history.length > 1 ? ' · 最新' : ''}
+          </span>
         )}
         {effVis && (
           <span className="hint">
@@ -1897,7 +1940,7 @@ function UrlscanCapture({ target, buttonLabel }: { target: string; buttonLabel?:
         <div className="detail-note">{job.msg}</div>
       )}
 
-      {phase === 'done' && d && !d.error && (
+      {hasShot && d && (
         <>
           {d.screenshotUrl && imgOk && (
             <figure className="urlscan-shot" data-noimage="true">
