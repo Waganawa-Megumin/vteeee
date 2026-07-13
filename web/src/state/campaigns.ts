@@ -139,23 +139,68 @@ export function loadCampaigns(): Record<string, Campaign> {
     return {};
   }
 }
-export function saveCampaigns(m: Record<string, Campaign>): void {
-  try {
-    const slim: Record<string, Campaign> = {};
-    for (const [k, v] of Object.entries(m)) slim[k] = slimCampaign(v);
-    const next = JSON.stringify(slim);
-    // One-slot backup: keep the previous NON-EMPTY value before overwriting, so an accidental wipe
-    // (e.g. saving {} over real data) stays recoverable via loadCampaignsBackup().
-    const prev = localStorage.getItem(CAMPAIGNS_KEY);
-    if (prev && prev !== next && prev !== '{}' && Object.keys(m).length === 0) {
-      localStorage.setItem(CAMPAIGNS_BAK, prev);
-    } else if (prev && prev !== '{}' && Object.keys(m).length) {
-      localStorage.setItem(CAMPAIGNS_BAK, prev);
-    }
-    localStorage.setItem(CAMPAIGNS_KEY, next);
-  } catch {
-    /* storage full/disabled — in-memory campaigns still work */
+/** Keep at most `n` (latest) enrichment snapshots per IOC — used only to shrink the localStorage copy. */
+function capIocHistories(iocs: Record<string, CampaignIoc>, n: number): Record<string, CampaignIoc> {
+  const out: Record<string, CampaignIoc> = {};
+  for (const [k, v] of Object.entries(iocs)) {
+    out[k] = v.history && v.history.length > n ? { ...v, history: v.history.slice(-n) } : v;
   }
+  return out;
+}
+/**
+ * A localStorage-friendly copy: strip raw payloads AND bound the heaviest fields (CTI assessment
+ * history + per-IOC snapshot timelines). The FULL data lives on the shared proxy — localStorage is
+ * only a fast-display cache — so a big campaign can't blow the ~5MB quota and stop persisting (which
+ * is what made CP-Mon look empty every reload until a manual Sync).
+ */
+function slimForLocal(c: Campaign): Campaign {
+  const base = slimCampaign(c);
+  return { ...base, assessments: base.assessments?.slice(0, 3) };
+}
+
+export function saveCampaigns(m: Record<string, Campaign>): void {
+  // An empty save can wipe real data — back the previous non-empty snapshot up first (recovery).
+  if (Object.keys(m).length === 0) {
+    try {
+      const prev = localStorage.getItem(CAMPAIGNS_KEY);
+      if (prev && prev !== '{}') localStorage.setItem(CAMPAIGNS_BAK, prev);
+      localStorage.setItem(CAMPAIGNS_KEY, '{}');
+    } catch {
+      /* ignore */
+    }
+    return;
+  }
+  const build = (transform: (c: Campaign) => Campaign): string => {
+    const slim: Record<string, Campaign> = {};
+    for (const [k, v] of Object.entries(m)) slim[k] = transform(v);
+    return JSON.stringify(slim);
+  };
+  // Try progressively slimmer serializations until one fits, so the campaign list ALWAYS persists
+  // (older reports / snapshots are dropped from the local cache first — they remain on the proxy).
+  const attempts: ((c: Campaign) => Campaign)[] = [
+    slimForLocal,
+    (c) => ({ ...slimForLocal(c), assessments: c.assessment ? [c.assessment] : undefined }),
+    (c) => ({ ...slimForLocal(c), assessments: undefined, iocs: capIocHistories(slimCampaign(c).iocs, 2) }),
+    (c) => ({ ...slimForLocal(c), assessment: undefined, assessments: undefined, iocs: capIocHistories(slimCampaign(c).iocs, 1) }),
+  ];
+  for (let i = 0; i < attempts.length; i++) {
+    try {
+      const next = build(attempts[i]);
+      localStorage.setItem(CAMPAIGNS_KEY, next);
+      // Best-effort recovery backup — only on the fullest attempt, never letting it block the main save.
+      if (i === 0) {
+        try {
+          localStorage.setItem(CAMPAIGNS_BAK, next);
+        } catch {
+          /* no room for a backup — the main copy is what matters */
+        }
+      }
+      return;
+    } catch {
+      /* too big — fall through to a slimmer serialization */
+    }
+  }
+  /* even the slimmest didn't fit — in-memory campaigns still work; a later sync retries */
 }
 /** The last non-empty persisted campaigns snapshot (for recovery after an accidental wipe). */
 export function loadCampaignsBackup(): Record<string, Campaign> | null {

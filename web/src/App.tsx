@@ -47,10 +47,20 @@ export default function App() {
   );
 
   const runAutoEnrichDue = useStore((s) => s.runAutoEnrichDue);
+  const refreshCampaigns = useStore((s) => s.refreshCampaigns);
 
   useEffect(() => {
     void boot();
   }, [boot]);
+
+  // Pull the shared campaigns as soon as we're signed in (and again on any re-login), so CP-Mon's
+  // header count + list are current on app open — instead of only after opening CP-Mon or pressing
+  // Sync. Non-destructive; no-ops on a local-only device (no proxy). Runs here (not just in boot) so
+  // it reliably fires once the authenticated UI is mounted.
+  useEffect(() => {
+    if (!session) return;
+    void refreshCampaigns();
+  }, [session, refreshCampaigns]);
 
   // Client-side auto re-enrich scheduler: while signed in, run one "due" pass every few minutes
   // (the action itself no-ops in demo mode and only touches IPs opted into auto-enrich).
