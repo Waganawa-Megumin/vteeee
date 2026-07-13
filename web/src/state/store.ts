@@ -787,6 +787,10 @@ interface State {
   analysisIp: string | null;
   /** Campaign IOC whose enrichment-analysis page is open (view === 'campaign-analysis'). */
   analysisCampaign: { id: string; value: string } | null;
+  /** Which CP-Mon tab is active — kept in the store so it survives the Analysis round-trip. */
+  campaignTab: 'dashboard' | 'attack' | 'target' | 'assessment';
+  /** Switch the active CP-Mon tab. */
+  setCampaignTab: (t: 'dashboard' | 'attack' | 'target' | 'assessment') => void;
 
   /** CP-Mon campaigns (attack-campaign-organised IOC watchlists), keyed by campaign id. */
   campaigns: Record<string, Campaign>;
@@ -1032,6 +1036,7 @@ export const useStore = create<State>((set, get) => {
   view: 'app',
   analysisIp: null,
   analysisCampaign: null,
+  campaignTab: 'dashboard',
   campaigns: loadCampaigns(),
   campaignId: null,
   campaignsSyncNote: null,
@@ -2146,7 +2151,12 @@ export const useStore = create<State>((set, get) => {
   },
 
   openCampaign(id) {
-    set({ view: 'campaign', campaignId: id });
+    // Opening a campaign fresh starts on the Dashboard; the Analysis round-trip (setView) keeps the tab.
+    set({ view: 'campaign', campaignId: id, campaignTab: 'dashboard' });
+  },
+
+  setCampaignTab(t) {
+    set({ campaignTab: t });
   },
 
   async addCampaignIocs(id, iocs, group, side) {

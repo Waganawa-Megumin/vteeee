@@ -520,7 +520,9 @@ export function CampaignPage() {
   const syncNote = useStore((s) => s.campaignsSyncNote);
   const [text, setText] = useState('');
   const [groupInput, setGroupInput] = useState('');
-  const [tab, setTab] = useState<Tab>('dashboard');
+  // Tab lives in the store so returning from the full-page Analysis lands back on the same tab.
+  const tab = useStore((s) => s.campaignTab);
+  const setTab = useStore((s) => s.setCampaignTab);
   const [summarizing, setSummarizing] = useState(false);
   const [assessing, setAssessing] = useState(false);
   const [assessSel, setAssessSel] = useState(0); // which past assessment is shown (0 = latest)
@@ -794,9 +796,9 @@ export function CampaignPage() {
             className="btn btn-sm"
             disabled={!r && !(i.history?.length ?? 0)}
             onClick={() => openCampaignAnalysis(cid, i.value)}
-            title="エンリッチ履歴の時系列分析（トレンド・指標マトリクス・2点比較・タイムライン）"
+            title="Tr-Analysis（Trend Analysis）— このIoCのエンリッチ履歴を時系列分析：トレンド（スパーク＋増減）／指標マトリクス／2点比較／タイムライン"
           >
-            📈 Analysis{(i.history?.length ?? 0) > 1 ? ` (${i.history!.length})` : ''}
+            📈 Tr-Analysis{(i.history?.length ?? 0) > 1 ? ` (${i.history!.length})` : ''}
           </button>
           {(() => {
             const capKey = captureKey(i);

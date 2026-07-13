@@ -27,7 +27,7 @@ export function MonitorAnalysisPage() {
           <button className="btn btn-sm" onClick={() => setView('monitor')}>
             ← Back
           </button>
-          <h2>Enrichment analysis</h2>
+          <h2>Trend analysis</h2>
         </div>
         <div className="empty-state">この監視IPは見つかりませんでした。IP-Mon に戻ってください。</div>
       </section>
@@ -42,8 +42,8 @@ export function MonitorAnalysisPage() {
         <button className="btn btn-sm" onClick={() => setView('monitor')} title="Back to IP-Mon">
           ← Back
         </button>
-        <h2>
-          Enrichment analysis · <span className="mono">{ip}</span>
+        <h2 title="Tr-Analysis（Trend Analysis）— エンリッチ履歴の時系列分析：トレンド／指標マトリクス／2点比較／タイムライン">
+          Trend analysis · <span className="mono">{ip}</span>
         </h2>
         <div className="spacer" />
         <button className="btn btn-sm" disabled={entry.enriching} onClick={() => void reEnrich(ip)}>

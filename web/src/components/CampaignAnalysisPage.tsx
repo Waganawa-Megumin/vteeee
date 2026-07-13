@@ -29,7 +29,7 @@ export function CampaignAnalysisPage() {
           <button className="btn btn-sm" onClick={() => setView('campaign')}>
             ← Back
           </button>
-          <h2>Enrichment analysis</h2>
+          <h2>Trend analysis</h2>
         </div>
         <div className="empty-state">この IoC は見つかりませんでした。CP-Mon に戻ってください。</div>
       </section>
@@ -44,8 +44,8 @@ export function CampaignAnalysisPage() {
         <button className="btn btn-sm" onClick={() => setView('campaign')} title="キャンペーンに戻る">
           ← Back
         </button>
-        <h2>
-          Enrichment analysis · <span className="mono">{ioc.value}</span>
+        <h2 title="Tr-Analysis（Trend Analysis）— エンリッチ履歴の時系列分析：トレンド／指標マトリクス／2点比較／タイムライン">
+          Trend analysis · <span className="mono">{ioc.value}</span>
         </h2>
         <div className="spacer" />
         <button className="btn btn-sm" disabled={ioc.enriching} onClick={() => void reEnrich(target.id, ioc.value)}>

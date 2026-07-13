@@ -455,9 +455,9 @@ export function MonitorPage() {
             <button
               className="btn btn-sm"
               onClick={() => openAnalysis(e.ip)}
-              title="Enrichment analysis — トレンド・指標マトリクス・2点比較・タイムライン"
+              title="Tr-Analysis（Trend Analysis）— このIPのエンリッチ履歴を時系列分析：トレンド（スパーク＋増減）／指標マトリクス／2点比較／タイムライン"
             >
-              📈 Analysis{(e.history?.length ?? 0) > 1 ? ` (${e.history!.length})` : ''}
+              📈 Tr-Analysis{(e.history?.length ?? 0) > 1 ? ` (${e.history!.length})` : ''}
             </button>
           )}
           <button
@@ -587,7 +587,7 @@ export function MonitorPage() {
         各行の <b>Check</b>（または一括）で、<b>監視開始時からの Shodan の変化</b>（新規ポート／閉じたポート／新規CVE）＝<b>監視結果</b>を表示します。
         IPが増えたら<b>任意の名称でグループ分け</b>できます。各行の <b>group:</b> セレクトで1件ずつ割当／移動／解除（<b>＋ New group…</b> で新規作成）、
         または複数行をチェックして下の <b>Set group</b> で一括。グループ見出しは<b>名前クリックで改名</b>、見出しのチェックで<b>グループ単位の選択</b>・折りたたみ・Ungroup。グループはチームにも共有されます。
-        各行の <b>📈 Analysis</b> でエンリッチ履歴のトレンド・指標マトリクス・2点比較。各行の <b>⚡ Auto</b>（複数は <b>⚡ Auto on</b>）で
+        各行の <b>📈 Tr-Analysis</b>（Trend Analysis）でエンリッチ履歴の時系列分析（トレンド・指標マトリクス・2点比較）。各行の <b>⚡ Auto</b>（複数は <b>⚡ Auto on</b>）で
         <b>自動エンリッチ</b>＝監視期間に応じた間隔（直近1週≒日次→2週→3–4週→5–6週→以降は月次の定点観測）で自動Re-enrich（<b>Liveモードで vteeee を開いている間</b>）。
         {mode !== 'demo' && (
           <>
