@@ -1438,6 +1438,24 @@ a.i471-search-item:hover {
   box-shadow: 0 10px 30px rgba(0, 0, 0, 0.35);
   padding: 6px;
 }
+/* On phones the toggle sits mid-header, so a right-anchored dropdown ran off the LEFT edge. Anchor to
+   the VIEWPORT (fixed + left/right margins) so the panel is always fully on-screen. */
+@media (max-width: 680px) {
+  .scan-tracker-menu,
+  .notif-menu {
+    position: fixed;
+    top: 50px;
+    left: 8px;
+    right: 8px;
+    width: auto;
+    max-width: none;
+    max-height: 78vh;
+  }
+}
+/* Long targets (https://<ip>, urls) must wrap inside the row, never overflow it. */
+.stm-ip {
+  word-break: break-all;
+}
 .notif-perm {
   padding: 6px 6px 4px;
   border-bottom: 1px solid var(--line);
@@ -3149,14 +3167,34 @@ button.pv-monitored.link:hover {
 }
 .cp-report-md h3,
 .cp-report-md h4,
-.cp-report-md h5 {
+.cp-report-md h5,
+.cp-report-md h6 {
   color: var(--accent);
   margin: 18px 0 6px;
-  border-bottom: 1px solid var(--line);
   padding-bottom: 4px;
+  line-height: 1.4;
+  font-weight: 700;
+}
+/* Explicit size ladder so deep sub-headings (#### / #####, which map to h6) never fall back to the
+   tiny browser default — the CTI report nests several heading levels. All stay ≥ body size. */
+.cp-report-md h3 {
+  font-size: 17px;
+  border-bottom: 1px solid var(--line);
+}
+.cp-report-md h4 {
+  font-size: 15.5px;
+  border-bottom: 1px solid var(--line);
+}
+.cp-report-md h5 {
+  font-size: 14.5px;
+}
+.cp-report-md h6 {
+  font-size: 14px;
 }
 .cp-report-md h3:first-child,
-.cp-report-md h4:first-child {
+.cp-report-md h4:first-child,
+.cp-report-md h5:first-child,
+.cp-report-md h6:first-child {
   margin-top: 0;
 }
 .cp-report-md p {
