@@ -2665,6 +2665,22 @@ button.pv-monitored.link:hover {
   font-size: 12px;
   color: var(--sus);
 }
+.cp-sync-note {
+  margin: -4px 0 8px;
+}
+.cp-sync-note.err {
+  color: var(--sus);
+  font-weight: 600;
+}
+.cp-recovery {
+  border: 1px solid var(--sus);
+  background: rgba(240, 187, 96, 0.08);
+  border-radius: 8px;
+  padding: 10px 12px;
+  font-size: 13px;
+  line-height: 1.7;
+  margin-bottom: 12px;
+}
 .cp-group-actions {
   margin-left: auto;
 }

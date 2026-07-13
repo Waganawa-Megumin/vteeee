@@ -110,11 +110,20 @@ export function slimCampaign(c: Campaign): Campaign {
   return { ...c, iocs };
 }
 
+const CAMPAIGNS_BAK = `${CAMPAIGNS_KEY}.bak`;
+
 export function loadCampaigns(): Record<string, Campaign> {
   try {
     const raw = localStorage.getItem(CAMPAIGNS_KEY);
     return raw ? (JSON.parse(raw) as Record<string, Campaign>) : {};
   } catch {
+    // Corrupt JSON — preserve it under a side key rather than silently losing it.
+    try {
+      const raw = localStorage.getItem(CAMPAIGNS_KEY);
+      if (raw) localStorage.setItem(`${CAMPAIGNS_KEY}.corrupt`, raw);
+    } catch {
+      /* ignore */
+    }
     return {};
   }
 }
@@ -122,9 +131,28 @@ export function saveCampaigns(m: Record<string, Campaign>): void {
   try {
     const slim: Record<string, Campaign> = {};
     for (const [k, v] of Object.entries(m)) slim[k] = slimCampaign(v);
-    localStorage.setItem(CAMPAIGNS_KEY, JSON.stringify(slim));
+    const next = JSON.stringify(slim);
+    // One-slot backup: keep the previous NON-EMPTY value before overwriting, so an accidental wipe
+    // (e.g. saving {} over real data) stays recoverable via loadCampaignsBackup().
+    const prev = localStorage.getItem(CAMPAIGNS_KEY);
+    if (prev && prev !== next && prev !== '{}' && Object.keys(m).length === 0) {
+      localStorage.setItem(CAMPAIGNS_BAK, prev);
+    } else if (prev && prev !== '{}' && Object.keys(m).length) {
+      localStorage.setItem(CAMPAIGNS_BAK, prev);
+    }
+    localStorage.setItem(CAMPAIGNS_KEY, next);
   } catch {
     /* storage full/disabled — in-memory campaigns still work */
+  }
+}
+/** The last non-empty persisted campaigns snapshot (for recovery after an accidental wipe). */
+export function loadCampaignsBackup(): Record<string, Campaign> | null {
+  try {
+    const raw = localStorage.getItem(CAMPAIGNS_BAK);
+    const m = raw ? (JSON.parse(raw) as Record<string, Campaign>) : null;
+    return m && Object.keys(m).length ? m : null;
+  } catch {
+    return null;
   }
 }
 

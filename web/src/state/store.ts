@@ -54,6 +54,7 @@ import { saveHistory } from '../lib/historySource';
 import { requestPersistentStorage } from '../lib/durable';
 import {
   loadCampaigns,
+  loadCampaignsBackup,
   saveCampaigns,
   slimCampaign,
   mergeCampaign,
@@ -618,6 +619,8 @@ interface State {
   campaigns: Record<string, Campaign>;
   /** Selected campaign (view === 'campaign'). */
   campaignId: string | null;
+  /** Last campaign-sync outcome (shown on the overview so a failed sync isn't mistaken for "empty"). */
+  campaignsSyncNote: string | null;
 
   boot: () => Promise<void>;
   login: (username: string, password: string) => Promise<boolean>;
@@ -730,6 +733,10 @@ interface State {
   setCampaignIocAuto: (id: string, values: string[], on: boolean) => Promise<void>;
   /** Pull the shared campaigns (KV) + two-way merge. */
   refreshCampaigns: () => Promise<void>;
+  /** Merge an imported campaigns map (from a JSON backup / another device) into local + shared. */
+  importCampaigns: (incoming: Record<string, Campaign>) => Promise<number>;
+  /** Restore from the on-device backup taken before the last overwrite (recover an accidental wipe). */
+  restoreCampaignsBackup: () => number;
   /** (Re)generate the campaign's Claude key-message summary (電光掲示板); shared with the campaign. */
   summarizeCampaign: (id: string) => Promise<void>;
   /** Generate a Claude CTI assessment report (context-based insight); shared with the campaign. */
@@ -796,6 +803,7 @@ export const useStore = create<State>((set, get) => {
   analysisIp: null,
   campaigns: loadCampaigns(),
   campaignId: null,
+  campaignsSyncNote: null,
 
   async boot() {
     void requestPersistentStorage(); // ask the browser not to evict our storage
@@ -1885,13 +1893,45 @@ export const useStore = create<State>((set, get) => {
   },
 
   async refreshCampaigns() {
-    const shared = await fetchSharedCampaigns(get().settings);
+    const settings = get().settings;
+    const shared = await fetchSharedCampaigns(settings);
     set((s) => {
       const campaigns = mergeCampaigns(s.campaigns, shared);
       saveCampaigns(campaigns);
+      // Distinguish "sync failed / not connected" from "genuinely no campaigns yet".
+      const note = !monitorSharingOn(settings)
+        ? '共有OFF/プロキシ未接続 — この端末のみ表示中（Settings で接続すると共有されます）'
+        : shared === null
+          ? '⚠ 同期に失敗しました（通信/認証エラー）。データは消えていません。少し待って再試行してください。'
+          : `同期OK · 共有 ${Object.keys(shared).length} 件`;
+      return { campaigns, campaignsSyncNote: note };
+    });
+    if (shared !== null) void putSharedCampaignsAll(settings, get().campaigns);
+  },
+
+  async importCampaigns(incoming) {
+    const ids = Object.keys(incoming ?? {});
+    if (!ids.length) return 0;
+    set((s) => {
+      const campaigns = mergeCampaigns(s.campaigns, incoming);
+      saveCampaigns(campaigns);
       return { campaigns };
     });
-    if (shared !== null) void putSharedCampaignsAll(get().settings, get().campaigns);
+    // Re-share every imported campaign (non-destructive merge into the KV).
+    for (const id of ids) void pushSharedCampaign(get().settings, id, get().campaigns[id] ?? null);
+    return ids.length;
+  },
+
+  restoreCampaignsBackup() {
+    const bak = loadCampaignsBackup();
+    if (!bak) return 0;
+    set((s) => {
+      const campaigns = mergeCampaigns(s.campaigns, bak);
+      saveCampaigns(campaigns);
+      return { campaigns };
+    });
+    for (const id of Object.keys(bak)) void pushSharedCampaign(get().settings, id, get().campaigns[id] ?? null);
+    return Object.keys(bak).length;
   },
 
   async summarizeCampaign(id) {
