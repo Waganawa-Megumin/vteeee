@@ -2665,6 +2665,20 @@ button.pv-monitored.link:hover {
   font-size: 12px;
   color: var(--sus);
 }
+.cp-filter-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin: 4px 0;
+}
+.cp-filter-input {
+  flex: 1 1 320px;
+  max-width: 460px;
+}
+.cp-filter-count {
+  font-size: 12px;
+  color: var(--muted);
+}
 .cp-sync-note {
   margin: -4px 0 8px;
 }

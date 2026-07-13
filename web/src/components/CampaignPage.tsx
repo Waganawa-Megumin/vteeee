@@ -340,6 +340,7 @@ export function CampaignPage() {
   const [bulkBusy, setBulkBusy] = useState(false);
   const [admHelp, setAdmHelp] = useState(false);
   const [syncing, setSyncing] = useState(false);
+  const [filter, setFilter] = useState('');
 
   async function onSync() {
     setSyncing(true);
@@ -406,7 +407,6 @@ export function CampaignPage() {
   const iocs = Object.values(campaign.iocs).sort((a, b) => b.updatedAt - a.updatedAt);
   const attackIocs = iocs.filter((i) => (i.side ?? 'attack') === 'attack');
   const targetIocs = iocs.filter((i) => i.side === 'target');
-  const groupNames = [...new Set(iocs.map((i) => i.group).filter((g): g is string => !!g))];
 
   /** Order a side's groups by the campaign's saved order (fallback alphabetical); threat-sort within. */
   function bucketsFor(list: CampaignIoc[], side: IocSide) {
@@ -449,7 +449,7 @@ export function CampaignPage() {
     void setGroup(cid, vals, nn.trim() || undefined);
   }
 
-  function renderIoc(i: CampaignIoc, side: IocSide) {
+  function renderIoc(i: CampaignIoc, side: IocSide, groups: string[]) {
     const r = i.result;
     const histAsc = i.history?.length ? [...i.history].sort((a, b) => a.at - b.at) : [];
     const trendChanges =
@@ -501,11 +501,12 @@ export function CampaignPage() {
                 title={i.group ? `Group: ${i.group}` : 'Put this IOC in a group'}
               >
                 <option value="">— none —</option>
-                {groupNames.map((g) => (
+                {groups.map((g) => (
                   <option key={g} value={g}>
                     {g}
                   </option>
                 ))}
+                {i.group && !groups.includes(i.group) && <option value={i.group}>{i.group}</option>}
                 <option value="__new__">＋ New group…</option>
               </select>
             </span>
@@ -620,9 +621,27 @@ export function CampaignPage() {
 
   /** One IOC-management tab (Attack or Target): add box + threat-sorted, reorderable groups. */
   function SideView({ side }: { side: IocSide }) {
-    const list = side === 'attack' ? attackIocs : targetIocs;
-    const { bs, orderedNames } = bucketsFor(list, side);
+    const allList = side === 'attack' ? attackIocs : targetIocs;
     const sideLabel = side === 'attack' ? 'Attack' : 'Target';
+    // Group names scoped to THIS side only — Attack never lists Target's groups and vice versa.
+    const sideGroupNames = [...new Set(allList.map((i) => i.group).filter((g): g is string => !!g))].sort((a, b) =>
+      a.localeCompare(b),
+    );
+    // Free-text filter over value / group / country / verdict / org.
+    const q = filter.trim().toLowerCase();
+    const list = q
+      ? allList.filter((i) => {
+          const r = i.result;
+          return (
+            i.value.toLowerCase().includes(q) ||
+            (i.group ?? '').toLowerCase().includes(q) ||
+            (r ? countryOf(r).toLowerCase().includes(q) : false) ||
+            (r?.verdict ?? '').toLowerCase().includes(q) ||
+            (r?.shodan?.org ?? r?.maxmind?.organization ?? r?.ip?.asOwner ?? '').toLowerCase().includes(q)
+          );
+        })
+      : allList;
+    const { bs, orderedNames } = bucketsFor(list, side);
     const unEnriched = list.filter((i) => !i.result);
     const enrichingN = list.filter((i) => i.enriching).length;
     return (
@@ -656,7 +675,7 @@ export function CampaignPage() {
                 value={groupInput}
                 onChange={(e) => setGroupInput(e.target.value)}
               />
-              {groupNames.length > 0 && (
+              {sideGroupNames.length > 0 && (
                 <select
                   className="filter cp-group-pick"
                   value=""
@@ -664,10 +683,10 @@ export function CampaignPage() {
                     if (e.target.value) setGroupInput(e.target.value);
                   }}
                   aria-label="既存グループから選択"
-                  title="既存のグループから選ぶ（入力欄に反映されます）"
+                  title={`${sideLabel} の既存グループから選ぶ（入力欄に反映されます）`}
                 >
                   <option value="">既存から選択…</option>
-                  {groupNames.map((g) => (
+                  {sideGroupNames.map((g) => (
                     <option key={g} value={g}>
                       {g}
                     </option>
@@ -698,13 +717,33 @@ export function CampaignPage() {
           </button>
         </div>
 
+        {allList.length > 0 && (
+          <div className="cp-filter-row">
+            <input
+              className="filter cp-filter-input"
+              placeholder={`🔎 ${sideLabel} を絞り込み（IP/ドメイン/グループ/国/判定/組織…）`}
+              value={filter}
+              onChange={(e) => setFilter(e.target.value)}
+              aria-label={`Filter ${sideLabel} IOCs`}
+            />
+            {filter && (
+              <button className="btn btn-sm btn-ghost" onClick={() => setFilter('')} title="絞り込みをクリア">
+                ✕
+              </button>
+            )}
+            <span className="cp-filter-count">
+              {list.length}/{allList.length} 件
+            </span>
+          </div>
+        )}
+
         {list.length > 0 && (
           <div className="cp-side-toolbar">
             <button
               className="btn btn-sm"
               disabled={bulkBusy}
               onClick={() => void bulkReEnrich(list.map((i) => i.value))}
-              title="この側の全 IoC を順次 Re-enrich（レート制限に配慮して1件ずつ）"
+              title={filter ? '絞り込み結果を順次 Re-enrich' : 'この側の全 IoC を順次 Re-enrich（1件ずつ）'}
             >
               {bulkBusy ? `⟳ Re-enrich 中…${enrichingN ? ` (${enrichingN})` : ''}` : `⟳ Re-enrich all (${list.length})`}
             </button>
@@ -734,10 +773,12 @@ export function CampaignPage() {
           </div>
         )}
 
-        {list.length === 0 ? (
+        {allList.length === 0 ? (
           <div className="empty-state">
             まだ {sideLabel} 側の IoC がありません。上の欄に貼り付けて <b>Add to {sideLabel}</b> で登録してください。
           </div>
+        ) : list.length === 0 ? (
+          <div className="empty-state">「{filter}」に一致する IoC はありません。</div>
         ) : (
           <div className="mon-groups">
             {bs.map((b) => {
@@ -792,7 +833,7 @@ export function CampaignPage() {
                       </button>
                     </span>
                   </div>
-                  <ul className="monitor-list">{b.items.map((i) => renderIoc(i, side))}</ul>
+                  <ul className="monitor-list">{b.items.map((i) => renderIoc(i, side, sideGroupNames))}</ul>
                 </div>
               );
             })}
@@ -1009,7 +1050,10 @@ export function CampaignPage() {
             role="tab"
             aria-selected={tab === t.key}
             className={`cp-tab${tab === t.key ? ' active' : ''}`}
-            onClick={() => setTab(t.key)}
+            onClick={() => {
+              setTab(t.key);
+              setFilter('');
+            }}
           >
             {t.label}
           </button>
@@ -1031,8 +1075,10 @@ export function CampaignPage() {
               }}
             />
           ))}
-        {tab === 'attack' && <SideView side="attack" />}
-        {tab === 'target' && <SideView side="target" />}
+        {/* Called as a function (not <SideView/>) so it inlines into this component's tree — the filter
+            input then keeps focus across re-renders instead of remounting on every keystroke. */}
+        {tab === 'attack' && SideView({ side: 'attack' })}
+        {tab === 'target' && SideView({ side: 'target' })}
         {tab === 'assessment' && <AssessmentView />}
       </div>
     </section>
