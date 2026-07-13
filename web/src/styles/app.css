@@ -1393,6 +1393,10 @@ a.i471-search-item:hover {
 .notif-bell {
   position: relative;
 }
+.notif-bell.notif-on {
+  border-color: var(--accent);
+  color: var(--accent);
+}
 .notif-bell.has-unread {
   border-color: var(--accent);
   color: var(--accent);
@@ -2513,8 +2517,9 @@ button.pv-monitored.link:hover {
   font-size: 13.5px;
   font-weight: 700;
   letter-spacing: 0.04em;
-  color: #7ff8bf;
-  text-shadow: 0 0 2px rgba(127, 248, 191, 0.9), 0 0 7px rgba(93, 242, 168, 0.5);
+  color: #8ff9c6;
+  /* subtle LED glow — enough to read as lit, not so much it smears the glyphs */
+  text-shadow: 0 0 1px rgba(143, 249, 198, 0.5);
 }
 .cp-marquee-pending {
   position: relative;
@@ -2522,8 +2527,8 @@ button.pv-monitored.link:hover {
   padding-left: 1.2rem;
   font-family: var(--mono, ui-monospace, monospace);
   font-size: 13px;
-  color: rgba(127, 248, 191, 0.6);
-  text-shadow: 0 0 6px rgba(93, 242, 168, 0.35);
+  color: rgba(143, 249, 198, 0.62);
+  text-shadow: none;
 }
 @keyframes cp-marquee-scroll {
   from {
@@ -2548,11 +2553,11 @@ button.pv-monitored.link:hover {
   border: none;
   border-left: 1px solid rgba(127, 248, 191, 0.18);
   background: transparent;
-  color: #7ff8bf;
+  color: #8ff9c6;
   cursor: pointer;
   font-size: 14px;
   padding: 0 12px;
-  text-shadow: 0 0 6px rgba(93, 242, 168, 0.4);
+  text-shadow: none;
 }
 .cp-marquee-refresh:disabled {
   opacity: 0.4;
@@ -2562,47 +2567,48 @@ button.pv-monitored.link:hover {
   background: rgba(127, 248, 191, 0.12);
 }
 
-/* Light theme: keep the dark LED cabinet (it pops on the cream page) but switch to classic warm AMBER
-   LEDs, so each theme has its own crafted character while both stay highly legible. */
+/* Light theme: NOT a black cabinet — a warm, deep shade of the cream page's own palette (dark
+   taupe/umber) framed by a light bezel, so it reads as an LED board that belongs to the light theme.
+   Amber LEDs, glow dialed right down so the glyphs stay crisp. */
 :root[data-theme='light'] .cp-marquee {
-  border-color: #170f06;
+  border-color: #cabfa4;
   background:
-    radial-gradient(120% 140% at 50% 30%, rgba(255, 190, 90, 0.08), transparent 55%),
-    linear-gradient(180deg, #241d13 0%, #1a140c 55%, #120d07 100%);
+    radial-gradient(120% 140% at 50% 30%, rgba(150, 110, 55, 0.1), transparent 58%),
+    linear-gradient(180deg, #453f31 0%, #3a3428 55%, #302b20 100%);
   box-shadow:
-    inset 0 1px 0 rgba(255, 255, 255, 0.06),
-    inset 0 0 26px rgba(0, 0, 0, 0.5),
-    0 2px 7px rgba(60, 45, 20, 0.3);
+    inset 0 1px 0 rgba(255, 250, 235, 0.06),
+    inset 0 0 22px rgba(30, 22, 8, 0.32),
+    0 2px 6px rgba(90, 70, 35, 0.2);
 }
 :root[data-theme='light'] .cp-marquee::before {
   background-image:
-    radial-gradient(rgba(255, 200, 120, 0.06) 0.6px, transparent 0.7px),
-    repeating-linear-gradient(0deg, rgba(0, 0, 0, 0.24) 0, rgba(0, 0, 0, 0.24) 1px, transparent 1px, transparent 3px);
+    radial-gradient(rgba(255, 210, 140, 0.05) 0.6px, transparent 0.7px),
+    repeating-linear-gradient(0deg, rgba(20, 14, 4, 0.16) 0, rgba(20, 14, 4, 0.16) 1px, transparent 1px, transparent 3px);
   background-size: 3px 3px, 100% 3px;
 }
 :root[data-theme='light'] .cp-marquee::after {
-  background: linear-gradient(90deg, rgba(18, 13, 7, 0.92), transparent 6%, transparent 94%, rgba(18, 13, 7, 0.92));
+  background: linear-gradient(90deg, rgba(48, 43, 32, 0.92), transparent 6%, transparent 94%, rgba(48, 43, 32, 0.92));
 }
 :root[data-theme='light'] .cp-marquee-tag {
-  color: #2a1c05;
-  background: linear-gradient(180deg, #ffcf7a, #f0a63f);
-  box-shadow: 0 0 12px rgba(255, 178, 74, 0.45);
+  color: #35240a;
+  background: linear-gradient(180deg, #f3c780, #e0a24a);
+  box-shadow: none;
 }
 :root[data-theme='light'] .cp-marquee-text {
-  color: #ffce7a;
-  text-shadow: 0 0 2px rgba(255, 206, 122, 0.9), 0 0 7px rgba(255, 178, 74, 0.5);
+  color: #ffd691;
+  text-shadow: 0 0 1px rgba(255, 214, 145, 0.45);
 }
 :root[data-theme='light'] .cp-marquee-pending {
-  color: rgba(255, 206, 122, 0.62);
-  text-shadow: 0 0 6px rgba(255, 178, 74, 0.35);
+  color: rgba(255, 214, 145, 0.66);
+  text-shadow: none;
 }
 :root[data-theme='light'] .cp-marquee-refresh {
-  border-left-color: rgba(255, 206, 122, 0.2);
-  color: #ffce7a;
-  text-shadow: 0 0 6px rgba(255, 178, 74, 0.4);
+  border-left-color: rgba(255, 214, 145, 0.22);
+  color: #ffd691;
+  text-shadow: none;
 }
 :root[data-theme='light'] .cp-marquee-refresh:hover:not(:disabled) {
-  background: rgba(255, 206, 122, 0.12);
+  background: rgba(255, 214, 145, 0.12);
 }
 
 /* --- CP-Mon tabs, TLP, group field, reorder, and the CTI assessment report ------------------------ */

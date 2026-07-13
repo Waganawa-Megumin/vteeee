@@ -383,6 +383,18 @@ function CampaignDashboard({ iocs, onOpen }: { iocs: CampaignIoc[]; onOpen?: (v:
 
 type Tab = 'dashboard' | 'attack' | 'target' | 'assessment';
 
+/**
+ * The urlscan 魚拓 target for an IOC, or null if it has no web surface. URLs/domains capture as-is;
+ * on the Target side, monitored IP assets capture their primary web endpoint (https://<ip>) so an
+ * analyst can snapshot the asset's current exposure in bulk. Hashes are never web-capturable.
+ */
+function captureKey(i: CampaignIoc, side: IocSide): string | null {
+  if (i.type === 'url' || i.type === 'domain') return i.value;
+  if (side === 'target' && i.type === 'ipv4') return `https://${i.value}`;
+  if (side === 'target' && i.type === 'ipv6') return `https://[${i.value}]`;
+  return null;
+}
+
 export function CampaignPage() {
   const id = useStore((s) => s.campaignId);
   const campaign = useStore((s) => (id ? s.campaigns[id] : undefined));
@@ -439,7 +451,6 @@ export function CampaignPage() {
   const autoSummarized = useRef<string | null>(null);
 
   const iocCount = id ? Object.keys(campaign?.iocs ?? {}).length : 0;
-  const hasSummary = Boolean(campaign?.summary);
   async function onSummarize() {
     if (!id) return;
     setSummarizing(true);
@@ -449,13 +460,18 @@ export function CampaignPage() {
       setSummarizing(false);
     }
   }
+  // Auto-generate the 総括 on open when it's MISSING or STALE (campaign data changed since the last
+  // summary), at most once per open — so the marquee is current without the analyst pressing 🔄.
   useEffect(() => {
-    if (!id || !iocCount || hasSummary || summarizing) return;
+    if (!id || !iocCount || summarizing) return;
     if (autoSummarized.current === id) return;
+    const summaryAt = campaign?.summary?.at ?? 0;
+    const lastDataAt = Object.values(campaign?.iocs ?? {}).reduce((m, i) => Math.max(m, i.updatedAt ?? 0), 0);
+    const stale = !campaign?.summary || lastDataAt > summaryAt;
     autoSummarized.current = id;
-    void onSummarize();
+    if (stale) void onSummarize();
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [id, iocCount, hasSummary]);
+  }, [id, iocCount, campaign, summarizing]);
 
   // Pull the latest shared campaigns when opening one, so cross-browser edits are reflected.
   useEffect(() => {
@@ -665,44 +681,47 @@ export function CampaignPage() {
           >
             {side === 'target' ? '🎣 詳細/魚拓' : 'Open'}
           </button>
-          {(i.type === 'url' || i.type === 'domain') &&
-            (() => {
-              const cap = webCaptures[i.value];
-              const cp = cap?.phase;
-              const capRunning = cp === 'submitting' || cp === 'running';
-              const label = capRunning
-                ? '🎣 魚拓中…'
-                : cp === 'done'
-                  ? '🎣 魚拓 ✓'
-                  : cp === 'stalled' || cp === 'interrupted'
-                    ? '🎣 再確認'
-                    : cp === 'error'
-                      ? '🎣 再試行'
-                      : '🎣 魚拓';
-              return (
-                <button
-                  className={`btn btn-sm${cp === 'done' ? ' btn-primary' : ''}`}
-                  disabled={capRunning}
-                  onClick={() => {
-                    if (cp === 'done') {
-                      if (r) showResult(r);
-                      else if (cap?.result?.resultUrl) window.open(cap.result.resultUrl, '_blank', 'noopener');
-                      return;
-                    }
-                    void startWebCapture(i.value);
-                  }}
-                  title={
-                    cp === 'done'
-                      ? 'urlscan 魚拓の結果を開く'
-                      : capRunning
-                        ? 'urlscan でレンダリング中…（このページを閉じても裏で継続）'
-                        : 'urlscan のサンドボックスで今の状態を魚拓（裏で継続・後で確認可）'
+          {(() => {
+            const capKey = captureKey(i, side);
+            if (!capKey) return null;
+            const cap = webCaptures[capKey];
+            const cp = cap?.phase;
+            const capRunning = cp === 'submitting' || cp === 'running';
+            const label = capRunning
+              ? '🎣 魚拓中…'
+              : cp === 'done'
+                ? '🎣 魚拓 ✓'
+                : cp === 'stalled' || cp === 'interrupted'
+                  ? '🎣 再確認'
+                  : cp === 'error'
+                    ? '🎣 再試行'
+                    : '🎣 魚拓';
+            return (
+              <button
+                className={`btn btn-sm${cp === 'done' ? ' btn-primary' : ''}`}
+                disabled={capRunning}
+                onClick={() => {
+                  if (cp === 'done') {
+                    if (r) showResult(r);
+                    else if (cap?.result?.resultUrl) window.open(cap.result.resultUrl, '_blank', 'noopener');
+                    return;
                   }
-                >
-                  {label}
-                </button>
-              );
-            })()}
+                  void startWebCapture(capKey);
+                }}
+                title={
+                  cp === 'done'
+                    ? 'urlscan 魚拓の結果を開く'
+                    : capRunning
+                      ? 'urlscan でレンダリング中…（このページを閉じても裏で継続）'
+                      : i.type === 'ipv4' || i.type === 'ipv6'
+                        ? `urlscan で ${capKey} を魚拓（この資産のWeb面の現状を保全・裏で継続）`
+                        : 'urlscan のサンドボックスで今の状態を魚拓（裏で継続・後で確認可）'
+                }
+              >
+                {label}
+              </button>
+            );
+          })()}
           <button className="btn btn-sm" disabled={i.enriching} onClick={() => void reEnrich(cid, i.value)}>
             {i.enriching ? 'Enriching…' : 'Re-enrich'}
           </button>
@@ -758,13 +777,13 @@ export function CampaignPage() {
     const { bs, orderedNames } = bucketsFor(list, side);
     const unEnriched = list.filter((i) => !i.result);
     const enrichingN = list.filter((i) => i.enriching).length;
-    // URL/domain IOCs in range can be 魚拓'd (urlscan). Track live capture progress for the toolbar note.
-    const capturable = list.filter((i) => i.type === 'url' || i.type === 'domain');
+    // Web-capturable IOCs in range (urlscan 魚拓): URL/domain always; on Target, IP assets too.
+    const capturable = list.filter((i) => captureKey(i, side) !== null);
     const capRunningN = capturable.filter((i) => {
-      const p = webCaptures[i.value]?.phase;
+      const p = webCaptures[captureKey(i, side)!]?.phase;
       return p === 'submitting' || p === 'running';
     }).length;
-    const capDoneN = capturable.filter((i) => webCaptures[i.value]?.phase === 'done').length;
+    const capDoneN = capturable.filter((i) => webCaptures[captureKey(i, side)!]?.phase === 'done').length;
     return (
       <>
         <p className="hint mon-intro">
@@ -890,11 +909,11 @@ export function CampaignPage() {
               <button
                 className="btn btn-sm"
                 disabled={capRunningN > 0}
-                onClick={() => void startWebCaptureBatch(capturable.map((i) => i.value))}
+                onClick={() => void startWebCaptureBatch(capturable.map((i) => captureKey(i, side)!))}
                 title={
-                  filter
-                    ? '絞り込み結果の URL/ドメインを一括で urlscan 魚拓（各ジョブは裏で継続・完了時に🔔通知）'
-                    : 'この範囲の URL/ドメインを一括で urlscan 魚拓（各ジョブは裏で継続・完了時に🔔通知）'
+                  side === 'target'
+                    ? '標的資産（URL/ドメイン + IPのWeb面 https://）を一括で urlscan 魚拓 — 各ジョブは裏で継続・完了時に🔔'
+                    : '攻撃側の URL/ドメインを一括で urlscan 魚拓 — 各ジョブは裏で継続・完了時に🔔'
                 }
               >
                 {capRunningN > 0 ? `🎣 魚拓 実行中… (${capRunningN})` : `🎣 魚拓 all (${capturable.length})`}
@@ -1143,7 +1162,9 @@ export function CampaignPage() {
             </div>
           )}
         </div>
-        <span className="cp-title-meta">{iocs.length} IoCs</span>
+        <span className="cp-title-meta" title="攻撃側インフラ（IoC）／標的側の監視資産">
+          🗡 Attack {attackIocs.length} · 🎯 Target {targetIocs.length}
+        </span>
         <div className="spacer" />
         <button className="btn btn-sm" onClick={() => void onSync()} disabled={syncing} title="共有と同期（双方向・非破壊）">
           {syncing ? '⇪ 同期中…' : '⇪ Sync'}
@@ -1178,7 +1199,12 @@ export function CampaignPage() {
             className="cp-marquee-refresh"
             onClick={() => void onSummarize()}
             disabled={summarizing || iocs.length === 0}
-            title={campaign.summary ? `Claudeで総括を再生成 · 最終: ${new Date(campaign.summary.at).toLocaleString()}` : 'Claudeで総括を生成'}
+            aria-label="総括を再生成"
+            title={
+              campaign.summary
+                ? `🔄 総括を今すぐ再生成 — Claude が最新データでキーメッセージを書き直します。\n（開くたびにデータ変更があれば自動更新されます）\n最終更新: ${new Date(campaign.summary.at).toLocaleString()}`
+                : '🔄 総括を生成 — Claude が最新データからキーメッセージを作成します。'
+            }
           >
             {summarizing ? '…' : '🔄'}
           </button>

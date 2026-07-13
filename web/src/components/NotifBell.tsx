@@ -68,16 +68,24 @@ export function NotifBell() {
     }
   }
 
-  const bellIcon = unread > 0 ? '🔔' : '🔕';
-  const cls = `notif-bell${unread > 0 ? ' has-unread' : ''}`;
+  // The icon reflects the OS-notification ON/OFF state (granted && not muted), so toggling mute in the
+  // menu flips 🔔↔🔕. The unread count rides on the badge, independent of on/off.
+  const osOn = perm === 'granted' && !muted;
+  const bellIcon = osOn ? '🔔' : '🔕';
+  const cls = `notif-bell${unread > 0 ? ' has-unread' : ''}${osOn ? ' notif-on' : ''}`;
+  const bellTitle = osOn
+    ? '通知ログ · OS通知: オン（クリックでログを開く）'
+    : perm === 'denied'
+      ? '通知ログ · OS通知はブラウザでブロック中（クリックでログを開く）'
+      : '通知ログ · OS通知: オフ（クリックでログを開き、有効化できます）';
 
   return (
     <div className="notif-bell-wrap">
       <button
         className={`btn btn-sm ${cls}`}
         onClick={() => setOpen((o) => !o)}
-        title="通知ログ（一括処理の完了などを記録）"
-        aria-label={`Notifications${unread > 0 ? ` (${unread} unread)` : ''}`}
+        title={bellTitle}
+        aria-label={`Notifications${unread > 0 ? ` (${unread} unread)` : ''} — OS notifications ${osOn ? 'on' : 'off'}`}
       >
         {bellIcon}
         {unread > 0 && <span className="notif-badge">{unread > 9 ? '9+' : unread}</span>}
