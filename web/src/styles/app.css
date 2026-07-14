@@ -4252,6 +4252,13 @@ button.pv-monitored.link:hover {
   gap: 6px 14px;
   font-size: 12px;
 }
+.mon-assess-scanbtn {
+  margin-top: 8px;
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 6px;
+}
 .mon-assess-gap {
   color: var(--muted);
 }

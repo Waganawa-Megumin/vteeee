@@ -41,6 +41,8 @@ export function MonitorAssessmentPage() {
   const assessments = useStore((s) => s.monitorAssessments);
   const assess = useStore((s) => s.assessMonitors);
   const refreshShared = useStore((s) => s.refreshMonitorAssessments);
+  const scanGaps = useStore((s) => s.scanStaleMonitors);
+  const scanning = useStore((s) => s.scanningGaps);
   const assessing = useStore((s) => s.monitorAssessing);
   const assessError = useStore((s) => s.monitorAssessError);
   const groupOrder = useStore((s) => s.monitorGroupOrder);
@@ -92,8 +94,13 @@ export function MonitorAssessmentPage() {
     const lastCheckAt = checks[0]?.at;
     const enrichAts = list.map((e) => e.lastEnrichAt).filter((x): x is number => typeof x === 'number');
     const lastEnrichAt = enrichAts.length ? Math.max(...enrichAts) : undefined;
-    const staleEnrich = list.filter((e) => !e.lastEnrichAt || now - e.lastEnrichAt > 14 * day);
+    const STALE = 14 * day;
+    const staleEnrich = list.filter((e) => !e.lastEnrichAt || now - e.lastEnrichAt > STALE);
     const neverChecked = list.filter((e) => !e.check?.at);
+    // The re-scan gap: no scan (check) or stale scan, and/or no/stale enrichment — what the button targets.
+    const scanGap = list.filter(
+      (e) => !e.check || now - e.check.at > STALE || !e.result || now - (e.lastEnrichAt ?? 0) > STALE,
+    );
     const autoOn = list.filter((e) => e.autoEnrich).length;
     const spanStart = list.length ? Math.min(...list.map((e) => (e.history?.length ? e.history[0].at : e.addedAt))) : now;
     const windowDays = Number.isFinite(spanStart) ? Math.round((now - spanStart) / day) : 0;
@@ -149,7 +156,7 @@ export function MonitorAssessmentPage() {
     return {
       total, withIntel, malicious, suspicious, highAbuse, changed, byCountry, countryRows, points,
       checks, lastCheckAt, lastEnrichAt, staleEnrich, neverChecked, autoOn, windowDays, groups,
-      countries: Object.keys(byCountry).length,
+      countries: Object.keys(byCountry).length, scanGapCount: scanGap.length,
     };
   }, [list, groupOrder]);
 
@@ -344,6 +351,32 @@ export function MonitorAssessmentPage() {
                     )}
                   </div>
                 )}
+                {/* Re-scan the gaps now (Shodan check + enrich where missing/stale). Auto IPs also do this
+                    automatically on the 5-min cadence; this button covers the rest on demand. */}
+                <div className="mon-assess-scanbtn">
+                  <button
+                    className="btn btn-sm btn-primary"
+                    disabled={scanning || agg.scanGapCount === 0}
+                    onClick={() => {
+                      if (
+                        window.confirm(
+                          `未スキャン・古い監視IP ${agg.scanGapCount} 件を Shodan で再スキャン（必要ならエンリッチも）します。\nShodanのクレジットを消費します。実行しますか？`,
+                        )
+                      )
+                        void scanGaps();
+                    }}
+                    title="監視結果(Scan情報)が無い・古い監視IPだけを今すぐ再スキャン。Shodanのクレジットを消費します。"
+                  >
+                    {scanning
+                      ? '🔄 再スキャン中…'
+                      : agg.scanGapCount > 0
+                        ? `🔄 未スキャン/古いIPを今すぐ再スキャン (${agg.scanGapCount})`
+                        : '✓ 未スキャン/古いIPはありません'}
+                  </button>
+                  <span className="hint">
+                    {' '}⚡Auto をONにしたIPは、以後このスキャン(check)も自動で走ります（未スキャンなら即時）。
+                  </span>
+                </div>
               </div>
             </div>
 

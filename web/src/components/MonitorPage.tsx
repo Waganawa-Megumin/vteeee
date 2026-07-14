@@ -429,8 +429,8 @@ export function MonitorPage() {
             onClick={() => void setAutoEnrich([e.ip], !e.autoEnrich)}
             title={
               e.autoEnrich
-                ? '自動エンリッチ＋自動魚拓 ON（年代連動の間隔で自動Re-enrich＋約1日毎に urlscan 魚拓・vteeeeを開いている間）— クリックでOFF'
-                : '自動エンリッチ＋自動魚拓 OFF — クリックでON（監視期間に応じた間隔で定点観測＋魚拓）'
+                ? '自動エンリッチ＋自動Shodanスキャン(check)＋自動魚拓 ON（年代連動の間隔で自動Re-enrich＋Shodan再観測、約1日毎に urlscan 魚拓・vteeeeを開いている間。未スキャンなら即時check）— クリックでOFF'
+                : '自動エンリッチ＋自動Shodanスキャン(check)＋自動魚拓 OFF — クリックでON（監視期間に応じた間隔で定点観測＋Shodan再スキャン＋魚拓）'
             }
           >
             ⚡ Auto{e.autoEnrich ? ' ✓' : ''}
@@ -789,7 +789,7 @@ export function MonitorPage() {
               className="btn btn-sm"
               disabled={!checkedList.length}
               onClick={() => void setAutoEnrich(checkedList.map((e) => e.ip), true)}
-              title="選択IPの自動エンリッチ＋自動魚拓をON（年代連動の間隔で自動Re-enrich＋約1日毎に魚拓）"
+              title="選択IPの自動エンリッチ＋自動Shodanスキャン(check)＋自動魚拓をON（年代連動の間隔で自動Re-enrich＋Shodan再観測＋約1日毎に魚拓・未スキャンなら即時）"
             >
               ⚡ Auto on{checkedList.length ? ` (${checkedList.length})` : ''}
             </button>

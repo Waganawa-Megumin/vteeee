@@ -1152,6 +1152,11 @@ interface State {
   reEnrichMonitor: (ip: string) => Promise<void>;
   /** Re-observe a monitored IP on Shodan and diff it vs. the baseline (the "monitoring result"). */
   checkMonitor: (ip: string) => Promise<void>;
+  /** Scan the monitoring GAPS now: Shodan re-check every IP with no/stale scan info, and re-enrich the
+   *  ones with no/stale enrichment. Sequential (throttled). Returns how many IPs it scanned. */
+  scanStaleMonitors: (staleDays?: number) => Promise<number>;
+  /** True while scanStaleMonitors is draining the gap list (drives the report button state). */
+  scanningGaps: boolean;
   /** Assign (or clear, when group is blank/undefined) a group label on the given monitored IPs. */
   setMonitorGroup: (ips: string[], group: string | undefined) => Promise<void>;
   /** IP-Mon group display order (local preference); groups not listed fall back to alphabetical. */
@@ -1289,6 +1294,7 @@ export const useStore = create<State>((set, get) => {
   notifications: loadNotifs(),
   monitors: loadMonitors(),
   monitorGroupOrder: loadMonitorGroupOrder(),
+  scanningGaps: false,
 
   rawInput: '',
   parsed: [],
@@ -2399,6 +2405,32 @@ export const useStore = create<State>((set, get) => {
     }
   },
 
+  async scanStaleMonitors(staleDays = 14) {
+    if (get().scanningGaps) return 0;
+    const STALE = staleDays * 86_400_000;
+    const now = Date.now();
+    // Gap set: no scan (check) or stale check, and/or no enrichment or stale enrichment.
+    const gap = Object.values(get().monitors).filter(
+      (e) => !e.check || now - e.check.at > STALE || !e.result || now - (e.lastEnrichAt ?? 0) > STALE,
+    );
+    if (!gap.length) return 0;
+    set({ scanningGaps: true });
+    try {
+      // Sequential ⇒ naturally throttled so a big watchlist doesn't burst Shodan / the enrichers.
+      for (const g of gap) {
+        const cur = get().monitors[g.ip];
+        if (!cur) continue;
+        const checkGap = !cur.check || now - cur.check.at > STALE;
+        const enrichGap = !cur.result || now - (cur.lastEnrichAt ?? 0) > STALE;
+        if (checkGap && !cur.checking) await get().checkMonitor(g.ip);
+        if (enrichGap && !get().monitors[g.ip]?.enriching) await get().reEnrichMonitor(g.ip);
+      }
+    } finally {
+      set({ scanningGaps: false });
+    }
+    return gap.length;
+  },
+
   async runAutoEnrichDue() {
     const s = get();
     // Client-side scheduler: only meaningful against a real proxy, and only for opted-in items.
@@ -2415,6 +2447,21 @@ export const useStore = create<State>((set, get) => {
       .sort((a, b) => (a.lastEnrichAt ?? a.addedAt) - (b.lastEnrichAt ?? b.addedAt));
     for (const e of due.slice(0, 4)) {
       await get().reEnrichMonitor(e.ip);
+    }
+
+    // 1b) Auto Shodan re-scan (check) for auto IPs whose monitoring result is MISSING or stale — this is
+    // what populates/refreshes the "Scan情報" for watched hosts. Never-checked ⇒ due now (initial scan);
+    // otherwise on the same age-based cadence as the enrich. Capped per pass to protect Shodan credits.
+    const checkDue = Object.values(get().monitors)
+      .filter(
+        (e) =>
+          e.autoEnrich &&
+          !e.checking &&
+          (!e.check || now - e.check.at >= autoEnrichInterval(now - e.addedAt)),
+      )
+      .sort((a, b) => (a.check?.at ?? 0) - (b.check?.at ?? 0));
+    for (const e of checkDue.slice(0, 4)) {
+      await get().checkMonitor(e.ip);
     }
 
     // 2) Auto re-魚拓: keep a fresh urlscan capture for every auto-enabled, web-capturable target —
