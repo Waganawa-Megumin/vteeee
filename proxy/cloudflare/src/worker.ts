@@ -27,6 +27,8 @@ import {
   putSharedCampaigns,
   getSharedCaptures,
   putSharedCaptures,
+  getSharedMonitorAssessments,
+  putSharedMonitorAssessments,
   summarizeCampaign,
   assessCampaign,
   assessMonitors,
@@ -406,6 +408,17 @@ export default {
         if (origin && !originAllowed(origin, allowed)) return json({ error: 'origin not allowed' }, 403);
         if (!checkAccess(auth, proxy)) return json({ error: 'unauthorized' }, 401);
         await putSharedCaptures(store, await request.json());
+        return json({ ok: true });
+      }
+      // Shared IP-MON monitoring report history (time-series), team-wide like campaigns/captures.
+      if (url.pathname === '/api/monitor-assessments' && request.method === 'GET') {
+        if (!checkAccess(auth, proxy)) return json({ error: 'unauthorized' }, 401);
+        return json(await getSharedMonitorAssessments(store));
+      }
+      if (url.pathname === '/api/monitor-assessments' && request.method === 'PUT') {
+        if (origin && !originAllowed(origin, allowed)) return json({ error: 'origin not allowed' }, 403);
+        if (!checkAccess(auth, proxy)) return json({ error: 'unauthorized' }, 401);
+        await putSharedMonitorAssessments(store, await request.json());
         return json({ ok: true });
       }
       // CP-Mon 電光掲示板: Claude-written one-line key message from a compact campaign digest.

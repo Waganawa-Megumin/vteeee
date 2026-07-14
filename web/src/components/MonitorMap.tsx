@@ -71,7 +71,14 @@ export function MonitorMap({ points, className = 'monitor-map' }: { points: MapP
         } else if (bounds.length === 1) {
           map.setView(bounds[0], 4);
         }
-        const settle = () => map && !cancelled && map.invalidateSize();
+        const settle = () => {
+          // Guard invalidateSize: on a detached/zero-size container Leaflet throws `_leaflet_pos`.
+          try {
+            if (map && !cancelled) map.invalidateSize();
+          } catch {
+            /* map torn down mid-layout — ignore */
+          }
+        };
         setTimeout(settle, 100);
         setTimeout(settle, 400);
       } catch {
@@ -80,7 +87,11 @@ export function MonitorMap({ points, className = 'monitor-map' }: { points: MapP
     })();
     return () => {
       cancelled = true;
-      map?.remove();
+      try {
+        map?.remove();
+      } catch {
+        /* ignore teardown races */
+      }
     };
   }, [points]);
   return <div className={className} ref={ref} />;

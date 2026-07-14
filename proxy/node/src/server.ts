@@ -30,6 +30,8 @@ import {
   putSharedCampaigns,
   getSharedCaptures,
   putSharedCaptures,
+  getSharedMonitorAssessments,
+  putSharedMonitorAssessments,
   summarizeCampaign,
   assessCampaign,
   assessMonitors,
@@ -415,6 +417,16 @@ app.get('/api/captures', async (req, res) => {
 app.put('/api/captures', async (req, res) => {
   if (!requireAccess(req, res)) return;
   await putSharedCaptures(store, req.body);
+  res.json({ ok: true });
+});
+// Shared IP-MON monitoring report history (time-series), team-wide like campaigns/captures.
+app.get('/api/monitor-assessments', async (req, res) => {
+  if (!requireAccess(req, res)) return;
+  res.json(await getSharedMonitorAssessments(store));
+});
+app.put('/api/monitor-assessments', async (req, res) => {
+  if (!requireAccess(req, res)) return;
+  await putSharedMonitorAssessments(store, req.body);
   res.json({ ok: true });
 });
 // CP-Mon 電光掲示板: Claude-written one-line key message from a compact campaign digest.

@@ -600,6 +600,37 @@ async function pushSharedCapture(settings: AppSettings, target: string, history:
   }
 }
 
+/** Fetch the team's shared IP-Mon monitoring-report history (time-series). null when sharing is off. */
+async function fetchSharedMonitorAssessments(settings: AppSettings): Promise<CampaignAssessment[] | null> {
+  if (!monitorSharingOn(settings)) return null;
+  const base = settings.proxyBaseUrl!.replace(/\/$/, '');
+  try {
+    const res = await fetch(`${base}/api/monitor-assessments`, { headers: monitorAuth(settings), cache: 'no-store' });
+    if (!res.ok) return null;
+    const j = await res.json();
+    return Array.isArray(j) ? (j as CampaignAssessment[]) : [];
+  } catch {
+    return null;
+  }
+}
+/** Non-destructive read-merge-write of the report history into the shared blob (union by `at`). Best-effort. */
+async function pushSharedMonitorAssessments(settings: AppSettings, list: CampaignAssessment[]): Promise<void> {
+  if (!monitorSharingOn(settings)) return;
+  const base = settings.proxyBaseUrl!.replace(/\/$/, '');
+  try {
+    const res = await fetch(`${base}/api/monitor-assessments`, { headers: monitorAuth(settings), cache: 'no-store' });
+    const j = res.ok ? await res.json() : [];
+    const remote = Array.isArray(j) ? (j as CampaignAssessment[]) : [];
+    await fetch(`${base}/api/monitor-assessments`, {
+      method: 'PUT',
+      headers: { ...monitorAuth(settings), 'content-type': 'application/json' },
+      body: JSON.stringify(mergeAssessments(list, remote)),
+    });
+  } catch {
+    /* offline — local copy keeps it; a later refresh reconciles */
+  }
+}
+
 /** Build the compact digest the summarizer consumes (aggregates + short change strings only). */
 function buildCampaignDigest(c: Campaign): CampaignDigest {
   const iocs = Object.values(c.iocs);
@@ -1011,6 +1042,8 @@ interface State {
   monitorAssessments: CampaignAssessment[];
   /** Generate a fresh IP-Mon monitoring digest from the current watchlist (appends to the history). */
   assessMonitors: () => Promise<void>;
+  /** Pull the team's shared IP-Mon report history and merge it into the local time-series (sharing on). */
+  refreshMonitorAssessments: () => Promise<void>;
   /** A report generation is in flight (drives the button spinner). */
   monitorAssessing: boolean;
   /** Last generation error (Claude unavailable / network) — shown on the page; not saved to history. */
@@ -1298,6 +1331,7 @@ export const useStore = create<State>((set, get) => {
     });
     void get().refreshHealth();
     void get().refreshCaptures(); // pull the team's shared 魚拓 history (best-effort)
+    void get().refreshMonitorAssessments(); // pull the team's shared IP-Mon report history (best-effort)
   },
 
   async login(username, password) {
@@ -2621,9 +2655,21 @@ export const useStore = create<State>((set, get) => {
         saveMonitorAssessments(monitorAssessments);
         return { monitorAssessments, monitorAssessing: false, monitorAssessError: null };
       });
+      // Share the report time-series team-wide (always-on when the proxy is connected & sharing is on).
+      void pushSharedMonitorAssessments(get().settings, get().monitorAssessments);
     } catch {
       set({ monitorAssessing: false, monitorAssessError: 'レポート生成に失敗しました。' });
     }
+  },
+
+  async refreshMonitorAssessments() {
+    const shared = await fetchSharedMonitorAssessments(get().settings);
+    if (!shared || !shared.length) return;
+    set((s) => {
+      const monitorAssessments = mergeAssessments(shared, s.monitorAssessments);
+      saveMonitorAssessments(monitorAssessments);
+      return { monitorAssessments };
+    });
   },
 
   openMonitorAssessment() {

@@ -4138,6 +4138,28 @@ button.pv-monitored.link:hover {
 }
 .mon-assess-report {
   margin-top: 8px;
+  /* Full-width report: maps/stats/group grid should use the whole page, not the 900px prose cap the
+     campaign CTI report inherits from .cp-report. (The Claude prose below is re-constrained for reading.) */
+  max-width: none;
+}
+/* Geo: two EQUAL columns (plotted map | statistical choropleth), filling the report width. */
+.mon-assess-geo {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 16px;
+  align-items: start;
+}
+.mon-assess-geo-col {
+  min-width: 0;
+}
+@media (max-width: 900px) {
+  .mon-assess-geo {
+    grid-template-columns: 1fr;
+  }
+}
+/* Keep the Claude narrative prose at a readable measure even though the report is full-width. */
+.mon-assess-narrative .cp-report-md {
+  max-width: 980px;
 }
 .mon-assess-reporthead {
   display: flex;

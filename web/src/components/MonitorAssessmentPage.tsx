@@ -1,4 +1,4 @@
-import { useMemo, useRef, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { useStore, type MonitorEntry } from '../state/store';
 import type { TlpLevel } from '@vteeee/shared';
 import { MarkdownLite } from './MarkdownLite';
@@ -40,6 +40,7 @@ export function MonitorAssessmentPage() {
   const setView = useStore((s) => s.setView);
   const assessments = useStore((s) => s.monitorAssessments);
   const assess = useStore((s) => s.assessMonitors);
+  const refreshShared = useStore((s) => s.refreshMonitorAssessments);
   const assessing = useStore((s) => s.monitorAssessing);
   const assessError = useStore((s) => s.monitorAssessError);
   const groupOrder = useStore((s) => s.monitorGroupOrder);
@@ -47,6 +48,12 @@ export function MonitorAssessmentPage() {
   const [sel, setSel] = useState(0);
   const [reportMsg, setReportMsg] = useState<string | null>(null);
   const reportRef = useRef<HTMLDivElement>(null);
+
+  // Pull the team's shared report history when the page opens (continuous, team-wide time-series).
+  useEffect(() => {
+    void refreshShared();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   const list = useMemo(() => Object.values(monitors), [monitors]);
 
@@ -196,9 +203,9 @@ export function MonitorAssessmentPage() {
           IP-Mon — monitoring report
         </h2>
         <div className="spacer" />
-        {history.length >= 2 && (
-          <label className="urlscan-hist" title="過去のレポートを選択（継続モニタリング）">
-            🕓 過去
+        {history.length >= 1 && (
+          <label className="urlscan-hist" title="過去に生成したレポートを選択（時系列で保存・変動を追える）">
+            🕓 履歴
             <select className="urlscan-hist-sel" value={selIdx} onChange={(e) => setSel(Number(e.currentTarget.value))}>
               {history.map((h, i) => (
                 <option key={h.at} value={i}>
@@ -233,7 +240,7 @@ export function MonitorAssessmentPage() {
           <div className="cp-assess-actions mon-assess-actions">
             {a && (
               <span className="cp-assess-when">
-                {selIdx === 0 ? '最新レポート' : '過去版'}: {fmtWhen(a.at)}
+                {selIdx === 0 ? '最新レポート' : '過去版'} (#{history.length - selIdx}/{history.length}): {fmtWhen(a.at)}
                 {a.by ? ` · ${a.by}` : ''}
                 {a.model ? ` · ${a.model}` : ''}
               </span>
@@ -277,8 +284,8 @@ export function MonitorAssessmentPage() {
             {/* Geo: plotted map (MaxMind coords) + self-contained statistical choropleth. */}
             <div className="mon-assess-section">
               <div className="mon-bars-title">🌍 地理・インフラ分布（MaxMind）</div>
-              <div className="mon-geo-body">
-                <div className="mon-geo-map">
+              <div className="mon-assess-geo">
+                <div className="mon-assess-geo-col">
                   {agg.points.length > 0 ? (
                     <>
                       <div className="mon-geo-maplabel">プロット（{agg.points.length} IP · 判定で色分け）</div>
@@ -288,9 +295,9 @@ export function MonitorAssessmentPage() {
                     <div className="hint mon-nomap-note">🗺 座標が未取得です（各IPを Re-enrich／MaxMind有効化で地図表示）。</div>
                   )}
                 </div>
-                <div className="mon-geo-map">
+                <div className="mon-assess-geo-col">
                   <div className="mon-geo-maplabel">統計地図（国別・多いほど濃い）</div>
-                  <CountryChoropleth counts={agg.byCountry} height={230} />
+                  <CountryChoropleth counts={agg.byCountry} height={260} />
                   {agg.countryRows.length > 0 && (
                     <div className="mon-assess-countrybars">
                       {agg.countryRows.map(([cc, n]) => (

@@ -218,7 +218,14 @@ export function CountryChoropleth({
         } catch {
           /* keep the default world view */
         }
-        const settle = () => map && !cancelled && map.invalidateSize();
+        const settle = () => {
+          // Guard invalidateSize: on a detached/zero-size container Leaflet throws `_leaflet_pos`.
+          try {
+            if (map && !cancelled) map.invalidateSize();
+          } catch {
+            /* map torn down mid-layout — ignore */
+          }
+        };
         setTimeout(settle, 100);
         setTimeout(settle, 400);
       } catch {
@@ -227,7 +234,11 @@ export function CountryChoropleth({
     })();
     return () => {
       cancelled = true;
-      map?.remove();
+      try {
+        map?.remove();
+      } catch {
+        /* ignore teardown races */
+      }
     };
   }, [geo, resolved, max]);
 
