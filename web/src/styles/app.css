@@ -4430,3 +4430,18 @@ button.pv-monitored.link:hover {
 .mon-proj-none {
   border-style: dashed;
 }
+/* Editable PJ name in the scoped IP-Mon header. */
+.mon-pj-rename {
+  background: none;
+  border: none;
+  padding: 0;
+  font: inherit;
+  cursor: pointer;
+}
+.mon-pj-edit {
+  font-size: 0.78em;
+  opacity: 0.5;
+}
+.mon-pj-rename:hover .mon-pj-edit {
+  opacity: 1;
+}

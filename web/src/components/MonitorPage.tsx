@@ -95,6 +95,7 @@ export function MonitorPage() {
   const openProjects = useStore((s) => s.openMonitorProjects);
   const setProject = useStore((s) => s.setMonitorProject);
   const createProject = useStore((s) => s.createMonitorProject);
+  const renameProject = useStore((s) => s.renameMonitorProject);
   const addMonitor = useStore((s) => s.addMonitor);
   const [drill, setDrill] = useState<{ label: string; values: string[] } | null>(null);
   const [checked, setChecked] = useState<Set<string>>(new Set());
@@ -585,7 +586,21 @@ export function MonitorPage() {
           ← Projects
         </button>
         <h2>
-          IP-Mon <span className="mon-pj-title">· {pjName}</span>
+          IP-Mon{' '}
+          {projectId && projectId !== NONE_PJ ? (
+            <button
+              className="mon-pj-title mon-pj-rename"
+              onClick={() => {
+                const nn = window.prompt('PJ名を変更:', pjName);
+                if (nn != null && nn.trim()) void renameProject(projectId, nn.trim());
+              }}
+              title="クリックでPJ名を変更"
+            >
+              · {pjName} <span className="mon-pj-edit" aria-hidden>✎</span>
+            </button>
+          ) : (
+            <span className="mon-pj-title">· {pjName}</span>
+          )}
         </h2>
         <div className="spacer" />
         <a className="btn btn-sm" href="https://monitor.shodan.io/dashboard" target="_blank" rel="noreferrer">
