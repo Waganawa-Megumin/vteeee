@@ -51,6 +51,8 @@ export interface AssessmentPdfMeta {
   tlp?: TlpLevel;
   model?: string;
   at?: number;
+  /** Report kind shown in the header/footer (defaults to "CTI assessment"). e.g. "IP-Mon monitoring". */
+  kind?: string;
 }
 
 /** Build a paginated, selectable-text PDF from the report Markdown (headings, lists, tables, quotes). */
@@ -78,7 +80,8 @@ export async function exportAssessmentPdf(markdown: string, meta: AssessmentPdfM
   doc.setFont('helvetica', 'normal');
   doc.setFontSize(9);
   color(MUTED);
-  doc.text('CTI assessment report', MARGIN + 58, y + 6);
+  const kind = meta.kind ?? 'CTI assessment';
+  doc.text(`${kind} report`, MARGIN + 58, y + 6);
   doc.text(`Generated ${new Date(meta.at ?? Date.now()).toLocaleString()}`, pageW - MARGIN, y + 6, { align: 'right' });
   y += 14;
   doc.setDrawColor(LINE[0], LINE[1], LINE[2]);
@@ -211,7 +214,7 @@ export async function exportAssessmentPdf(markdown: string, meta: AssessmentPdfM
     doc.setFont('helvetica', 'normal');
     doc.setFontSize(8);
     color(MUTED);
-    doc.text('vteeee — CTI assessment', MARGIN, fy);
+    doc.text(`vteeee — ${kind}`, MARGIN, fy);
     doc.text(`${tlpLabel} · © ${year} vteeee`, pageW / 2, fy, { align: 'center' });
     doc.text(`${i} / ${pages}`, pageW - MARGIN, fy, { align: 'right' });
   }

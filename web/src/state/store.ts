@@ -778,6 +778,214 @@ async function fetchCampaignAssessment(settings: AppSettings, digest: unknown): 
   }
 }
 
+// --- IP-Mon operational report (Claude) — digest, fetch, and local time-series persistence. ----------
+const MONITOR_ASSESS_KEY = 'vteeee.monitorAssessments';
+const MONITOR_NOTE_KEY = 'vteeee.monitorNote';
+function loadMonitorAssessments(): CampaignAssessment[] {
+  try {
+    const raw = localStorage.getItem(MONITOR_ASSESS_KEY);
+    const a = raw ? (JSON.parse(raw) as CampaignAssessment[]) : [];
+    return Array.isArray(a) ? a : [];
+  } catch {
+    return [];
+  }
+}
+function saveMonitorAssessments(a: CampaignAssessment[]): void {
+  try {
+    localStorage.setItem(MONITOR_ASSESS_KEY, JSON.stringify(a));
+  } catch {
+    // Quota — keep the most recent dozen so the time-series survives without blocking the write.
+    try {
+      localStorage.setItem(MONITOR_ASSESS_KEY, JSON.stringify(a.slice(0, 12)));
+    } catch {
+      /* give up silently — the in-memory history still holds this session */
+    }
+  }
+}
+function loadMonitorNote(): string {
+  try {
+    return localStorage.getItem(MONITOR_NOTE_KEY) ?? '';
+  } catch {
+    return '';
+  }
+}
+
+/**
+ * Privacy-safe, IP-MON-framed digest for the operational monitoring report: per-group hosts + surface
+ * changes (Shodan check baseline diff), risk/threat drift (enrichment history change-points), scan
+ * timing/coverage and geo/ASN spread — so Claude can reason about how the WATCHLIST is moving and
+ * whether the monitoring is healthy, grounded in specific IPs. Capped for cost.
+ */
+function buildMonitorDigest(
+  monitors: Record<string, MonitorEntry>,
+  groupOrder: string[],
+  note: string,
+  tlp: TlpLevel,
+): unknown {
+  const list = Object.values(monitors);
+  const now = Date.now();
+  const day = 86_400_000;
+  const UNGROUPED = 'Ungrouped';
+  const groupOf = (e: MonitorEntry) => (e.group && e.group.trim() ? e.group : UNGROUPED);
+  const top = (m: Map<string, number>, n: number) => [...m.entries()].sort((a, b) => b[1] - a[1]).slice(0, n);
+
+  const host = (e: MonitorEntry) => {
+    const r = e.result;
+    const hAsc = e.history?.length ? [...e.history].sort((a, b) => a.at - b.at) : [];
+    return {
+      ip: e.ip,
+      verdict: r?.verdict,
+      country: r ? countryOf(r) || undefined : undefined,
+      org: r?.shodan?.org ?? r?.maxmind?.organization ?? r?.ip?.asOwner ?? undefined,
+      asn: r?.maxmind?.asn ?? r?.ip?.asn ?? undefined,
+      abuse: r?.abuseipdb?.abuseConfidenceScore ?? undefined,
+      rf: r?.recordedfuture?.riskScore ?? undefined,
+      det: r?.detection ? `${detOf(r)}/${r.detection.total ?? 0}` : undefined,
+      ports: r?.shodan?.ports?.slice(0, 16),
+      cves: r?.shodan?.vulns?.slice(0, 12),
+      hostnames: r?.shodan?.hostnames?.slice(0, 3),
+      live: e.live || undefined,
+      triggers: e.triggers?.length ? e.triggers : undefined,
+      auto: e.autoEnrich || undefined,
+      firstSeenDays: Math.round((now - (hAsc.length ? hAsc[0].at : e.addedAt)) / day),
+      snapshots: hAsc.length || undefined,
+      daysSinceEnrich: e.lastEnrichAt ? Math.round((now - e.lastEnrichAt) / day) : undefined,
+      daysSinceCheck: e.check?.at ? Math.round((now - e.check.at) / day) : undefined,
+    };
+  };
+
+  // Group order: analyst order first (present groups), then any remaining alphabetically, Ungrouped last.
+  const present = [...new Set(list.map(groupOf))];
+  const ordered = [
+    ...groupOrder.filter((g) => present.includes(g) && g !== UNGROUPED),
+    ...present.filter((g) => !groupOrder.includes(g) && g !== UNGROUPED).sort((a, b) => a.localeCompare(b)),
+    ...(present.includes(UNGROUPED) ? [UNGROUPED] : []),
+  ];
+
+  const groups = ordered.map((g) => {
+    const es = list.filter((e) => groupOf(e) === g);
+    const surfaceChanges: { ip: string; at: number; newPorts?: number[]; gonePorts?: number[]; newCves?: string[] }[] = [];
+    const riskThreatChanges: { ip: string; at: number; changes: string }[] = [];
+    const byCountry = new Map<string, number>();
+    const byOrg = new Map<string, number>();
+    const byCve = new Map<string, number>();
+    for (const e of es) {
+      const r = e.result;
+      if (r) {
+        const cc = countryOf(r);
+        if (cc) byCountry.set(cc, (byCountry.get(cc) ?? 0) + 1);
+        const org = r.shodan?.org ?? r.maxmind?.organization ?? r.ip?.asOwner;
+        if (org) byOrg.set(org, (byOrg.get(org) ?? 0) + 1);
+        for (const v of r.shodan?.vulns ?? []) byCve.set(v, (byCve.get(v) ?? 0) + 1);
+      }
+      if (e.check?.changed) {
+        surfaceChanges.push({
+          ip: e.ip,
+          at: e.check.at,
+          newPorts: e.check.newPorts?.length ? e.check.newPorts.slice(0, 8) : undefined,
+          gonePorts: e.check.gonePorts?.length ? e.check.gonePorts.slice(0, 8) : undefined,
+          newCves: e.check.newVulns?.length ? e.check.newVulns.slice(0, 6) : undefined,
+        });
+      }
+      const hAsc = e.history?.length ? [...e.history].sort((a, b) => a.at - b.at) : [];
+      if (hAsc.length >= 2) {
+        const changes = diffParts(hAsc[hAsc.length - 1].result, hAsc[hAsc.length - 2].result);
+        if (changes.length) riskThreatChanges.push({ ip: e.ip, at: hAsc[hAsc.length - 1].at, changes: changes.join(' · ') });
+      }
+    }
+    return {
+      name: g,
+      ipCount: es.length,
+      live: es.filter((e) => e.live).length,
+      malicious: es.filter((e) => e.result?.verdict === 'malicious').length,
+      suspicious: es.filter((e) => e.result?.verdict === 'suspicious').length,
+      highAbuse: es.filter((e) => (e.result?.abuseipdb?.abuseConfidenceScore ?? -1) >= 75).length,
+      changedSinceBaseline: es.filter((e) => e.check?.changed).length,
+      autoOn: es.filter((e) => e.autoEnrich).length,
+      topCountries: top(byCountry, 6),
+      topOrgs: top(byOrg, 5),
+      topCves: top(byCve, 8),
+      surfaceChanges: surfaceChanges.slice(0, 20),
+      riskThreatChanges: riskThreatChanges.slice(0, 20),
+      hosts: es.slice(0, 30).map(host),
+    };
+  });
+
+  const checkAts = list.map((e) => e.check?.at).filter((x): x is number => typeof x === 'number');
+  const enrichAts = list.map((e) => e.lastEnrichAt).filter((x): x is number => typeof x === 'number');
+  const staleEnrich = list.filter((e) => !e.lastEnrichAt || now - e.lastEnrichAt > 14 * day).map((e) => e.ip);
+  const neverChecked = list.filter((e) => !e.check?.at).map((e) => e.ip);
+  const byCountryAll = new Map<string, number>();
+  for (const e of list) {
+    const r = e.result;
+    if (r) {
+      const cc = countryOf(r);
+      if (cc) byCountryAll.set(cc, (byCountryAll.get(cc) ?? 0) + 1);
+    }
+  }
+  const spanStart = Math.min(...list.map((e) => (e.history?.length ? e.history[0].at : e.addedAt)));
+
+  return {
+    kind: 'ip-mon',
+    tlp,
+    analystNote: note && note.trim() ? note.trim().slice(0, 4000) : undefined,
+    totals: {
+      monitored: list.length,
+      live: list.filter((e) => e.live).length,
+      withIntel: list.filter((e) => e.result).length,
+      malicious: list.filter((e) => e.result?.verdict === 'malicious').length,
+      suspicious: list.filter((e) => e.result?.verdict === 'suspicious').length,
+      highAbuse: list.filter((e) => (e.result?.abuseipdb?.abuseConfidenceScore ?? -1) >= 75).length,
+      changedSinceBaseline: list.filter((e) => e.check?.changed).length,
+      countries: byCountryAll.size,
+      autoOn: list.filter((e) => e.autoEnrich).length,
+      groups: ordered.length,
+    },
+    monitoringWindowDays: Number.isFinite(spanStart) ? Math.round((now - spanStart) / day) : 0,
+    scanActivity: {
+      lastCheckAt: checkAts.length ? Math.max(...checkAts) : undefined,
+      lastEnrichAt: enrichAts.length ? Math.max(...enrichAts) : undefined,
+      checkedCount: checkAts.length,
+      staleEnrichCount: staleEnrich.length,
+      staleEnrich: staleEnrich.slice(0, 20),
+      neverCheckedCount: neverChecked.length,
+      neverChecked: neverChecked.slice(0, 20),
+    },
+    geo: { topCountries: top(byCountryAll, 12) },
+    groups,
+    generatedAt: now,
+  };
+}
+
+/** Ask the proxy's Claude for an IP-Mon operational report. `ok` is false for a message-only result
+ *  (Claude unavailable / HTTP / network) so the caller can surface it WITHOUT saving it to history. */
+async function fetchMonitorAssessment(
+  settings: AppSettings,
+  digest: unknown,
+): Promise<{ ok: boolean; text: string; model?: string }> {
+  if (!monitorSharingOn(settings)) {
+    return {
+      ok: false,
+      text: 'IP-MON運用レポートの生成には Claude（プロキシ接続）が必要です。Settings でプロキシURL＋アクセストークンを設定し、プロキシに ANTHROPIC_API_KEY を登録してください。',
+    };
+  }
+  const base = settings.proxyBaseUrl!.replace(/\/$/, '');
+  try {
+    const res = await fetch(`${base}/api/monitor-assessment`, {
+      method: 'POST',
+      headers: { ...monitorAuth(settings), 'content-type': 'application/json' },
+      body: JSON.stringify(digest),
+    });
+    if (!res.ok) return { ok: false, text: `レポート生成に失敗しました（HTTP ${res.status}）。` };
+    const j = (await res.json()) as { text?: string; model?: string; error?: string };
+    const text = j.text?.trim();
+    if (text) return { ok: true, text, model: j.model };
+    return { ok: false, text: j.error || 'レポートを生成できませんでした。' };
+  } catch {
+    return { ok: false, text: 'レポート生成に失敗しました（ネットワーク）。' };
+  }
+}
+
 interface State {
   booted: boolean;
   session: Session | null;
@@ -802,7 +1010,7 @@ interface State {
   running: boolean;
   error: string | null;
   selected: string | null;
-  view: 'app' | 'admin' | 'monitor' | 'analysis' | 'campaigns' | 'campaign' | 'campaign-analysis';
+  view: 'app' | 'admin' | 'monitor' | 'monitor-assessment' | 'analysis' | 'campaigns' | 'campaign' | 'campaign-analysis';
   /** IP whose enrichment-analysis page is open (view === 'analysis'). */
   analysisIp: string | null;
   /** Campaign IOC whose enrichment-analysis page is open (view === 'campaign-analysis'). */
@@ -811,6 +1019,21 @@ interface State {
   campaignTab: 'dashboard' | 'attack' | 'target' | 'assessment';
   /** Switch the active CP-Mon tab. */
   setCampaignTab: (t: 'dashboard' | 'attack' | 'target' | 'assessment') => void;
+
+  /** IP-Mon operational assessment reports (Claude), newest first — continuous monitoring time-series. */
+  monitorAssessments: CampaignAssessment[];
+  /** Free-text analyst context/background for the whole IP-Mon watchlist (fed into the report). */
+  monitorNote: string;
+  /** Generate a fresh IP-Mon operational report from the current watchlist (appends to the history). */
+  assessMonitors: () => Promise<void>;
+  /** A report generation is in flight (drives the button spinner). */
+  monitorAssessing: boolean;
+  /** Last generation error (Claude unavailable / network) — shown on the page; not saved to history. */
+  monitorAssessError: string | null;
+  /** Set the IP-Mon analyst note (persisted locally). */
+  setMonitorNote: (note: string) => void;
+  /** Open the full-page IP-Mon assessment report. */
+  openMonitorAssessment: () => void;
 
   /** CP-Mon campaigns (attack-campaign-organised IOC watchlists), keyed by campaign id. */
   campaigns: Record<string, Campaign>;
@@ -839,7 +1062,7 @@ interface State {
   showResult: (r: NormalizedResult) => void;
   restore: (results: NormalizedResult[], input: string) => void;
 
-  setView: (v: 'app' | 'admin' | 'monitor' | 'analysis' | 'campaigns' | 'campaign' | 'campaign-analysis') => void;
+  setView: (v: 'app' | 'admin' | 'monitor' | 'monitor-assessment' | 'analysis' | 'campaigns' | 'campaign' | 'campaign-analysis') => void;
   /** Open the full-page enrichment analysis for one monitored IP. */
   openAnalysis: (ip: string) => void;
   /** Open the full-page enrichment analysis for one campaign IOC (its history timeline). */
@@ -1068,6 +1291,10 @@ export const useStore = create<State>((set, get) => {
   analysisIp: null,
   analysisCampaign: null,
   campaignTab: 'dashboard',
+  monitorAssessments: loadMonitorAssessments(),
+  monitorNote: loadMonitorNote(),
+  monitorAssessing: false,
+  monitorAssessError: null,
   campaigns: loadCampaigns(),
   campaignId: null,
   campaignsSyncNote: null,
@@ -2389,6 +2616,45 @@ export const useStore = create<State>((set, get) => {
       return { campaigns };
     });
     void pushSharedCampaign(get().settings, id, get().campaigns[id] ?? null);
+  },
+
+  async assessMonitors() {
+    const st = get();
+    if (!Object.keys(st.monitors).length) return;
+    const digest = buildMonitorDigest(st.monitors, st.monitorGroupOrder, st.monitorNote, st.settings.tlp ?? 'AMBER');
+    set({ monitorAssessing: true, monitorAssessError: null });
+    try {
+      const { ok, text, model } = await fetchMonitorAssessment(get().settings, digest);
+      if (!ok) {
+        // Claude unavailable / network — surface the message, don't pollute the time-series.
+        set({ monitorAssessing: false, monitorAssessError: text });
+        return;
+      }
+      const at = Date.now();
+      const by = get().session?.username;
+      set((s) => {
+        const entry: CampaignAssessment = { text, at, by, model, tlp: s.settings.tlp ?? 'AMBER' };
+        // Prepend to the history — continuous monitoring, never overwrite past reports.
+        const monitorAssessments = mergeAssessments([entry], s.monitorAssessments);
+        saveMonitorAssessments(monitorAssessments);
+        return { monitorAssessments, monitorAssessing: false, monitorAssessError: null };
+      });
+    } catch {
+      set({ monitorAssessing: false, monitorAssessError: 'レポート生成に失敗しました。' });
+    }
+  },
+
+  setMonitorNote(note) {
+    try {
+      localStorage.setItem(MONITOR_NOTE_KEY, note);
+    } catch {
+      /* ignore quota — the in-memory note still applies this session */
+    }
+    set({ monitorNote: note });
+  },
+
+  openMonitorAssessment() {
+    set({ view: 'monitor-assessment' });
   },
 
   async setCampaignIocGroup(id, values, group) {

@@ -32,6 +32,7 @@ import {
   putSharedCaptures,
   summarizeCampaign,
   assessCampaign,
+  assessMonitors,
   runAllScheduledEnrich,
   getUsers,
   putUsers,
@@ -425,6 +426,11 @@ app.post('/api/campaign-summary', async (req, res) => {
 app.post('/api/campaign-assessment', async (req, res) => {
   if (!requireAccess(req, res)) return;
   res.json(await assessCampaign(req.body, env));
+});
+// IP-Mon operational monitoring report (Claude report from a per-group monitor digest — not CTI attribution).
+app.post('/api/monitor-assessment', async (req, res) => {
+  if (!requireAccess(req, res)) return;
+  res.json(await assessMonitors(req.body, env));
 });
 // Server-side auto re-enrich. Point a daily system cron at this (admin-token gated), e.g.:
 //   curl -fsS -X POST -H "Authorization: Bearer $ADMIN_TOKEN" http://localhost:8787/api/cron/auto-enrich

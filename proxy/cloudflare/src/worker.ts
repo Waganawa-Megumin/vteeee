@@ -29,6 +29,7 @@ import {
   putSharedCaptures,
   summarizeCampaign,
   assessCampaign,
+  assessMonitors,
   runAllScheduledEnrich,
   getUsers,
   putUsers,
@@ -421,6 +422,13 @@ export default {
         if (!(await consumeDailyQuota(store, 'parse', proxy.parseDailyCap, 1)))
           return json({ error: 'daily smart-parse quota reached' }, 429);
         return json(await assessCampaign(await request.json(), proxy));
+      }
+      // IP-Mon operational monitoring report (Claude report from a per-group monitor digest — not CTI attribution).
+      if (url.pathname === '/api/monitor-assessment' && request.method === 'POST') {
+        if (!checkAccess(auth, proxy)) return json({ error: 'unauthorized' }, 401);
+        if (!(await consumeDailyQuota(store, 'parse', proxy.parseDailyCap, 1)))
+          return json({ error: 'daily smart-parse quota reached' }, 429);
+        return json(await assessMonitors(await request.json(), proxy));
       }
       // Manual trigger for the server-side auto re-enrich (also runs on the Cloudflare cron below).
       // Admin-token gated. Node deployments point an external daily cron at this endpoint.

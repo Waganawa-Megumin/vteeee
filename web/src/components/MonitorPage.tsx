@@ -1,87 +1,12 @@
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useState } from 'react';
 import { useStore, type MonitorEntry } from '../state/store';
 import { VerdictBadge } from './Badges';
 import { detectionRatio } from '../lib/verdict';
 import { Spark } from './Spark';
 import { CountryChoropleth } from './CountryChoropleth';
+import { MonitorMap } from './MonitorMap';
 import { abuseOf, cvesOf, detOf, diffParts, portsOf, rfOf } from '../lib/enrichTrend';
 import { intelChips } from '../lib/iocChips';
-
-// Minimal Leaflet surface (dynamic import keeps it lazy) — mirrors the detail-panel map shim.
-interface LMap {
-  setView(c: [number, number], z: number): LMap;
-  fitBounds(b: [number, number][], o?: Record<string, unknown>): void;
-  invalidateSize(): void;
-  remove(): void;
-}
-interface LLayer {
-  addTo(m: LMap): LLayer;
-  bindPopup(html: string): LLayer;
-}
-interface LApi {
-  map(el: HTMLElement, o?: Record<string, unknown>): LMap;
-  tileLayer(url: string, o?: Record<string, unknown>): LLayer;
-  circleMarker(c: [number, number], o?: Record<string, unknown>): LLayer;
-}
-
-const verdictColor = (v?: string): string =>
-  v === 'malicious' ? '#dc2626' : v === 'suspicious' ? '#f59e0b' : v === 'harmless' ? '#3aa981' : '#8b5cf6';
-
-/** World map with a marker per monitored IP that has coordinates (from MaxMind), coloured by verdict. */
-function MonitorMap({ points }: { points: { lat: number; lon: number; ip: string; verdict?: string }[] }) {
-  const ref = useRef<HTMLDivElement>(null);
-  useEffect(() => {
-    let map: LMap | null = null;
-    let cancelled = false;
-    void (async () => {
-      const el = ref.current;
-      if (!el) return;
-      try {
-        await import('leaflet/dist/leaflet.css');
-        const mod = await import('leaflet');
-        const L = ((mod as { default?: unknown }).default ?? mod) as unknown as LApi;
-        if (cancelled || !ref.current) return;
-        map = L.map(el, { scrollWheelZoom: false, worldCopyJump: true, attributionControl: true }).setView([25, 5], 1);
-        L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
-          maxZoom: 19,
-          attribution: '© OpenStreetMap contributors',
-        }).addTo(map);
-        const bounds: [number, number][] = [];
-        for (const p of points) {
-          L.circleMarker([p.lat, p.lon], {
-            radius: 6,
-            color: '#ffffff',
-            weight: 1.5,
-            fillColor: verdictColor(p.verdict),
-            fillOpacity: 0.9,
-          })
-            .addTo(map)
-            .bindPopup(`${p.ip}${p.verdict ? ` · ${p.verdict}` : ''}`);
-          bounds.push([p.lat, p.lon]);
-        }
-        if (bounds.length >= 2) {
-          try {
-            map.fitBounds(bounds, { padding: [30, 30], maxZoom: 6 });
-          } catch {
-            /* ignore */
-          }
-        } else if (bounds.length === 1) {
-          map.setView(bounds[0], 4);
-        }
-        const settle = () => map && !cancelled && map.invalidateSize();
-        setTimeout(settle, 100);
-        setTimeout(settle, 400);
-      } catch {
-        /* offline / Leaflet failed — the country stats still convey the spread */
-      }
-    })();
-    return () => {
-      cancelled = true;
-      map?.remove();
-    };
-  }, [points]);
-  return <div className="monitor-map" ref={ref} />;
-}
 
 /** Country of a monitored entry, best-effort across the enrichers. */
 function countryOf(e: MonitorEntry): string | undefined {
@@ -161,6 +86,7 @@ export function MonitorPage() {
   const showResult = useStore((s) => s.showResult);
   const setGroup = useStore((s) => s.setMonitorGroup);
   const openAnalysis = useStore((s) => s.openAnalysis);
+  const openAssessment = useStore((s) => s.openMonitorAssessment);
   const setAutoEnrich = useStore((s) => s.setAutoEnrich);
   const reorderGroup = useStore((s) => s.reorderMonitorGroup);
   const groupOrder = useStore((s) => s.monitorGroupOrder);
@@ -627,6 +553,14 @@ export function MonitorPage() {
         <a className="btn btn-sm" href="https://monitor.shodan.io/dashboard" target="_blank" rel="noreferrer">
           Shodan Monitor ↗
         </a>
+        <button
+          className="btn btn-sm btn-primary"
+          onClick={openAssessment}
+          disabled={total === 0}
+          title="IP-MON 運用アセスメントレポート — トレンド／サーフェス・リスク・脅威情報の変動／Shodanスキャン運用状況をグループ別に、地図・統計付きで（Claude）"
+        >
+          📋 Assessment
+        </button>
         <button
           className="btn btn-sm"
           onClick={() => void refresh()}

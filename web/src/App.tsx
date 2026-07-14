@@ -14,6 +14,7 @@ import { HelpDialog } from './components/HelpDialog';
 import { HistoryDialog } from './components/HistoryDialog';
 import { MonitorPage } from './components/MonitorPage';
 import { MonitorAnalysisPage } from './components/MonitorAnalysisPage';
+import { MonitorAssessmentPage } from './components/MonitorAssessmentPage';
 import { CampaignsPage } from './components/CampaignsPage';
 import { CampaignPage } from './components/CampaignPage';
 import { CampaignAnalysisPage } from './components/CampaignAnalysisPage';
@@ -154,6 +155,10 @@ export default function App() {
       ) : view === 'monitor' ? (
         <div className="page-wrap">
           <MonitorPage />
+        </div>
+      ) : view === 'monitor-assessment' ? (
+        <div className="page-wrap">
+          <MonitorAssessmentPage />
         </div>
       ) : view === 'analysis' ? (
         <div className="page-wrap">

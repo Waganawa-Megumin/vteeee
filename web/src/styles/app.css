@@ -4125,3 +4125,194 @@ button.pv-monitored.link:hover {
     margin-top: 6px;
   }
 }
+
+/* ===== IP-Mon assessment report ============================================================= */
+.mon-assess-note {
+  margin: 10px 0 6px;
+}
+.mon-assess-err {
+  margin: 8px 0;
+}
+.mon-assess-actions {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin: 8px 0 4px;
+}
+.mon-assess-report {
+  margin-top: 8px;
+}
+.mon-assess-reporthead {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
+  margin-bottom: 10px;
+}
+.mon-assess-reporttitle {
+  font-size: 15px;
+}
+.mon-assess-stats {
+  margin: 6px 0 12px;
+}
+.mon-assess-section {
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  background: color-mix(in srgb, var(--bg2) 60%, transparent);
+  padding: 10px 12px;
+  margin: 12px 0;
+}
+.mon-assess-section > .mon-bars-title {
+  margin-bottom: 8px;
+  font-weight: 700;
+  color: var(--accent);
+}
+.mon-assess-map {
+  height: 240px;
+  border-radius: 8px;
+}
+.mon-assess-countrybars {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px 8px;
+  margin-top: 8px;
+}
+.mon-assess-cc {
+  font-size: 11.5px;
+  color: var(--muted);
+  padding: 1px 7px;
+  border: 1px solid var(--line);
+  border-radius: 999px;
+}
+.mon-assess-cc .mono {
+  color: var(--ink, inherit);
+  font-weight: 600;
+}
+/* Shodan scan cadence */
+.mon-assess-scan {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+.mon-assess-scanline {
+  font-size: 12.5px;
+  color: var(--muted);
+}
+.mon-assess-scanline b {
+  color: var(--ink, inherit);
+}
+.mon-assess-timeline {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+.mon-assess-tl {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  font-size: 11px;
+  padding: 2px 7px;
+  border: 1px solid var(--line);
+  border-radius: 6px;
+  background: color-mix(in srgb, var(--good, #6c9) 8%, transparent);
+}
+.mon-assess-tl.changed {
+  background: color-mix(in srgb, var(--sus, #f0bb60) 20%, transparent);
+  border-color: color-mix(in srgb, var(--sus, #f0bb60) 45%, var(--line));
+}
+.mon-assess-tl-day {
+  color: var(--muted);
+}
+.mon-assess-tl-dot {
+  color: var(--sus, #f0bb60);
+  font-size: 9px;
+}
+.mon-assess-gaps {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px 14px;
+  font-size: 12px;
+}
+.mon-assess-gap {
+  color: var(--muted);
+}
+.mon-assess-gap.warn b {
+  color: var(--sus, #b07815);
+}
+.mon-assess-gap b {
+  color: var(--ink, inherit);
+}
+/* Per-group change cards */
+.mon-assess-groups {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+  gap: 10px;
+}
+.mon-assess-group {
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  padding: 8px 10px;
+  background: var(--bg2);
+}
+.mon-assess-ghead {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin-bottom: 6px;
+}
+.mon-assess-gname {
+  font-weight: 700;
+}
+.mon-assess-gcount {
+  font-size: 11.5px;
+  color: var(--muted);
+}
+.mon-assess-gcc {
+  font-size: 11px;
+  color: var(--muted);
+  margin-left: auto;
+}
+.mon-assess-changes {
+  margin-top: 4px;
+  font-size: 11.5px;
+}
+.mon-assess-clabel {
+  display: inline-block;
+  font-size: 10.5px;
+  font-weight: 700;
+  color: var(--muted);
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  margin-bottom: 2px;
+}
+.mon-assess-crow {
+  line-height: 1.5;
+  padding: 1px 0;
+}
+.mon-assess-crow .mono {
+  font-weight: 600;
+}
+.mon-assess-ctext {
+  color: var(--accent);
+}
+.mon-assess-cwhen {
+  color: var(--muted);
+  font-size: 10.5px;
+}
+.mon-assess-nochange {
+  margin-top: 2px;
+}
+.mon-assess-narrative {
+  margin-top: 14px;
+  border-top: 1px dashed var(--line);
+  padding-top: 12px;
+}
+.mon-assess-empty {
+  margin-top: 12px;
+}
+@media (max-width: 680px) {
+  .mon-assess-groups {
+    grid-template-columns: 1fr;
+  }
+}
