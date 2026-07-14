@@ -778,9 +778,8 @@ async function fetchCampaignAssessment(settings: AppSettings, digest: unknown): 
   }
 }
 
-// --- IP-Mon operational report (Claude) — digest, fetch, and local time-series persistence. ----------
+// --- IP-Mon monitoring report (Claude) — digest, fetch, and local time-series persistence. ----------
 const MONITOR_ASSESS_KEY = 'vteeee.monitorAssessments';
-const MONITOR_NOTE_KEY = 'vteeee.monitorNote';
 function loadMonitorAssessments(): CampaignAssessment[] {
   try {
     const raw = localStorage.getItem(MONITOR_ASSESS_KEY);
@@ -802,26 +801,15 @@ function saveMonitorAssessments(a: CampaignAssessment[]): void {
     }
   }
 }
-function loadMonitorNote(): string {
-  try {
-    return localStorage.getItem(MONITOR_NOTE_KEY) ?? '';
-  } catch {
-    return '';
-  }
-}
 
 /**
- * Privacy-safe, IP-MON-framed digest for the operational monitoring report: per-group hosts + surface
- * changes (Shodan check baseline diff), risk/threat drift (enrichment history change-points), scan
- * timing/coverage and geo/ASN spread — so Claude can reason about how the WATCHLIST is moving and
- * whether the monitoring is healthy, grounded in specific IPs. Capped for cost.
+ * Privacy-safe, IP-MON-framed digest for the monitoring report: per-group hosts + surface changes
+ * (Shodan check baseline diff), risk/threat drift (enrichment history change-points), scan timing/
+ * coverage and geo/ASN spread — so Claude can objectively describe how the WATCHLIST is moving and
+ * whether the monitoring is healthy, grounded in specific IPs. The watchlist mixes IPs of many
+ * backgrounds (no single intent/campaign). Capped for cost.
  */
-function buildMonitorDigest(
-  monitors: Record<string, MonitorEntry>,
-  groupOrder: string[],
-  note: string,
-  tlp: TlpLevel,
-): unknown {
+function buildMonitorDigest(monitors: Record<string, MonitorEntry>, groupOrder: string[], tlp: TlpLevel): unknown {
   const list = Object.values(monitors);
   const now = Date.now();
   const day = 86_400_000;
@@ -928,7 +916,6 @@ function buildMonitorDigest(
   return {
     kind: 'ip-mon',
     tlp,
-    analystNote: note && note.trim() ? note.trim().slice(0, 4000) : undefined,
     totals: {
       monitored: list.length,
       live: list.filter((e) => e.live).length,
@@ -966,7 +953,7 @@ async function fetchMonitorAssessment(
   if (!monitorSharingOn(settings)) {
     return {
       ok: false,
-      text: 'IP-MON運用レポートの生成には Claude（プロキシ接続）が必要です。Settings でプロキシURL＋アクセストークンを設定し、プロキシに ANTHROPIC_API_KEY を登録してください。',
+      text: 'IP-MONモニタリング・ダイジェストの生成には Claude（プロキシ接続）が必要です。Settings でプロキシURL＋アクセストークンを設定し、プロキシに ANTHROPIC_API_KEY を登録してください。',
     };
   }
   const base = settings.proxyBaseUrl!.replace(/\/$/, '');
@@ -1020,19 +1007,15 @@ interface State {
   /** Switch the active CP-Mon tab. */
   setCampaignTab: (t: 'dashboard' | 'attack' | 'target' | 'assessment') => void;
 
-  /** IP-Mon operational assessment reports (Claude), newest first — continuous monitoring time-series. */
+  /** IP-Mon monitoring reports (Claude), newest first — continuous monitoring time-series. */
   monitorAssessments: CampaignAssessment[];
-  /** Free-text analyst context/background for the whole IP-Mon watchlist (fed into the report). */
-  monitorNote: string;
-  /** Generate a fresh IP-Mon operational report from the current watchlist (appends to the history). */
+  /** Generate a fresh IP-Mon monitoring digest from the current watchlist (appends to the history). */
   assessMonitors: () => Promise<void>;
   /** A report generation is in flight (drives the button spinner). */
   monitorAssessing: boolean;
   /** Last generation error (Claude unavailable / network) — shown on the page; not saved to history. */
   monitorAssessError: string | null;
-  /** Set the IP-Mon analyst note (persisted locally). */
-  setMonitorNote: (note: string) => void;
-  /** Open the full-page IP-Mon assessment report. */
+  /** Open the full-page IP-Mon monitoring report. */
   openMonitorAssessment: () => void;
 
   /** CP-Mon campaigns (attack-campaign-organised IOC watchlists), keyed by campaign id. */
@@ -1292,7 +1275,6 @@ export const useStore = create<State>((set, get) => {
   analysisCampaign: null,
   campaignTab: 'dashboard',
   monitorAssessments: loadMonitorAssessments(),
-  monitorNote: loadMonitorNote(),
   monitorAssessing: false,
   monitorAssessError: null,
   campaigns: loadCampaigns(),
@@ -2621,7 +2603,7 @@ export const useStore = create<State>((set, get) => {
   async assessMonitors() {
     const st = get();
     if (!Object.keys(st.monitors).length) return;
-    const digest = buildMonitorDigest(st.monitors, st.monitorGroupOrder, st.monitorNote, st.settings.tlp ?? 'AMBER');
+    const digest = buildMonitorDigest(st.monitors, st.monitorGroupOrder, st.settings.tlp ?? 'AMBER');
     set({ monitorAssessing: true, monitorAssessError: null });
     try {
       const { ok, text, model } = await fetchMonitorAssessment(get().settings, digest);
@@ -2642,15 +2624,6 @@ export const useStore = create<State>((set, get) => {
     } catch {
       set({ monitorAssessing: false, monitorAssessError: 'レポート生成に失敗しました。' });
     }
-  },
-
-  setMonitorNote(note) {
-    try {
-      localStorage.setItem(MONITOR_NOTE_KEY, note);
-    } catch {
-      /* ignore quota — the in-memory note still applies this session */
-    }
-    set({ monitorNote: note });
   },
 
   openMonitorAssessment() {

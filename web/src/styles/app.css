@@ -4126,10 +4126,7 @@ button.pv-monitored.link:hover {
   }
 }
 
-/* ===== IP-Mon assessment report ============================================================= */
-.mon-assess-note {
-  margin: 10px 0 6px;
-}
+/* ===== IP-Mon monitoring report ============================================================= */
 .mon-assess-err {
   margin: 8px 0;
 }

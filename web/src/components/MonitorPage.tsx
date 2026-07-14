@@ -557,7 +557,7 @@ export function MonitorPage() {
           className="btn btn-sm btn-primary"
           onClick={openAssessment}
           disabled={total === 0}
-          title="IP-MON 運用アセスメントレポート — トレンド／サーフェス・リスク・脅威情報の変動／Shodanスキャン運用状況をグループ別に、地図・統計付きで（Claude）"
+          title="IP-MON モニタリング・ダイジェスト — サーフェス／リスク／脅威情報の変動・Shodanスキャン運用状況をグループ別に、地図・統計付きで客観的に（Claude）"
         >
           📋 Assessment
         </button>

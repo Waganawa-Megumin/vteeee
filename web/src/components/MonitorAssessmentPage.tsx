@@ -39,8 +39,6 @@ export function MonitorAssessmentPage() {
   const monitors = useStore((s) => s.monitors);
   const setView = useStore((s) => s.setView);
   const assessments = useStore((s) => s.monitorAssessments);
-  const note = useStore((s) => s.monitorNote);
-  const setNote = useStore((s) => s.setMonitorNote);
   const assess = useStore((s) => s.assessMonitors);
   const assessing = useStore((s) => s.monitorAssessing);
   const assessError = useStore((s) => s.monitorAssessError);
@@ -194,8 +192,8 @@ export function MonitorAssessmentPage() {
         <button className="btn btn-sm" onClick={() => setView('monitor')} title="IP-Mon ダッシュボードへ戻る">
           ← Back
         </button>
-        <h2 title="IP-MON 運用アセスメント — 監視対象の状態・変化（サーフェス/リスク/脅威情報）とShodanスキャン運用状況を、グループ別に地図・統計とClaudeの運用分析でまとめます。CTIアトリビューションではなく監視運用レポートです。">
-          IP-Mon — assessment report
+        <h2 title="IP-MON モニタリング・ダイジェスト — Shodan Monitor のウォッチリストの状態・変化（サーフェス/リスク/脅威情報）とスキャン運用状況を、グループ別に地図・統計とともに客観的にまとめます。多様な背景のIPが混在するため、単一のキャンペーン/意図は前提としません（CTIアトリビューションではありません）。">
+          IP-Mon — monitoring report
         </h2>
         <div className="spacer" />
         {history.length >= 2 && (
@@ -218,10 +216,11 @@ export function MonitorAssessmentPage() {
       </div>
 
       <p className="hint mon-intro">
-        <b>IP-MON 運用アセスメントレポート</b> — 監視対象IP群が<b>どう動いたか</b>（アタックサーフェスの開閉・リスク/脅威情報の推移）と、
-        <b>Shodanスキャン（再観測・エンリッチ）がいつ走ったか</b>＝監視の鮮度を、<b>グループ別</b>に、地図・統計とともにまとめます。
-        下の統計・地図は現在のウォッチリストから即時生成され、<b>🧠 レポート生成</b>で Claude が運用分析（トレンド・注意ホスト・監視ギャップ）を作成します
-        （Claudeにはプロキシ＋ANTHROPIC_API_KEYが必要）。これは攻撃者アトリビューションのCTIレポートではなく、<b>監視運用レポート</b>です。
+        <b>IP-MON モニタリング・ダイジェスト</b> — Shodan Monitor のウォッチリストを分かりやすく把握するための監視ダイジェストです。
+        監視対象IPが<b>どう動いたか</b>（アタックサーフェスの開閉・リスク/脅威情報の推移）と、<b>Shodanスキャン（再観測・エンリッチ）がいつ走ったか</b>＝監視の鮮度を、
+        <b>グループ別</b>に、地図・統計とともに<b>客観的に</b>まとめます。下の統計・地図は現在のウォッチリストから即時生成され、<b>🧠 レポート生成</b>で
+        Claude が変化・確認推奨ホスト・監視ギャップを整理します（Claudeにはプロキシ＋ANTHROPIC_API_KEYが必要）。
+        ウォッチリストには<b>様々な背景のIPが混在</b>するため、単一のキャンペーン/意図は前提としません（攻撃者アトリビューションのCTIレポートではありません）。
         レポートは<b>時系列で保存</b>され「過去」から遡れます。
       </p>
 
@@ -229,20 +228,6 @@ export function MonitorAssessmentPage() {
         <div className="empty-state">まだ監視IPがありません。IP-Mon で登録してからレポートを生成してください。</div>
       ) : (
         <>
-          <div className="cp-note-wrap mon-assess-note">
-            <label className="cp-note-label" htmlFor="mon-assess-note">
-              📝 背景・アナリストコメント（任意）— 空でもOK。記入するとレポートに反映されます
-            </label>
-            <textarea
-              id="mon-assess-note"
-              className="cp-note"
-              defaultValue={note}
-              placeholder="例）このウォッチリストは自社境界の外部公開資産。金融系フィッシング監視が主目的。x.x.x.x は既知の自社検証機なので除外して評価してほしい…"
-              onBlur={(e) => setNote(e.currentTarget.value)}
-              rows={2}
-            />
-          </div>
-
           {assessError && <div className="error-banner mon-assess-err">⚠ {assessError}</div>}
 
           <div className="cp-assess-actions mon-assess-actions">
@@ -270,7 +255,7 @@ export function MonitorAssessmentPage() {
             <div className="mon-assess-reporthead">
               <div className={`cp-report-tlp ${tlpClass(reportTlp)}`}>TLP:{reportTlp}</div>
               <div className="mon-assess-reporttitle">
-                <b>🛰 IP-MON 運用アセスメント</b>
+                <b>🛰 IP-MON モニタリング状況</b>
                 <span className="hint">
                   {' '}· {agg.total} IP · {agg.groups.length} グループ · 監視 {agg.windowDays}d · {fmtWhen(a?.at)}
                 </span>
@@ -413,7 +398,7 @@ export function MonitorAssessmentPage() {
               !assessing && (
                 <div className="empty-state mon-assess-empty">
                   上の統計・地図は現在のウォッチリストから生成済みです。<b>🧠 レポート生成</b>で、Claude が
-                  トレンド・注意ホスト・監視ギャップ等の<b>運用分析</b>を作成します（プロキシ＋ANTHROPIC_API_KEY 必要）。
+                  変化・確認推奨ホスト・監視ギャップを客観的に整理します（プロキシ＋ANTHROPIC_API_KEY 必要）。
                 </div>
               )
             )}
