@@ -429,8 +429,8 @@ export function MonitorPage() {
             onClick={() => void setAutoEnrich([e.ip], !e.autoEnrich)}
             title={
               e.autoEnrich
-                ? '自動エンリッチ＋自動Shodanスキャン(check)＋自動魚拓 ON（年代連動の間隔で自動Re-enrich＋Shodan再観測、約1日毎に urlscan 魚拓・vteeeeを開いている間。未スキャンなら即時check）— クリックでOFF'
-                : '自動エンリッチ＋自動Shodanスキャン(check)＋自動魚拓 OFF — クリックでON（監視期間に応じた間隔で定点観測＋Shodan再スキャン＋魚拓）'
+                ? '⚡自動処理 ON — エンリッチは【サーバ側で毎日自動】（ブラウザを閉じていても定点観測が継続）。vteeeeを開いている間はさらに、細かくRe-enrich＋Shodanスキャン(check・未スキャンは即時)＋約1日毎に魚拓も。実行は🔔通知/実行ログに記録。仕様は Docs→⚡自動処理。クリックでOFF'
+                : '⚡自動処理 OFF — クリックでON。ONにすると【サーバ側で毎日自動エンリッチ】（ブラウザ不要の定点観測）、開いている間はさらにShodanスキャン(check)＋魚拓も。仕様は Docs→⚡自動処理'
             }
           >
             ⚡ Auto{e.autoEnrich ? ' ✓' : ''}
@@ -577,7 +577,7 @@ export function MonitorPage() {
         IPが増えたら<b>任意の名称でグループ分け</b>できます。各行の <b>group:</b> セレクトで1件ずつ割当／移動／解除（<b>＋ New group…</b> で新規作成）、
         または複数行をチェックして下の <b>Set group</b> で一括。グループ見出しは<b>名前クリックで改名</b>、見出しのチェックで<b>グループ単位の選択</b>・折りたたみ・Ungroup。グループはチームにも共有されます。
         各行の <b>📈 Tr-Analysis</b>（Trend Analysis）でエンリッチ履歴の時系列分析（トレンド・指標マトリクス・2点比較）。各行の <b>⚡ Auto</b>（複数は <b>⚡ Auto on</b>）で
-        <b>自動エンリッチ</b>＝監視期間に応じた間隔（直近1週≒日次→2週→3–4週→5–6週→以降は月次の定点観測）で自動Re-enrich（<b>Liveモードで vteeee を開いている間</b>）。
+        <b>自動エンリッチ＝サーバ側で毎日自動</b>（<b>ブラウザを閉じていても定点観測が継続</b>し、次に開いた端末が同期）。vteeeeを開いている間はさらに、監視期間連動の間隔（直近1週≒日次→2週→3–4週→5–6週→以降は月次）で細かくRe-enrich＋Shodanスキャン(check)＋魚拓も実行（仕様は Docs→⚡自動処理）。
         {mode !== 'demo' && (
           <>
             {' '}
@@ -789,7 +789,7 @@ export function MonitorPage() {
               className="btn btn-sm"
               disabled={!checkedList.length}
               onClick={() => void setAutoEnrich(checkedList.map((e) => e.ip), true)}
-              title="選択IPの自動エンリッチ＋自動Shodanスキャン(check)＋自動魚拓をON（年代連動の間隔で自動Re-enrich＋Shodan再観測＋約1日毎に魚拓・未スキャンなら即時）"
+              title="選択IPの⚡自動処理をON — エンリッチは【サーバ側で毎日自動】（ブラウザ不要の定点観測）、開いている間はさらにShodanスキャン(check)＋魚拓も。仕様は Docs→⚡自動処理"
             >
               ⚡ Auto on{checkedList.length ? ` (${checkedList.length})` : ''}
             </button>

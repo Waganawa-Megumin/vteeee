@@ -812,7 +812,7 @@ export function CampaignPage() {
           <button
             className={`btn btn-sm${i.autoEnrich ? ' btn-primary' : ''}`}
             onClick={() => void setAuto(cid, [i.value], !i.autoEnrich)}
-            title="⚡自動処理 ON/OFF — この IoC を自動保全。vteeeeを開いている間、約1日毎に自動で魚拓（Web面のあるIoC）を取得（→実行ログに ⚡auto として記録）。エンリッチはサーバ側cron（毎日・設定時）で自動更新。実行結果は🔔通知ログに記録。詳細は Docs → ⚡自動処理"
+            title="⚡自動処理 ON/OFF — この IoC のエンリッチは【サーバ側で毎日自動】（ブラウザを閉じていても定点観測・スナップショット保存）。魚拓は vteeeeを開いている間、約1日毎に自動取得（→実行ログに ⚡auto）。実行は🔔通知ログに記録。詳細は Docs → ⚡自動処理"
           >
             ⚡ Auto{i.autoEnrich ? ' ✓' : ''}
           </button>
@@ -992,7 +992,7 @@ export function CampaignPage() {
               className="btn btn-sm"
               disabled={bulkBusy}
               onClick={() => void setAuto(cid, list.map((i) => i.value), true)}
-              title="この側の全 IoC の⚡自動処理を ON（開いている間は約1日毎に自動魚拓、エンリッチはサーバcronで毎日／実行は🔔通知ログ・実行ログに記録）。詳細は Docs → ⚡自動処理"
+              title="この側の全 IoC の⚡自動処理を ON（エンリッチは【サーバ側で毎日自動】＝ブラウザ不要の定点観測、開いている間はさらに約1日毎に自動魚拓）。実行は🔔通知/実行ログに記録。詳細は Docs → ⚡自動処理"
             >
               ⚡ Auto on all
             </button>

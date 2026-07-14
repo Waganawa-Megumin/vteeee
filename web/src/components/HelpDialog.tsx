@@ -336,51 +336,45 @@ export function HelpDialog({ onClose }: { onClose: () => void }) {
           </section>
 
           <section className="help-section">
-            <h3>⚡ 自動処理（Auto）/ what runs, and when</h3>
+            <h3>⚡ 自動処理（Auto）/ 定点観測の仕組み</h3>
             <p className="help-ja">
-              各行の <b>⚡ Auto</b>（複数は <b>⚡ Auto on all</b>）を ON にした IP / IoC を、<b>vteeee を開いている間・約5分ごと</b>に
-              自動処理します（<b>LIVE 時のみ</b>）。対象を選んで ON にする<b>オプトイン方式</b>で、Shodan/API のクレジットを使いすぎない
-              よう <b>1回のパスで数件ずつ</b>に制限しています。古い対象ほど実行間隔は広がります。
+              各行の <b>⚡ Auto</b>（複数は <b>⚡ Auto on all</b>）を ON にした IP / IoC を、<b>2系統</b>で自動処理します。対象を選んで
+              ON にする<b>オプトイン方式</b>で、クレジットを使いすぎないよう1回あたり数件ずつに制限します。
             </p>
             <ul className="help-steps">
               <li>
-                <b>IP-MON ⚡Auto</b> ＝ 自動エンリッチ ＋ 自動 Shodan スキャン(check) ＋ 自動魚拓
-                <ul>
-                  <li>
-                    <b>エンリッチ</b>：監視期間に応じた間隔で再エンリッチ（目安：追加〜1週≒日次 → 2週 → 3–4週 → 5–6週 → 以降は月次）。
-                  </li>
-                  <li>
-                    <b>Shodan スキャン(check)</b>：監視結果(Scan情報)が<b>未取得なら即時</b>、以降はエンリッチと同じ間隔で再観測
-                    （新規/消失ポート・新規CVEを検出）。
-                  </li>
-                  <li>
-                    <b>魚拓</b>：Web 面のある対象を<b>約1日(20h)毎</b>に urlscan で自動保全（履歴に追記）。
-                  </li>
-                </ul>
+                <b>① サーバ側（毎日・ブラウザ不要）＝ 定点観測の本体</b>
+                <br />
+                Cloudflare プロキシが<b>毎日1回（05:00 UTC ≒ 14:00 JST）</b>、⚡Auto の <b>IP-Mon 全IP</b> と <b>CP-Mon 全 auto IOC</b>
+                を自動<b>エンリッチ</b>し、その時点のスナップショット（VT・Shodan・MaxMind・AbuseIPDB・RF 等）を<b>共有ストアに保存</b>します。
+                <b>誰も vteeee を開いていなくても継続</b>し、次に開いた端末が同期して受け取ります。エンリッチ結果には Shodan の
+                ポート/CVE も含まれるので、<b>アタックサーフェス・リスクの推移も日次で観測</b>されます。
               </li>
               <li>
-                <b>CP-MON ⚡Auto</b> ＝ 自動魚拓（クライアント）＋ 自動エンリッチ（サーバ cron）
-                <ul>
-                  <li>
-                    <b>魚拓</b>：Web 面のある IoC（URL/ドメイン/IP）を約1日毎に自動保全。
-                  </li>
-                  <li>
-                    <b>エンリッチ</b>：サーバ側の日次 cron（設定時）で自動更新。<b>ブラウザを閉じていても</b>動きます。
-                  </li>
-                </ul>
+                <b>② クライアント側（開いている間・約5分ごと）＝ きめ細かい上乗せ</b>
+                <br />
+                vteeee を開いている間だけ、より短い間隔で Re-enrich ＋ <b>Shodan スキャン(check)</b>（未スキャンは即時）＋
+                <b>urlscan 魚拓</b>（約1日毎）を実行します。エンリッチ間隔は監視期間連動（追加〜1週≒日次 → 2週 → 3–4週 → 5–6週 → 以降は月次）。
               </li>
             </ul>
             <p className="help-ja">
-              <b>記録される場所</b>：自動処理を実行するたび <b>🔔 通知ログ</b>に「⚡ 自動処理を実行しました」（IP-MON / CP-MON ごとに
-              何を何件・対象IP を明記）が入ります。自動<b>魚拓</b>は <b>🎣 実行ログ</b>にも <b>⚡auto</b> タグ付きで残ります。
-              未スキャン/古いものだけを今すぐ回したい時は、IP-MON レポートの「🔄 未スキャン/古いIPを今すぐ再スキャン」ボタンをどうぞ。
+              <b>⚠ 魚拓だけは現状クライアント側のみ</b>（＝vteeee を開いている間）。エンリッチ＝<b>定点観測はサーバ側で毎日</b>走ります。
+              サーバ側でも <b>魚拓</b> を自動取得したい場合は cron に組み込めます（ご相談ください）。<b>前提</b>：サーバ側自動化には watchlist の
+              <b>チーム共有 ON</b>（既定）＋プロキシに各 API キー登録が必要です。
+            </p>
+            <p className="help-ja">
+              <b>記録</b>：クライアントで自動処理が走るたび <b>🔔 通知ログ</b>にサマリ（IP-MON / CP-MON ごとに何を何件・対象を明記）、
+              自動<b>魚拓</b>は <b>🎣 実行ログ</b>に <b>⚡auto</b> タグ付きで残ります。未スキャン/古いものだけ今すぐ回すなら、
+              IP-MON レポートの「🔄 未スキャン/古いIPを今すぐ再スキャン」ボタンをどうぞ。
             </p>
             <p className="help-en">
-              ⚡ Auto is opt-in per IP/IoC and runs every ~5 min while vteeee is open (live only), a few items per pass
-              to protect API/Shodan credits. IP-MON: re-enrich + Shodan re-check (immediate if never scanned, else on an
-              age-based cadence) + ~daily urlscan capture. CP-MON: ~daily urlscan capture (client) + enrichment via the
-              server cron (works with the browser closed). Every pass is written to the 🔔 notification log; auto
-              captures also appear in the 🎣 execution log tagged ⚡auto.
+              ⚡ Auto runs in two tiers (opt-in per IP/IoC). (1) SERVER-SIDE, daily at 05:00 UTC on the Cloudflare proxy —
+              re-enriches every ⚡Auto IP-Mon IP and CP-Mon auto IOC and saves snapshots to the shared store, so continuous
+              monitoring keeps running with NO browser open; clients sync it on next open (enrichment snapshots include
+              Shodan ports/CVEs, so surface/risk trends are captured daily). (2) CLIENT-SIDE, every ~5 min while vteeee is
+              open — finer re-enrich + Shodan re-check + ~daily urlscan capture. Only the urlscan 魚拓 is currently
+              client-only; the daily enrichment 定点観測 is server-side. Requires the watchlist shared (default) + API keys
+              on the proxy.
             </p>
           </section>
 
