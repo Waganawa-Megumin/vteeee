@@ -293,6 +293,8 @@ export interface MonitorEntry {
   enriching?: boolean;
   error?: string;
   note?: string;
+  /** Project (PJ) id this IP belongs to — the top-level watchlist partition (empty = 未分類). Shared. */
+  project?: string;
   /** Analyst-assigned group label for organising the watchlist (arbitrary name; empty = ungrouped). */
   group?: string;
   /** Auto re-enrich this IP on a cadence aligned to its age (client-side, while vteeee is open). */
@@ -359,6 +361,96 @@ function saveMonitors(m: Record<string, MonitorEntry>): void {
     localStorage.setItem(MONITORS_KEY, JSON.stringify(slim));
   } catch {
     /* storage full/disabled — in-memory watchlist still works */
+  }
+}
+
+// --- IP-Mon PROJECTS (PJ) — top-level watchlist partitions (like CP-Mon campaigns). ------------------
+/** A named IP-Mon project. Each monitored IP carries its `project` id; this registry names/orders them. */
+export interface MonitorProject {
+  id: string;
+  name: string;
+  createdAt: number;
+  updatedAt: number;
+}
+const MONITOR_PROJECTS_KEY = 'vteeee.monitorProjects';
+/** Fixed id of the auto-migration bucket, so every browser converges to the SAME default PJ (no dupes). */
+export const DEFAULT_PROJECT_ID = '__default_pj__';
+const PROJECTS_MIGRATED_KEY = 'vteeee.monitorProjectsMigrated';
+function loadMonitorProjects(): Record<string, MonitorProject> {
+  try {
+    const raw = localStorage.getItem(MONITOR_PROJECTS_KEY);
+    const v = raw ? (JSON.parse(raw) as Record<string, MonitorProject>) : {};
+    return v && typeof v === 'object' ? v : {};
+  } catch {
+    return {};
+  }
+}
+function saveMonitorProjects(p: Record<string, MonitorProject>): void {
+  try {
+    localStorage.setItem(MONITOR_PROJECTS_KEY, JSON.stringify(p));
+  } catch {
+    /* storage full/disabled — in-memory registry still works */
+  }
+}
+/** Union two project registries by id; the newer `updatedAt` wins (so a rename propagates). */
+function mergeMonitorProjects(
+  a: Record<string, MonitorProject>,
+  b: Record<string, MonitorProject>,
+): Record<string, MonitorProject> {
+  const out: Record<string, MonitorProject> = { ...a };
+  for (const [id, p] of Object.entries(b)) {
+    if (!p || typeof p.id !== 'string') continue;
+    const cur = out[id];
+    if (!cur || (p.updatedAt ?? 0) >= (cur.updatedAt ?? 0)) out[id] = p;
+  }
+  return out;
+}
+/** Fetch the team's shared PJ registry. null when sharing is off. */
+async function fetchSharedMonitorProjects(settings: AppSettings): Promise<Record<string, MonitorProject> | null> {
+  if (!monitorSharingOn(settings)) return null;
+  const base = settings.proxyBaseUrl!.replace(/\/$/, '');
+  try {
+    const res = await fetch(`${base}/api/monitor-projects`, { headers: monitorAuth(settings), cache: 'no-store' });
+    if (!res.ok) return null;
+    const j = await res.json();
+    return j && typeof j === 'object' && !Array.isArray(j) ? (j as Record<string, MonitorProject>) : {};
+  } catch {
+    return null;
+  }
+}
+/** Non-destructive read-merge-write of the PJ registry into the shared blob (union by id). Best-effort. */
+async function pushSharedMonitorProjects(settings: AppSettings, projects: Record<string, MonitorProject>): Promise<void> {
+  if (!monitorSharingOn(settings)) return;
+  const base = settings.proxyBaseUrl!.replace(/\/$/, '');
+  try {
+    const res = await fetch(`${base}/api/monitor-projects`, { headers: monitorAuth(settings), cache: 'no-store' });
+    const j = res.ok ? await res.json() : {};
+    const remote = (j && typeof j === 'object' && !Array.isArray(j) ? j : {}) as Record<string, MonitorProject>;
+    await fetch(`${base}/api/monitor-projects`, {
+      method: 'PUT',
+      headers: { ...monitorAuth(settings), 'content-type': 'application/json' },
+      body: JSON.stringify(mergeMonitorProjects(remote, projects)),
+    });
+  } catch {
+    /* offline — local copy keeps it; a later refresh reconciles */
+  }
+}
+/** Read-modify-write DELETE of one PJ id from the shared registry (union can't remove). Best-effort. */
+async function deleteSharedMonitorProject(settings: AppSettings, id: string): Promise<void> {
+  if (!monitorSharingOn(settings)) return;
+  const base = settings.proxyBaseUrl!.replace(/\/$/, '');
+  try {
+    const res = await fetch(`${base}/api/monitor-projects`, { headers: monitorAuth(settings), cache: 'no-store' });
+    const j = res.ok ? await res.json() : {};
+    const remote = (j && typeof j === 'object' && !Array.isArray(j) ? j : {}) as Record<string, MonitorProject>;
+    delete remote[id];
+    await fetch(`${base}/api/monitor-projects`, {
+      method: 'PUT',
+      headers: { ...monitorAuth(settings), 'content-type': 'application/json' },
+      body: JSON.stringify(remote),
+    });
+  } catch {
+    /* offline */
   }
 }
 // IP-Mon group display order (a local display preference — analogous to a campaign's groupOrder).
@@ -451,6 +543,7 @@ function mergeEntry(local: MonitorEntry | undefined, shared: MonitorEntry | unde
     ip: (b.ip ?? a.ip) as string,
     result: latest ?? b.result ?? a.result, // newest snapshot wins; else whichever side has one
     history: history.length ? history : undefined,
+    project: b.project ?? a.project, // PJ assignment — prefer the shared (latest-pushed) side, else local
     group: b.group ?? a.group, // group label — prefer the shared (latest-pushed) side, else local
     autoEnrich: b.autoEnrich ?? a.autoEnrich,
     lastEnrichAt: Math.max(a.lastEnrichAt ?? 0, b.lastEnrichAt ?? 0) || undefined,
@@ -1028,7 +1121,7 @@ interface State {
   running: boolean;
   error: string | null;
   selected: string | null;
-  view: 'app' | 'admin' | 'monitor' | 'monitor-assessment' | 'analysis' | 'campaigns' | 'campaign' | 'campaign-analysis';
+  view: 'app' | 'admin' | 'monitor' | 'monitor-projects' | 'monitor-assessment' | 'analysis' | 'campaigns' | 'campaign' | 'campaign-analysis';
   /** IP whose enrichment-analysis page is open (view === 'analysis'). */
   analysisIp: string | null;
   /** Campaign IOC whose enrichment-analysis page is open (view === 'campaign-analysis'). */
@@ -1078,7 +1171,7 @@ interface State {
   showResult: (r: NormalizedResult) => void;
   restore: (results: NormalizedResult[], input: string) => void;
 
-  setView: (v: 'app' | 'admin' | 'monitor' | 'monitor-assessment' | 'analysis' | 'campaigns' | 'campaign' | 'campaign-analysis') => void;
+  setView: (v: 'app' | 'admin' | 'monitor' | 'monitor-projects' | 'monitor-assessment' | 'analysis' | 'campaigns' | 'campaign' | 'campaign-analysis') => void;
   /** Open the full-page enrichment analysis for one monitored IP. */
   openAnalysis: (ip: string) => void;
   /** Open the full-page enrichment analysis for one campaign IOC (its history timeline). */
@@ -1143,7 +1236,7 @@ interface State {
   /** Shodan Monitor watchlist (IPs + last vteeee enrichment snapshot), keyed by IP. */
   monitors: Record<string, MonitorEntry>;
   /** Register an IP to Shodan Monitor and snapshot its current enrichment. */
-  addMonitor: (ip: string, result?: NormalizedResult) => Promise<void>;
+  addMonitor: (ip: string, result?: NormalizedResult, project?: string) => Promise<void>;
   /** Remove an IP from Shodan Monitor + the watchlist. */
   removeMonitor: (ip: string) => Promise<void>;
   /** Reconcile the watchlist against Shodan's server-side alert list. */
@@ -1159,6 +1252,28 @@ interface State {
   scanningGaps: boolean;
   /** Assign (or clear, when group is blank/undefined) a group label on the given monitored IPs. */
   setMonitorGroup: (ips: string[], group: string | undefined) => Promise<void>;
+
+  // ---- IP-Mon PROJECTS (PJ) — top-level watchlist partitions (team-shared, like campaigns) ----
+  /** Registered projects, keyed by id. */
+  monitorProjects: Record<string, MonitorProject>;
+  /** The PJ currently open in the scoped IP-Mon view: a project id, '__none__' (未分類), or null (All IPs). */
+  monitorProjectId: string | null;
+  /** Create a PJ (returns its id) + share. */
+  createMonitorProject: (name: string) => Promise<string>;
+  /** Rename a PJ + share. */
+  renameMonitorProject: (id: string, name: string) => Promise<void>;
+  /** Delete a PJ (its IPs fall back to 未分類 — they are NOT removed) + share. */
+  deleteMonitorProject: (id: string) => Promise<void>;
+  /** Assign the given IPs to a PJ (undefined = 未分類) + share. */
+  setMonitorProject: (ips: string[], project: string | undefined) => Promise<void>;
+  /** Pull the team's shared PJ registry and merge it in. */
+  refreshMonitorProjects: () => Promise<void>;
+  /** Open the PJ list/dashboard page. */
+  openMonitorProjects: () => void;
+  /** Open the scoped IP-Mon view for a PJ (id), 未分類 ('__none__'), or All (null). */
+  openMonitorProject: (id: string | null) => void;
+  /** One-time: move existing project-less watches into a single default PJ (renameable later). */
+  migrateMonitorsToDefaultProject: () => void;
   /** IP-Mon group display order (local preference); groups not listed fall back to alphabetical. */
   monitorGroupOrder: string[];
   /** Move an IP-Mon group up/down in the display order. */
@@ -1295,6 +1410,8 @@ export const useStore = create<State>((set, get) => {
   monitors: loadMonitors(),
   monitorGroupOrder: loadMonitorGroupOrder(),
   scanningGaps: false,
+  monitorProjects: loadMonitorProjects(),
+  monitorProjectId: null,
 
   rawInput: '',
   parsed: [],
@@ -1338,6 +1455,7 @@ export const useStore = create<State>((set, get) => {
     void get().refreshHealth();
     void get().refreshCaptures(); // pull the team's shared 魚拓 history (best-effort)
     void get().refreshMonitorAssessments(); // pull the team's shared IP-Mon report history (best-effort)
+    void get().refreshMonitorProjects(); // pull the team's shared IP-Mon PJ registry (best-effort)
   },
 
   async login(username, password) {
@@ -2160,15 +2278,19 @@ export const useStore = create<State>((set, get) => {
     });
   },
 
-  async addMonitor(ip, result) {
+  async addMonitor(ip, result, project) {
     const now = Date.now();
     const by = get().session?.username;
+    const openPj = get().monitorProjectId;
+    // Explicit project wins; else keep any existing assignment; else inherit the open PJ (a real id).
+    const proj = project ?? get().monitors[ip]?.project ?? (openPj && openPj !== '__none__' ? openPj : undefined);
     set((s) => {
       const cur = s.monitors[ip];
       const monitors = {
         ...s.monitors,
         [ip]: {
           ip,
+          project: proj,
           addedAt: cur?.addedAt ?? now,
           updatedAt: now,
           result: result ?? cur?.result,
@@ -2374,6 +2496,140 @@ export const useStore = create<State>((set, get) => {
       const e = st.monitors[ip];
       if (e) await pushSharedMonitorEntry(st.settings, ip, e);
     }
+  },
+
+  // ---- IP-Mon PROJECTS (PJ) ----
+  async createMonitorProject(name) {
+    const nm = name.trim() || '無題のPJ';
+    const id = Math.random().toString(36).slice(2) + Date.now().toString(36);
+    const now = Date.now();
+    const project: MonitorProject = { id, name: nm, createdAt: now, updatedAt: now };
+    set((s) => {
+      const monitorProjects = { ...s.monitorProjects, [id]: project };
+      saveMonitorProjects(monitorProjects);
+      return { monitorProjects };
+    });
+    void pushSharedMonitorProjects(get().settings, get().monitorProjects);
+    return id;
+  },
+
+  async renameMonitorProject(id, name) {
+    const nm = name.trim();
+    if (!nm) return;
+    const now = Date.now();
+    set((s) => {
+      const cur = s.monitorProjects[id];
+      if (!cur) return {};
+      const monitorProjects = { ...s.monitorProjects, [id]: { ...cur, name: nm, updatedAt: now } };
+      saveMonitorProjects(monitorProjects);
+      return { monitorProjects };
+    });
+    void pushSharedMonitorProjects(get().settings, get().monitorProjects);
+  },
+
+  async deleteMonitorProject(id) {
+    const now = Date.now();
+    const affected: string[] = [];
+    set((s) => {
+      // The PJ's IPs are NOT removed from monitoring — they fall back to 未分類.
+      const monitors = { ...s.monitors };
+      for (const [ip, e] of Object.entries(monitors)) {
+        if (e.project === id) {
+          monitors[ip] = { ...e, project: undefined, updatedAt: now };
+          affected.push(ip);
+        }
+      }
+      const monitorProjects = { ...s.monitorProjects };
+      delete monitorProjects[id];
+      saveMonitors(monitors);
+      saveMonitorProjects(monitorProjects);
+      return { monitors, monitorProjects, monitorProjectId: s.monitorProjectId === id ? null : s.monitorProjectId };
+    });
+    await deleteSharedMonitorProject(get().settings, id);
+    const st = get();
+    for (const ip of affected) {
+      const e = st.monitors[ip];
+      if (e) await pushSharedMonitorEntry(st.settings, ip, e);
+    }
+  },
+
+  async setMonitorProject(ips, project) {
+    const p = project && project.trim() ? project : undefined; // an id, or undefined = 未分類
+    const now = Date.now();
+    set((s) => {
+      const monitors = { ...s.monitors };
+      for (const ip of ips) {
+        const cur = monitors[ip];
+        if (cur) monitors[ip] = { ...cur, project: p, updatedAt: now };
+      }
+      saveMonitors(monitors);
+      return { monitors };
+    });
+    const st = get();
+    for (const ip of ips) {
+      const e = st.monitors[ip];
+      if (e) await pushSharedMonitorEntry(st.settings, ip, e);
+    }
+  },
+
+  async refreshMonitorProjects() {
+    const shared = await fetchSharedMonitorProjects(get().settings);
+    if (!shared) return;
+    set((s) => {
+      const monitorProjects = mergeMonitorProjects(s.monitorProjects, shared);
+      saveMonitorProjects(monitorProjects);
+      return { monitorProjects };
+    });
+  },
+
+  openMonitorProjects() {
+    set({ view: 'monitor-projects' });
+  },
+
+  openMonitorProject(id) {
+    set({ monitorProjectId: id, view: 'monitor' });
+  },
+
+  migrateMonitorsToDefaultProject() {
+    try {
+      if (localStorage.getItem(PROJECTS_MIGRATED_KEY)) return;
+    } catch {
+      /* ignore */
+    }
+    const unassigned = Object.values(get().monitors).filter((e) => !e.project);
+    if (!unassigned.length) {
+      try {
+        localStorage.setItem(PROJECTS_MIGRATED_KEY, '1');
+      } catch {
+        /* ignore */
+      }
+      return;
+    }
+    const now = Date.now();
+    set((s) => {
+      const monitorProjects = { ...s.monitorProjects };
+      // Fixed id ⇒ every browser converges on the SAME default PJ (no duplicates). Don't overwrite a
+      // teammate's rename: only create it if absent.
+      if (!monitorProjects[DEFAULT_PROJECT_ID])
+        monitorProjects[DEFAULT_PROJECT_ID] = {
+          id: DEFAULT_PROJECT_ID,
+          name: '既定PJ（あとでリネーム）',
+          createdAt: now,
+          updatedAt: now,
+        };
+      const monitors = { ...s.monitors };
+      for (const [ip, e] of Object.entries(monitors)) if (!e.project) monitors[ip] = { ...e, project: DEFAULT_PROJECT_ID, updatedAt: now };
+      saveMonitors(monitors);
+      saveMonitorProjects(monitorProjects);
+      return { monitors, monitorProjects };
+    });
+    try {
+      localStorage.setItem(PROJECTS_MIGRATED_KEY, '1');
+    } catch {
+      /* ignore */
+    }
+    void pushSharedMonitorProjects(get().settings, get().monitorProjects);
+    void putSharedMonitorsAll(get().settings, get().monitors);
   },
 
   reorderMonitorGroup(group, dir) {
@@ -2717,8 +2973,18 @@ export const useStore = create<State>((set, get) => {
 
   async assessMonitors() {
     const st = get();
-    if (!Object.keys(st.monitors).length) return;
-    const digest = buildMonitorDigest(st.monitors, st.monitorGroupOrder, st.settings.tlp ?? 'AMBER');
+    // Scope the report to the open PJ (id / '__none__' / null = all).
+    const pj = st.monitorProjectId;
+    const scoped =
+      pj === null
+        ? st.monitors
+        : Object.fromEntries(
+            Object.entries(st.monitors).filter(([, e]) =>
+              pj === '__none__' ? !e.project || !st.monitorProjects[e.project] : e.project === pj,
+            ),
+          );
+    if (!Object.keys(scoped).length) return;
+    const digest = buildMonitorDigest(scoped, st.monitorGroupOrder, st.settings.tlp ?? 'AMBER');
     set({ monitorAssessing: true, monitorAssessError: null });
     try {
       const { ok, text, model } = await fetchMonitorAssessment(get().settings, digest);

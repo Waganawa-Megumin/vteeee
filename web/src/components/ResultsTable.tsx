@@ -30,6 +30,8 @@ export function ResultsTable() {
   const monitorAvailable = useStore((s) => s.mode === 'demo' || Boolean(s.health?.shodan));
   const addMonitor = useStore((s) => s.addMonitor);
   const monitors = useStore((s) => s.monitors);
+  const monitorProjects = useStore((s) => s.monitorProjects);
+  const createMonitorProject = useStore((s) => s.createMonitorProject);
   const campaigns = useStore((s) => s.campaigns);
   const addCampaignIocs = useStore((s) => s.addCampaignIocs);
   const [sortKey, setSortKey] = useState<SortKey>('verdict');
@@ -37,6 +39,7 @@ export function ResultsTable() {
   const [filter, setFilter] = useState('');
   const [siemOpen, setSiemOpen] = useState(false);
   const [checked, setChecked] = useState<Set<string>>(new Set());
+  const [monPj, setMonPj] = useState(''); // target PJ for the Monitor action ('' = 未分類)
   const [campaignSel, setCampaignSel] = useState('');
 
   function toggle(value: string) {
@@ -135,7 +138,9 @@ export function ResultsTable() {
     });
   }
   function bulkMonitor() {
-    checkedIps.forEach((r) => void addMonitor(r.value, r));
+    // Register the checked IPs into the chosen PJ (blank = 未分類). Each carries its enrichment snapshot.
+    const target = monPj && monPj !== '__new__' ? monPj : undefined;
+    checkedIps.forEach((r) => void addMonitor(r.value, r, target));
   }
 
   if (!order.length) return null;
@@ -175,6 +180,29 @@ export function ResultsTable() {
             >
               No-Shodan IPs
             </button>
+            <select
+              className="filter mon-pj-select"
+              value={monPj === '__new__' ? '' : monPj}
+              onChange={(e) => {
+                const v = e.target.value;
+                if (v === '__new__') {
+                  const name = window.prompt('新しいPJ名:', '');
+                  if (name && name.trim()) void createMonitorProject(name.trim()).then((id) => setMonPj(id));
+                } else setMonPj(v);
+              }}
+              title="Monitor 登録先の PJ（プロジェクト）を選択（未分類も可）"
+              aria-label="Target project for Monitor"
+            >
+              <option value="">PJ: 未分類</option>
+              {Object.values(monitorProjects)
+                .sort((a, b) => a.name.localeCompare(b.name))
+                .map((p) => (
+                  <option key={p.id} value={p.id}>
+                    PJ: {p.name}
+                  </option>
+                ))}
+              <option value="__new__">＋ 新規PJ…</option>
+            </select>
             <button
               className="btn btn-sm"
               disabled={!checkedIps.length}

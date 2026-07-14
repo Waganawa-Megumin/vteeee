@@ -15,6 +15,7 @@ import { HistoryDialog } from './components/HistoryDialog';
 import { MonitorPage } from './components/MonitorPage';
 import { MonitorAnalysisPage } from './components/MonitorAnalysisPage';
 import { MonitorAssessmentPage } from './components/MonitorAssessmentPage';
+import { MonitorProjectsPage } from './components/MonitorProjectsPage';
 import { CampaignsPage } from './components/CampaignsPage';
 import { CampaignPage } from './components/CampaignPage';
 import { CampaignAnalysisPage } from './components/CampaignAnalysisPage';
@@ -39,6 +40,7 @@ export default function App() {
   const monitorCount = useStore((s) => Object.keys(s.monitors).length);
   const campaignCount = useStore((s) => Object.keys(s.campaigns).length);
   const openCampaigns = useStore((s) => s.openCampaigns);
+  const openMonitorProjects = useStore((s) => s.openMonitorProjects);
   const [settingsOpen, setSettingsOpen] = useState(false);
   const [helpOpen, setHelpOpen] = useState(false);
   const [historyOpen, setHistoryOpen] = useState(false);
@@ -108,9 +110,13 @@ export default function App() {
         </button>
         {monitorAvailable && (
           <button
-            className={`btn btn-sm${view === 'monitor' ? ' active' : ''}`}
-            onClick={() => setView(view === 'monitor' ? 'app' : 'monitor')}
-            title="IP-Mon — Shodan IP Monitor watchlist + dashboard (IPs + saved enrichment)"
+            className={`btn btn-sm${view === 'monitor' || view === 'monitor-projects' || view === 'monitor-assessment' ? ' active' : ''}`}
+            onClick={() =>
+              view === 'monitor' || view === 'monitor-projects' || view === 'monitor-assessment'
+                ? setView('app')
+                : openMonitorProjects()
+            }
+            title="IP-Mon — Shodan IP Monitor：プロジェクト(PJ)単位の監視ウォッチリスト＋ダッシュボード"
           >
             IP-Mon{monitorCount ? ` (${monitorCount})` : ''}
           </button>
@@ -151,6 +157,10 @@ export default function App() {
       {view === 'admin' ? (
         <div className="page-wrap">
           <AdminPanel />
+        </div>
+      ) : view === 'monitor-projects' ? (
+        <div className="page-wrap">
+          <MonitorProjectsPage />
         </div>
       ) : view === 'monitor' ? (
         <div className="page-wrap">

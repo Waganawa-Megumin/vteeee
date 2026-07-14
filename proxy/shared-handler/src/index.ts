@@ -16,6 +16,7 @@ export { getSharedMonitors, putSharedMonitors } from './monitorStore';
 export { getSharedCampaigns, putSharedCampaigns } from './campaignStore';
 export { getSharedCaptures, putSharedCaptures } from './captureStore';
 export { getSharedMonitorAssessments, putSharedMonitorAssessments } from './monitorAssessStore';
+export { getSharedMonitorProjects, putSharedMonitorProjects } from './monitorProjectStore';
 export { summarizeCampaign } from './campaignSummary';
 export { assessCampaign } from './campaignAssessment';
 export { assessMonitors } from './monitorAssessment';

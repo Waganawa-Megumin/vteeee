@@ -57,7 +57,15 @@ export function MonitorAssessmentPage() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  const list = useMemo(() => Object.values(monitors), [monitors]);
+  // Scope the report viz to the open PJ (matches the digest sent to Claude).
+  const projectId = useStore((s) => s.monitorProjectId);
+  const projects = useStore((s) => s.monitorProjects);
+  const list = useMemo(() => {
+    const all = Object.values(monitors);
+    if (projectId === null) return all;
+    if (projectId === '__none__') return all.filter((e) => !e.project || !projects[e.project]);
+    return all.filter((e) => e.project === projectId);
+  }, [monitors, projectId, projects]);
 
   // ---- Deterministic aggregates (render even without Claude / in demo). --------------------------
   const agg = useMemo(() => {

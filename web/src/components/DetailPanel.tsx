@@ -2344,7 +2344,10 @@ export function DetailPanel() {
   const monitors = useStore((s) => s.monitors);
   const addMonitor = useStore((s) => s.addMonitor);
   const removeMonitor = useStore((s) => s.removeMonitor);
+  const monitorProjects = useStore((s) => s.monitorProjects);
+  const createMonitorProject = useStore((s) => s.createMonitorProject);
   const monitorable = useStore((s) => s.mode === 'demo' || Boolean(s.health?.shodan));
+  const [monPj, setMonPj] = useState(''); // target PJ when registering this IP to Monitor ('' = 未分類)
   const panelRef = useRef<HTMLElement>(null);
   const [copied, setCopied] = useState<'text' | 'image' | 'pdf' | 'err' | null>(null);
   const [busy, setBusy] = useState(false);
@@ -2550,17 +2553,48 @@ export function DetailPanel() {
               ))}
             </div>
             {(r.type === 'ipv4' || r.type === 'ipv6') && monitorable && (
-              <button
-                className={`btn btn-sm ${monitors[r.value] ? 'btn-primary' : 'btn-ghost'}`}
-                onClick={() => (monitors[r.value] ? void removeMonitor(r.value) : void addMonitor(r.value, r))}
-                title={
-                  monitors[r.value]
-                    ? 'Remove from the Shodan Monitor watchlist'
-                    : 'Add to Shodan Monitor + save this enrichment snapshot (check it again tomorrow)'
-                }
-              >
-                {monitors[r.value] ? '★ Monitoring' : '☆ Monitor'}
-              </button>
+              <>
+                {!monitors[r.value] && (
+                  <select
+                    className="filter mon-pj-select"
+                    value={monPj === '__new__' ? '' : monPj}
+                    onChange={(e) => {
+                      const v = e.target.value;
+                      if (v === '__new__') {
+                        const name = window.prompt('新しいPJ名:', '');
+                        if (name && name.trim()) void createMonitorProject(name.trim()).then((id) => setMonPj(id));
+                      } else setMonPj(v);
+                    }}
+                    title="Monitor 登録先の PJ（プロジェクト）を選択"
+                    aria-label="Target project for Monitor"
+                  >
+                    <option value="">PJ: 未分類</option>
+                    {Object.values(monitorProjects)
+                      .sort((a, b) => a.name.localeCompare(b.name))
+                      .map((p) => (
+                        <option key={p.id} value={p.id}>
+                          PJ: {p.name}
+                        </option>
+                      ))}
+                    <option value="__new__">＋ 新規PJ…</option>
+                  </select>
+                )}
+                <button
+                  className={`btn btn-sm ${monitors[r.value] ? 'btn-primary' : 'btn-ghost'}`}
+                  onClick={() =>
+                    monitors[r.value]
+                      ? void removeMonitor(r.value)
+                      : void addMonitor(r.value, r, monPj && monPj !== '__new__' ? monPj : undefined)
+                  }
+                  title={
+                    monitors[r.value]
+                      ? 'Remove from the Shodan Monitor watchlist'
+                      : 'Add to Shodan Monitor + save this enrichment snapshot (check it again tomorrow)'
+                  }
+                >
+                  {monitors[r.value] ? '★ Monitoring' : '☆ Monitor'}
+                </button>
+              </>
             )}
             <button
               className="btn btn-sm btn-ghost"

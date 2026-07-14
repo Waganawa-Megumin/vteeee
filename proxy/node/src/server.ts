@@ -32,6 +32,8 @@ import {
   putSharedCaptures,
   getSharedMonitorAssessments,
   putSharedMonitorAssessments,
+  getSharedMonitorProjects,
+  putSharedMonitorProjects,
   summarizeCampaign,
   assessCampaign,
   assessMonitors,
@@ -427,6 +429,16 @@ app.get('/api/monitor-assessments', async (req, res) => {
 app.put('/api/monitor-assessments', async (req, res) => {
   if (!requireAccess(req, res)) return;
   await putSharedMonitorAssessments(store, req.body);
+  res.json({ ok: true });
+});
+// Shared IP-Mon PROJECTS (PJ) registry, team-wide like the watchlist.
+app.get('/api/monitor-projects', async (req, res) => {
+  if (!requireAccess(req, res)) return;
+  res.json(await getSharedMonitorProjects(store));
+});
+app.put('/api/monitor-projects', async (req, res) => {
+  if (!requireAccess(req, res)) return;
+  await putSharedMonitorProjects(store, req.body);
   res.json({ ok: true });
 });
 // CP-Mon 電光掲示板: Claude-written one-line key message from a compact campaign digest.

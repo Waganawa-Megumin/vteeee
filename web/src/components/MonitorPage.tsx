@@ -78,7 +78,6 @@ function BarList({
 export function MonitorPage() {
   const monitors = useStore((s) => s.monitors);
   const mode = useStore((s) => s.mode);
-  const setView = useStore((s) => s.setView);
   const refresh = useStore((s) => s.refreshMonitors);
   const reEnrich = useStore((s) => s.reEnrichMonitor);
   const remove = useStore((s) => s.removeMonitor);
@@ -90,9 +89,17 @@ export function MonitorPage() {
   const setAutoEnrich = useStore((s) => s.setAutoEnrich);
   const reorderGroup = useStore((s) => s.reorderMonitorGroup);
   const groupOrder = useStore((s) => s.monitorGroupOrder);
+  // --- Project (PJ) scope ---
+  const projectId = useStore((s) => s.monitorProjectId);
+  const projects = useStore((s) => s.monitorProjects);
+  const openProjects = useStore((s) => s.openMonitorProjects);
+  const setProject = useStore((s) => s.setMonitorProject);
+  const createProject = useStore((s) => s.createMonitorProject);
+  const addMonitor = useStore((s) => s.addMonitor);
   const [drill, setDrill] = useState<{ label: string; values: string[] } | null>(null);
   const [checked, setChecked] = useState<Set<string>>(new Set());
   const [groupInput, setGroupInput] = useState('');
+  const [addInput, setAddInput] = useState('');
   const [filter, setFilter] = useState('');
   const [mapGroup, setMapGroup] = useState('');
   const [collapsed, setCollapsed] = useState<Set<string>>(() => {
@@ -122,7 +129,17 @@ export function MonitorPage() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  const list = Object.values(monitors).sort((a, b) => b.addedAt - a.addedAt);
+  // Scope the whole page to the open PJ: a project id, '__none__' (未分類), or null (All IPs).
+  const NONE_PJ = '__none__';
+  const allList = Object.values(monitors).sort((a, b) => b.addedAt - a.addedAt);
+  const list =
+    projectId === null
+      ? allList
+      : projectId === NONE_PJ
+        ? allList.filter((e) => !e.project || !projects[e.project])
+        : allList.filter((e) => e.project === projectId);
+  const pjName =
+    projectId === null ? 'All IPs（全PJ）' : projectId === NONE_PJ ? '未分類' : (projects[projectId]?.name ?? 'PJ');
   // Free-text filter over IP / group / country / verdict / org (narrows the grouped rows below; the
   // top stats + map stay over the whole watchlist).
   const q = filter.trim().toLowerCase();
@@ -258,6 +275,25 @@ export function MonitorPage() {
       groupInput,
     );
     setGroupInput('');
+    setChecked(new Set());
+  }
+  // Add IP(s) directly into the open PJ (paste one or many; commas/spaces/newlines separated).
+  function addIps() {
+    const cands = addInput.split(/[\s,;]+/).map((x) => x.trim()).filter(Boolean);
+    const ipRe = /^(?:\d{1,3}\.){3}\d{1,3}$|^[0-9a-fA-F:]{2,}:[0-9a-fA-F:]+$/;
+    const ips = [...new Set(cands.filter((c) => ipRe.test(c)))];
+    if (!ips.length) return;
+    const target = projectId && projectId !== NONE_PJ ? projectId : undefined;
+    ips.forEach((ip) => void addMonitor(ip, undefined, target));
+    setAddInput('');
+  }
+  // Move the checked IPs to another PJ. projId: a real id, or '' = 未分類.
+  function assignPj(projId: string) {
+    if (!checkedList.length) return;
+    void setProject(
+      checkedList.map((e) => e.ip),
+      projId || undefined,
+    );
     setChecked(new Set());
   }
   function renameGroup(name: string) {
@@ -545,10 +581,12 @@ export function MonitorPage() {
   return (
     <section className="panel monitor-page">
       <div className="panel-head">
-        <button className="btn btn-sm" onClick={() => setView('app')} title="Back to search">
-          ← Back
+        <button className="btn btn-sm" onClick={openProjects} title="PJ一覧（プロジェクト選択）へ戻る">
+          ← Projects
         </button>
-        <h2>IP-Mon — dashboard</h2>
+        <h2>
+          IP-Mon <span className="mon-pj-title">· {pjName}</span>
+        </h2>
         <div className="spacer" />
         <a className="btn btn-sm" href="https://monitor.shodan.io/dashboard" target="_blank" rel="noreferrer">
           Shodan Monitor ↗
@@ -595,11 +633,30 @@ export function MonitorPage() {
         )}
       </p>
 
+      {projectId !== null && (
+        <div className="mon-add-bar">
+          <span className="mon-add-label">
+            ➕ このPJにIP追加{projectId === NONE_PJ ? '（未分類）' : `：${pjName}`}
+          </span>
+          <input
+            className="filter mon-add-input"
+            placeholder="IP を貼り付け（カンマ/スペース/改行区切りで複数可）"
+            value={addInput}
+            onChange={(e) => setAddInput(e.target.value)}
+            onKeyDown={(e) => e.key === 'Enter' && addIps()}
+            aria-label="Add IPs to this project"
+          />
+          <button className="btn btn-sm btn-primary" onClick={addIps} disabled={!addInput.trim()}>
+            追加
+          </button>
+        </div>
+      )}
+
       {total === 0 ? (
         <div className="empty-state">
-          まだ監視IPはありません。検索結果テーブルの <b>Monitor</b> か、詳細ページの <b>☆ Monitor</b> で登録してください。
-          <br />
-          No monitored IPs yet — tick “Monitor” in the results table, or ☆ Monitor from an IP's detail.
+          {projectId !== null
+            ? 'このPJにはまだ監視IPがありません。上の「➕ このPJにIP追加」で登録するか、検索結果の Monitor 時にこのPJを選んでください。'
+            : 'まだ監視IPはありません。検索結果テーブルの Monitor か、詳細ページの ☆ Monitor で登録してください。'}
         </div>
       ) : (
         <>
@@ -772,6 +829,37 @@ export function MonitorPage() {
               >
                 Set group{checkedList.length ? ` (${checkedList.length})` : ''}
               </button>
+            </div>
+            <div className="mon-pj-assign">
+              <select
+                className="filter mon-pj-select"
+                value="__ph__"
+                disabled={!checkedList.length}
+                onChange={(e) => {
+                  const v = e.currentTarget.value;
+                  e.currentTarget.value = '__ph__';
+                  if (v === '__ph__') return;
+                  if (v === '__new__') {
+                    const name = window.prompt('新しいPJ名:', '');
+                    if (name && name.trim()) void createProject(name.trim()).then((id) => assignPj(id));
+                    return;
+                  }
+                  assignPj(v === '__none__' ? '' : v);
+                }}
+                title={checkedList.length ? 'チェックしたIPを別PJへ移動' : 'まずIPをチェック'}
+                aria-label="Move checked IPs to a project"
+              >
+                <option value="__ph__">▷ PJへ移動{checkedList.length ? ` (${checkedList.length})` : ''}…</option>
+                <option value="__none__">— 未分類 —</option>
+                {Object.values(projects)
+                  .sort((a, b) => a.name.localeCompare(b.name))
+                  .map((p) => (
+                    <option key={p.id} value={p.id}>
+                      {p.name}
+                    </option>
+                  ))}
+                <option value="__new__">＋ 新規PJ…</option>
+              </select>
             </div>
             <span className="spacer" />
             <button

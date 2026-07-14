@@ -1711,6 +1711,9 @@ a.i471-search-item:hover {
 .mon-stat.warn b {
   color: var(--warn, #f59e0b);
 }
+.mon-stat.good b {
+  color: var(--good, #3aa981);
+}
 /* "Already monitored" marker in the parse preview. */
 .pv-monitored {
   font-size: 11px;
@@ -4341,4 +4344,89 @@ button.pv-monitored.link:hover {
   .mon-assess-groups {
     grid-template-columns: 1fr;
   }
+}
+
+/* ===== IP-Mon PROJECTS (PJ) ================================================================= */
+.mon-pj-title {
+  color: var(--accent);
+  font-weight: 700;
+}
+/* Add-IPs-to-this-PJ bar (inside a scoped PJ view). */
+.mon-add-bar {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin: 8px 0 4px;
+  padding: 8px 10px;
+  border: 1px dashed var(--line);
+  border-radius: 8px;
+  background: color-mix(in srgb, var(--bg2) 55%, transparent);
+}
+.mon-add-label {
+  font-size: 12.5px;
+  font-weight: 600;
+  color: var(--accent);
+}
+.mon-add-input {
+  flex: 1 1 280px;
+  min-width: 200px;
+}
+/* Move-to-PJ selector in the bulk bar + Monitor-target selector in search. */
+.mon-pj-assign {
+  display: inline-flex;
+}
+.mon-pj-select {
+  max-width: 200px;
+}
+/* Projects dashboard */
+.mon-proj-overview {
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  background: color-mix(in srgb, var(--bg2) 60%, transparent);
+  padding: 10px 12px;
+  margin: 10px 0 14px;
+}
+.mon-proj-intg {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 6px 10px;
+  margin-top: 10px;
+  padding-top: 10px;
+  border-top: 1px solid var(--line);
+}
+.mon-proj-intg-label {
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--muted);
+}
+.mon-proj-intg-warn {
+  color: var(--sus, #b07815);
+}
+.mon-proj-grid {
+  align-items: start;
+}
+.mon-proj-card,
+.mon-proj-all,
+.mon-proj-none {
+  text-align: left;
+  position: relative;
+}
+.mon-proj-all {
+  border-color: color-mix(in srgb, var(--accent) 45%, var(--line));
+}
+.mon-proj-default {
+  font-size: 11px;
+  color: var(--muted);
+  font-weight: 400;
+}
+.mon-proj-card-actions {
+  display: flex;
+  gap: 4px;
+  margin-top: 8px;
+  opacity: 0.85;
+}
+.mon-proj-none {
+  border-style: dashed;
 }
