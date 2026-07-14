@@ -242,7 +242,7 @@ function browserNotify(title: string, body: string, tag: string): void {
 // A persisted, in-app activity log of "something finished while you were elsewhere" events — bulk
 // re-enrich / bulk 魚拓 completions plus individual background-job finishes. The 🔔 bell shows it, so a
 // completion is never lost just because you navigated to another page (or missed the OS notification).
-export type NotifKind = 'capture' | 'reenrich' | 'scan' | 'info';
+export type NotifKind = 'capture' | 'reenrich' | 'scan' | 'info' | 'auto';
 export interface NotifItem {
   id: string;
   at: number;
@@ -1119,7 +1119,7 @@ interface State {
   /** Background urlscan web captures (魚拓), keyed by target (URL/domain) — survive closing the detail panel. */
   webCaptures: Record<string, WebCaptureJob>;
   /** Kick a urlscan capture that submits + polls to completion in the store (not the panel). No-op if already active. */
-  startWebCapture: (target: string, visibility?: string, opts?: { silent?: boolean }) => Promise<void>;
+  startWebCapture: (target: string, visibility?: string, opts?: { silent?: boolean; auto?: boolean }) => Promise<void>;
   /** Bulk 魚拓 a set of targets (staggered submits); logs ONE completion notification when the batch settles. */
   startWebCaptureBatch: (targets: string[], visibility?: string, label?: string) => Promise<void>;
   /** Mark a finished capture's result as viewed (clears "new" badges). */
@@ -1994,7 +1994,9 @@ export const useStore = create<State>((set, get) => {
       if (!result.pending) {
         // Append to this target's history (never overwrite) and share the snapshot team-wide.
         const slim = slimCaptureResult(result);
-        const entry: WebCaptureEntry = { uuid: uuid!, at: Date.now(), by: get().session?.username, visibility: vis, result: slim };
+        // Auto-魚拓 is system-initiated — tag it as ⚡auto in the execution log (vs a person's username).
+        const capBy = opts?.auto ? '⚡auto' : get().session?.username;
+        const entry: WebCaptureEntry = { uuid: uuid!, at: Date.now(), by: capBy, visibility: vis, result: slim };
         const history = mergeCaptureEntries([entry], get().webCaptures[target]?.history ?? []);
         writeCap(target, token, started, { phase: 'done', uuid, result: slim, history, seen: false, msg: undefined, error: undefined });
         if (!silent) get().notify({ title: '魚拓が完了しました', body: `${target}${result.malicious ? ' · ⚠ malicious' : ''}`, kind: 'capture' });
@@ -2433,9 +2435,13 @@ export const useStore = create<State>((set, get) => {
 
   async runAutoEnrichDue() {
     const s = get();
-    // Client-side scheduler: only meaningful against a real proxy, and only for opted-in items.
+    // Client-side scheduler: only meaningful against a real proxy, and only for opted-in items. Runs
+    // every ~5 min while vteeee is open (live mode). What it does — and when — is documented in Docs → ⚡自動処理.
     if (s.mode !== 'live') return;
     const now = Date.now();
+    const ipEnrich: string[] = []; // IP-Mon IPs re-enriched this pass
+    const ipScan: string[] = []; // IP-Mon IPs Shodan-checked this pass
+
     // 1) Auto re-enrich due monitored IPs (capped per pass so a large watchlist doesn't burst the API).
     const due = Object.values(s.monitors)
       .filter(
@@ -2447,6 +2453,7 @@ export const useStore = create<State>((set, get) => {
       .sort((a, b) => (a.lastEnrichAt ?? a.addedAt) - (b.lastEnrichAt ?? b.addedAt));
     for (const e of due.slice(0, 4)) {
       await get().reEnrichMonitor(e.ip);
+      ipEnrich.push(e.ip);
     }
 
     // 1b) Auto Shodan re-scan (check) for auto IPs whose monitoring result is MISSING or stale — this is
@@ -2462,15 +2469,18 @@ export const useStore = create<State>((set, get) => {
       .sort((a, b) => (a.check?.at ?? 0) - (b.check?.at ?? 0));
     for (const e of checkDue.slice(0, 4)) {
       await get().checkMonitor(e.ip);
+      ipScan.push(e.ip);
     }
 
     // 2) Auto re-魚拓: keep a fresh urlscan capture for every auto-enabled, web-capturable target —
     // IP-Mon IPs (https://<ip>) and CP-Mon auto IOCs (URL/domain as-is, IP → https). Throttled: only
-    // when the latest capture is stale (~daily) and a few per pass, run silently (they land in history).
+    // when the latest capture is stale (~daily) and a few per pass, run silently (they land in history,
+    // tagged ⚡auto in the 実行ログ).
     const AUTO_CAP_MS = 20 * 3_600_000;
-    const targets = new Set<string>();
+    const monTargets = new Set<string>();
+    const campTargets = new Set<string>();
     for (const e of Object.values(s.monitors)) {
-      if (e.autoEnrich) targets.add(e.ip.includes(':') ? `https://[${e.ip}]` : `https://${e.ip}`);
+      if (e.autoEnrich) monTargets.add(e.ip.includes(':') ? `https://[${e.ip}]` : `https://${e.ip}`);
     }
     for (const c of Object.values(s.campaigns)) {
       for (const i of Object.values(c.iocs)) {
@@ -2483,18 +2493,42 @@ export const useStore = create<State>((set, get) => {
               : i.type === 'ipv6'
                 ? `https://[${i.value}]`
                 : null;
-        if (t) targets.add(t);
+        if (t) campTargets.add(t);
       }
     }
     const caps = get().webCaptures;
-    const capDue = [...targets]
+    const capDue = [...new Set([...monTargets, ...campTargets])]
       .filter((t) => {
         const j = caps[t];
         if (j && isActiveCapture(j)) return false;
         return now - (j?.history?.[0]?.at ?? 0) >= AUTO_CAP_MS;
       })
       .slice(0, 3);
-    for (const t of capDue) void get().startWebCapture(t, undefined, { silent: true });
+    const capIp: string[] = [];
+    const capCp: string[] = [];
+    for (const t of capDue) {
+      void get().startWebCapture(t, undefined, { silent: true, auto: true });
+      (monTargets.has(t) ? capIp : capCp).push(t);
+    }
+
+    // Record the pass in the notification LOG (naming what ran, by side) so auto activity is auditable.
+    // Enrich/scan complete here; 魚拓 are started (each lands in the 実行ログ tagged ⚡auto as it finishes).
+    if (ipEnrich.length + ipScan.length + capIp.length + capCp.length > 0) {
+      const sample = (arr: string[]) => {
+        const c = arr.map((x) => x.replace(/^https?:\/\//, '').replace(/^\[|\]$/g, ''));
+        return c.length ? ` [${c.slice(0, 3).join(', ')}${c.length > 3 ? ` …他${c.length - 3}` : ''}]` : '';
+      };
+      const ipParts = [
+        ipEnrich.length ? `エンリッチ ${ipEnrich.length}件${sample(ipEnrich)}` : '',
+        ipScan.length ? `Shodanスキャン ${ipScan.length}件${sample(ipScan)}` : '',
+        capIp.length ? `魚拓 ${capIp.length}件開始${sample(capIp)}` : '',
+      ].filter(Boolean);
+      const parts = [
+        ipParts.length ? `IP-MON: ${ipParts.join(' · ')}` : '',
+        capCp.length ? `CP-MON: 魚拓 ${capCp.length}件開始${sample(capCp)}` : '',
+      ].filter(Boolean);
+      get().notify({ title: '⚡ 自動処理を実行しました', body: parts.join(' ／ '), kind: 'auto' });
+    }
   },
 
   // ---- CP-Mon (campaigns) ----

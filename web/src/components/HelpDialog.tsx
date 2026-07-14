@@ -336,6 +336,55 @@ export function HelpDialog({ onClose }: { onClose: () => void }) {
           </section>
 
           <section className="help-section">
+            <h3>⚡ 自動処理（Auto）/ what runs, and when</h3>
+            <p className="help-ja">
+              各行の <b>⚡ Auto</b>（複数は <b>⚡ Auto on all</b>）を ON にした IP / IoC を、<b>vteeee を開いている間・約5分ごと</b>に
+              自動処理します（<b>LIVE 時のみ</b>）。対象を選んで ON にする<b>オプトイン方式</b>で、Shodan/API のクレジットを使いすぎない
+              よう <b>1回のパスで数件ずつ</b>に制限しています。古い対象ほど実行間隔は広がります。
+            </p>
+            <ul className="help-steps">
+              <li>
+                <b>IP-MON ⚡Auto</b> ＝ 自動エンリッチ ＋ 自動 Shodan スキャン(check) ＋ 自動魚拓
+                <ul>
+                  <li>
+                    <b>エンリッチ</b>：監視期間に応じた間隔で再エンリッチ（目安：追加〜1週≒日次 → 2週 → 3–4週 → 5–6週 → 以降は月次）。
+                  </li>
+                  <li>
+                    <b>Shodan スキャン(check)</b>：監視結果(Scan情報)が<b>未取得なら即時</b>、以降はエンリッチと同じ間隔で再観測
+                    （新規/消失ポート・新規CVEを検出）。
+                  </li>
+                  <li>
+                    <b>魚拓</b>：Web 面のある対象を<b>約1日(20h)毎</b>に urlscan で自動保全（履歴に追記）。
+                  </li>
+                </ul>
+              </li>
+              <li>
+                <b>CP-MON ⚡Auto</b> ＝ 自動魚拓（クライアント）＋ 自動エンリッチ（サーバ cron）
+                <ul>
+                  <li>
+                    <b>魚拓</b>：Web 面のある IoC（URL/ドメイン/IP）を約1日毎に自動保全。
+                  </li>
+                  <li>
+                    <b>エンリッチ</b>：サーバ側の日次 cron（設定時）で自動更新。<b>ブラウザを閉じていても</b>動きます。
+                  </li>
+                </ul>
+              </li>
+            </ul>
+            <p className="help-ja">
+              <b>記録される場所</b>：自動処理を実行するたび <b>🔔 通知ログ</b>に「⚡ 自動処理を実行しました」（IP-MON / CP-MON ごとに
+              何を何件・対象IP を明記）が入ります。自動<b>魚拓</b>は <b>🎣 実行ログ</b>にも <b>⚡auto</b> タグ付きで残ります。
+              未スキャン/古いものだけを今すぐ回したい時は、IP-MON レポートの「🔄 未スキャン/古いIPを今すぐ再スキャン」ボタンをどうぞ。
+            </p>
+            <p className="help-en">
+              ⚡ Auto is opt-in per IP/IoC and runs every ~5 min while vteeee is open (live only), a few items per pass
+              to protect API/Shodan credits. IP-MON: re-enrich + Shodan re-check (immediate if never scanned, else on an
+              age-based cadence) + ~daily urlscan capture. CP-MON: ~daily urlscan capture (client) + enrichment via the
+              server cron (works with the browser closed). Every pass is written to the 🔔 notification log; auto
+              captures also appear in the 🎣 execution log tagged ⚡auto.
+            </p>
+          </section>
+
+          <section className="help-section">
             <h3>Roles &amp; admin / ロールと管理</h3>
             <p className="help-ja">
               <b>User</b>（一般）は検索のみ、<b>Admin</b> は上部「Manage」でユーザー追加/権限/パスワード変更、設定管理（共有トークン、

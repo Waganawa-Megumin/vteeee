@@ -6,6 +6,7 @@ const KIND_ICON: Record<NotifKind, string> = {
   reenrich: '⟳',
   scan: '📡',
   info: '•',
+  auto: '⚡',
 };
 
 const MUTE_KEY = 'vteeee.notifyMuted';
