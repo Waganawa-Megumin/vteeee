@@ -3119,16 +3119,27 @@ button.pv-monitored.link:hover {
 }
 .cp-note-field {
   width: 100%;
-  min-height: 64px;
+  box-sizing: border-box;
+  min-height: 132px; /* ~6–7 lines by default; JS auto-grows it to fit the text as you type */
+  max-height: 60vh; /* cap so a very long note doesn't swallow the screen — it scrolls past this */
+  overflow-y: auto;
   background: var(--bg);
   border: 1px solid var(--line);
   border-left: 3px solid var(--accent);
   border-radius: 6px;
   color: var(--text);
-  padding: 8px 10px;
-  font-size: 13px;
-  line-height: 1.55;
+  padding: 10px 12px;
+  font-size: 14px;
+  line-height: 1.6;
   resize: vertical;
+}
+/* Phones: taller box + slightly larger text so the note is comfortable to read/write without the
+   fiddly drag handle (the box auto-grows to fit its content anyway). */
+@media (max-width: 640px) {
+  .cp-note-field {
+    min-height: 168px;
+    font-size: 15px;
+  }
 }
 /* Per-row 魚拓 (done) control: "済 <when>" link to the latest urlscan result + past-URL select + Re-魚拓. */
 .cp-cap {

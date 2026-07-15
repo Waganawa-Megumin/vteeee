@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { extractIndicators, type EnrichableType, type NormalizedResult } from '@vteeee/shared';
 import { useStore, type CampaignIoc, type IocSide, type TlpLevel } from '../state/store';
 import {
@@ -16,6 +16,15 @@ import { copyText, copyElementImage, exportAssessmentPdf } from '../lib/assessme
 import { abuseOf, countryOf, cvesOf, detOf, diffParts, portsOf, rfOf } from '../lib/enrichTrend';
 
 const UNGROUPED = '__ungrouped__';
+
+/** Grow a textarea to fit its content so all text stays visible without the tiny drag handle — on a
+ *  phone that handle is nearly impossible to grab, so the box auto-expands as you type instead. Capped
+ *  by CSS max-height (then it scrolls internally). */
+function autosizeTextarea(el: HTMLTextAreaElement | null): void {
+  if (!el) return;
+  el.style.height = 'auto';
+  el.style.height = `${el.scrollHeight}px`;
+}
 
 /** Threat-relevance score so the most dangerous / info-rich IOCs sort to the top within a group. */
 function threatScore(i: CampaignIoc): number {
@@ -506,6 +515,9 @@ export function CampaignPage() {
   const [admHelp, setAdmHelp] = useState(false);
   const [syncing, setSyncing] = useState(false);
   const [filter, setFilter] = useState('');
+  // Stable ref so the analyst-comment box auto-sizes on mount (fit existing text) + on every campaign
+  // switch (key={cid} remounts it) — no dependency on render identity, so it doesn't thrash.
+  const noteAutosize = useCallback((el: HTMLTextAreaElement | null) => autosizeTextarea(el), []);
 
   async function onSync() {
     setSyncing(true);
@@ -1483,10 +1495,12 @@ export function CampaignPage() {
               <textarea
                 id="cp-note-field"
                 key={cid}
+                ref={noteAutosize}
                 className="cp-note-field"
                 defaultValue={campaign.note ?? ''}
                 placeholder="例: 特定業種を狙った資格情報窃取と推定。◯◯社の報告（2026-07）と関連の可能性。△△.example は誤検知の疑い。次は登録者情報のピボットを予定…"
-                rows={3}
+                rows={5}
+                onInput={(e) => autosizeTextarea(e.currentTarget)}
                 onBlur={(e) => {
                   const v = e.currentTarget.value;
                   if ((campaign.note ?? '') !== v) void setNote(cid, v);
