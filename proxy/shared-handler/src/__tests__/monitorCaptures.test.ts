@@ -135,4 +135,54 @@ describe('server-side scheduled auto 魚拓 (runScheduledCaptures)', () => {
     expect(r).toEqual({ due: 0, captured: 0, pending: 0 });
     expect(submitMock).not.toHaveBeenCalled();
   });
+
+  it('does NOT re-submit a dead/unresolvable target on the next run (throttles failures by attempt)', async () => {
+    const store = memStore({ monitors: JSON.stringify({ '1.1.1.1': { ip: '1.1.1.1', autoEnrich: true } }) });
+    submitMock.mockResolvedValue({ uuid: 'u1', visibility: 'unlisted' });
+    resultMock.mockResolvedValue({ uuid: 'u1', error: 'urlscan: bad request (unresolvable or blacklisted target?)' });
+
+    const r1 = await runScheduledCaptures(store, baseEnv);
+    expect(r1.captured).toBe(0); // never renders → no success history written
+    expect(submitMock).toHaveBeenCalledTimes(1);
+    expect(store.data['captures']).toBeUndefined();
+    expect(JSON.parse(store.data['capture-attempts'])['https://1.1.1.1']).toBeGreaterThan(0); // attempt recorded
+
+    submitMock.mockClear();
+    const r2 = await runScheduledCaptures(store, baseEnv); // immediate 2nd run
+    expect(r2.due).toBe(0); // attempt is fresh (<20h) → not due
+    expect(submitMock).not.toHaveBeenCalled(); // ← the fix: no every-run re-魚拓 of a dead target
+  });
+
+  it('takes due targets oldest-attempt first so dead targets cannot starve live ones under the cap', async () => {
+    const now = Date.now();
+    const store = memStore({
+      monitors: JSON.stringify({
+        '1.1.1.1': { ip: '1.1.1.1', autoEnrich: true },
+        '2.2.2.2': { ip: '2.2.2.2', autoEnrich: true },
+      }),
+      'capture-attempts': JSON.stringify({ 'https://1.1.1.1': now - 30 * HOUR, 'https://2.2.2.2': now - 25 * HOUR }),
+    });
+    submitMock.mockImplementation((t: string) => Promise.resolve({ uuid: `u:${t}`, visibility: 'unlisted' }));
+    resultMock.mockImplementation((uuid: string) => Promise.resolve({ uuid, url: 'x' }));
+
+    // Both are due (>20h) but the cap allows only one — the OLDER (30h) must win.
+    await runScheduledCaptures(store, { ...baseEnv, urlscanDailyCap: 1 } as ProxyEnv);
+    expect(submitMock).toHaveBeenCalledTimes(1);
+    expect(submitMock.mock.calls[0][0]).toBe('https://1.1.1.1');
+  });
+
+  it('prunes attempt records for targets that are no longer auto-enabled', async () => {
+    const now = Date.now();
+    const store = memStore({
+      monitors: JSON.stringify({ '2.2.2.2': { ip: '2.2.2.2', autoEnrich: true } }),
+      'capture-attempts': JSON.stringify({ 'https://9.9.9.9': now - HOUR, 'https://2.2.2.2': now - HOUR }),
+    });
+
+    await runScheduledCaptures(store, baseEnv);
+
+    const attempts = JSON.parse(store.data['capture-attempts']) as Record<string, number>;
+    expect(attempts['https://9.9.9.9']).toBeUndefined(); // no longer a target → pruned
+    expect(attempts['https://2.2.2.2']).toBeDefined(); // still a target → kept
+    expect(submitMock).not.toHaveBeenCalled(); // 2.2.2.2 attempted 1h ago → not due
+  });
 });

@@ -178,6 +178,29 @@ function mergeEntries(a: SharedCaptureEntry[] = [], b: SharedCaptureEntry[] = []
   return [...byUuid.values()].sort((x, y) => (y.at ?? 0) - (x.at ?? 0)).slice(0, CAP_HISTORY_MAX);
 }
 
+// Server-internal auto-魚拓 ATTEMPT log: target → last attempt (ms). A dead/unresolvable target (no
+// site or DNS → the 魚拓 can never succeed → no history entry is ever written) would otherwise stay
+// perpetually "due" and be re-submitted on every run, wasting urlscan submissions and — under the
+// per-run cap — starving live targets that never get their turn. Throttling on the last ATTEMPT (not
+// just successes) backs a failure off to ~a day, exactly like a success. Not exposed via any route —
+// only the cron reads/writes it.
+const CAPTURE_ATTEMPTS_KEY = 'capture-attempts';
+async function getCaptureAttempts(store: Storage): Promise<Record<string, number>> {
+  const raw = await store.get(CAPTURE_ATTEMPTS_KEY);
+  if (!raw) return {};
+  try {
+    const v = JSON.parse(raw);
+    return v && typeof v === 'object' && !Array.isArray(v) ? (v as Record<string, number>) : {};
+  } catch {
+    return {};
+  }
+}
+async function putCaptureAttempts(store: Storage, data: Record<string, number>): Promise<void> {
+  const next = JSON.stringify(data);
+  if ((await store.get(CAPTURE_ATTEMPTS_KEY)) === next) return; // skip the KV write when unchanged
+  await store.put(CAPTURE_ATTEMPTS_KEY, next);
+}
+
 /** The web-capturable target for an IP (IPv6 bracketed) / a campaign IOC (URL/domain as-is, IP → https). */
 function ipTarget(ip: string): string {
   return ip.includes(':') ? `https://[${ip}]` : `https://${ip}`;
@@ -191,10 +214,13 @@ function iocTarget(value: string, type: EnrichableType): string | null {
 
 /**
  * Server-side auto 魚拓 for every auto-enabled, web-capturable target (IP-Mon auto IPs + CP-Mon auto
- * IOCs). Runs on the daily cron so it fires ONCE regardless of how many devices are open. For each
- * target whose newest shared capture is missing/stale it submits a urlscan (gated by the shared
- * `urlscanDailyCap`), waits, polls in bounded rounds, and appends the completed capture to the shared
- * `captures` blob (written once, only if changed). Never throws; on any per-target error it moves on.
+ * IOCs). Runs on the daily cron so it fires ONCE regardless of how many devices are open. A target is
+ * due when its last ATTEMPT (a success in the shared `captures` blob, OR a recorded failed/pending
+ * attempt) is ≳20h old — so a dead/unresolvable target (no site/DNS → 魚拓 can never succeed) retries
+ * at most ~once a day like everything else, instead of every run. Due targets are taken oldest-attempt
+ * first so dead ones can't monopolise the per-run cap and starve live targets. Submits a urlscan
+ * (gated by the shared `urlscanDailyCap`), waits, polls in bounded rounds, and appends completed
+ * captures to the shared blob (each written once, only if changed). Never throws.
  */
 export async function runScheduledCaptures(
   store: Storage,
@@ -221,24 +247,44 @@ export async function runScheduledCaptures(
   }
   if (!targets.size) return { due: 0, captured: 0, pending: 0 };
 
-  // 2) Read the shared 魚拓 blob and pick targets whose newest capture is missing or ≳20h old.
+  // 2) A target's "last touch" is the newer of its most recent successful capture and its last recorded
+  //    attempt (which we stamp for FAILURES too, below). Due = last touch ≳20h ago; oldest first so a
+  //    pile of dead targets can't crowd out live ones under the per-run cap (never-touched → 0 → first).
   const caps = (await getSharedCaptures(store)) as Record<string, SharedCaptureEntry[]>;
   const blob: Record<string, SharedCaptureEntry[]> = caps && typeof caps === 'object' ? caps : {};
+  const attempts = await getCaptureAttempts(store);
   const now = Date.now();
-  const due = [...targets].filter((t) => {
+  const lastTouch = (t: string): number => {
     const hist = blob[t];
     const newest = Array.isArray(hist) && hist.length ? Math.max(...hist.map((h) => h?.at ?? 0)) : 0;
-    return now - newest >= CAP_DUE_MS;
-  });
-  if (!due.length) return { due: 0, captured: 0, pending: 0 };
+    return Math.max(newest, attempts[t] ?? 0);
+  };
+  const due = [...targets].filter((t) => now - lastTouch(t) >= CAP_DUE_MS).sort((a, b) => lastTouch(a) - lastTouch(b));
 
-  // 3) Submit — each gated by the shared daily urlscan cap (0 = unlimited). Stop as soon as the cap bites.
+  // Prune attempt records for targets that are no longer auto-enabled, so the log can't grow unbounded.
+  let attemptsChanged = false;
+  for (const k of Object.keys(attempts))
+    if (!targets.has(k)) {
+      delete attempts[k];
+      attemptsChanged = true;
+    }
+  if (!due.length) {
+    if (attemptsChanged) await putCaptureAttempts(store, attempts);
+    return { due: 0, captured: 0, pending: 0 };
+  }
+
+  // 3) Submit — each gated by the shared daily urlscan cap (0 = unlimited). Record the ATTEMPT for every
+  //    target we submit BEFORE knowing the outcome, so a failure/pending throttles it ~a day just like a
+  //    success (this is what stops dead targets repeating). Stop as soon as the cap bites.
   const submitted: { target: string; uuid: string; visibility?: string }[] = [];
   for (const t of due.slice(0, CAP_MAX_PER_RUN)) {
     if (!(await consumeDailyQuota(store, 'urlscan', env.urlscanDailyCap, 1))) break;
+    attempts[t] = now;
+    attemptsChanged = true;
     const sub = await urlscanSubmit(t, env);
     if (sub && !('error' in sub) && sub.uuid) submitted.push({ target: t, uuid: sub.uuid, visibility: sub.visibility });
   }
+  if (attemptsChanged) await putCaptureAttempts(store, attempts);
   if (!submitted.length) return { due: due.length, captured: 0, pending: 0 };
 
   // 4) urlscan renders asynchronously — wait once, then poll all still-pending uuids in bounded rounds
