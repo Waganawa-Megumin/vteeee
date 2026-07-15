@@ -16,6 +16,7 @@ import { MonitorPage } from './components/MonitorPage';
 import { MonitorAnalysisPage } from './components/MonitorAnalysisPage';
 import { MonitorAssessmentPage } from './components/MonitorAssessmentPage';
 import { MonitorProjectsPage } from './components/MonitorProjectsPage';
+import { Breadcrumbs } from './components/Breadcrumbs';
 import { CampaignsPage } from './components/CampaignsPage';
 import { CampaignPage } from './components/CampaignPage';
 import { CampaignAnalysisPage } from './components/CampaignAnalysisPage';
@@ -108,9 +109,11 @@ export default function App() {
         <button className="btn btn-sm" onClick={() => setHistoryOpen(true)}>
           History
         </button>
+        <span className="nav-sep" aria-hidden />
         <button
           className={`btn btn-sm nav-top${view === 'app' ? ' active' : ''}`}
           onClick={() => setView('app')}
+          aria-current={view === 'app' ? 'page' : undefined}
           title="TOP — メイン検索（ホーム）に戻る。ロゴのクリックでも戻れます"
         >
           🏠 TOP
@@ -123,6 +126,7 @@ export default function App() {
                 ? setView('app')
                 : openMonitorProjects()
             }
+            aria-current={view === 'monitor' || view === 'monitor-projects' || view === 'monitor-assessment' ? 'page' : undefined}
             title="IP-Mon — Shodan IP Monitor：プロジェクト(PJ)単位の監視ウォッチリスト＋ダッシュボード"
           >
             IP-Mon{monitorCount ? ` (${monitorCount})` : ''}
@@ -131,10 +135,12 @@ export default function App() {
         <button
           className={`btn btn-sm${view === 'campaigns' || view === 'campaign' ? ' active' : ''}`}
           onClick={() => (view === 'campaigns' || view === 'campaign' ? setView('app') : openCampaigns())}
+          aria-current={view === 'campaigns' || view === 'campaign' ? 'page' : undefined}
           title="CP-Mon — campaign IOC watchlist: continuous enrichment + history analysis"
         >
           CP-Mon{campaignCount ? ` (${campaignCount})` : ''}
         </button>
+        <span className="nav-sep" aria-hidden />
         {rulesAvailable && (
           <button className="btn btn-sm" onClick={() => setRulesOpen(true)} title="Search SOC Prime detection rules">
             Rules
@@ -143,6 +149,7 @@ export default function App() {
         <button className="btn btn-sm" onClick={() => setHelpOpen(true)}>
           Docs
         </button>
+        <span className="nav-sep" aria-hidden />
         <button className="btn btn-sm" onClick={() => setSettingsOpen(true)}>
           Settings
         </button>
@@ -160,6 +167,12 @@ export default function App() {
       </header>
 
       {error && <div className="error-banner">{error}</div>}
+
+      {view !== 'app' && (
+        <div className="breadcrumbs-wrap">
+          <Breadcrumbs />
+        </div>
+      )}
 
       {view === 'admin' ? (
         <div className="page-wrap">
