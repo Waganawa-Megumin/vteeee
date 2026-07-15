@@ -4028,7 +4028,11 @@ button.pv-monitored.link:hover {
   }
   .modal,
   .modal.modal-wide,
-  .modal.help-modal {
+  .modal.help-modal,
+  .modal.settings-modal {
+    /* settings-modal sets width:600px at base specificity (0,2,0); this selector matches it at the same
+       specificity but later in source, so on a phone it becomes a full-screen sheet too — otherwise the
+       600px box overflows a ~400px screen and pushes the ✕ close button off the right edge (no way back). */
     width: 100%;
     max-width: 100%;
     height: 100%;

@@ -154,8 +154,13 @@ export default function App() {
           Settings
         </button>
         {session.role === 'admin' && (
-          <button className="btn btn-sm" onClick={() => setView(view === 'admin' ? 'app' : 'admin')}>
-            {view === 'admin' ? 'Search' : 'Manage'}
+          <button
+            className={`btn btn-sm${view === 'admin' ? ' active' : ''}`}
+            onClick={() => setView(view === 'admin' ? 'app' : 'admin')}
+            aria-current={view === 'admin' ? 'page' : undefined}
+            title={view === 'admin' ? '管理画面を閉じて検索へ戻る' : 'Manage — ユーザー／設定管理'}
+          >
+            Manage
           </button>
         )}
         <span className="user">
