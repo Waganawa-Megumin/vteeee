@@ -4445,3 +4445,7 @@ button.pv-monitored.link:hover {
 .mon-pj-rename:hover .mon-pj-edit {
   opacity: 1;
 }
+/* Explicit TOP/home button in the header nav — subtly emphasised as a home anchor. */
+.nav-top:not(.active) {
+  border-color: color-mix(in srgb, var(--accent) 32%, var(--line));
+}

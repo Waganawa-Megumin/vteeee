@@ -108,6 +108,13 @@ export default function App() {
         <button className="btn btn-sm" onClick={() => setHistoryOpen(true)}>
           History
         </button>
+        <button
+          className={`btn btn-sm nav-top${view === 'app' ? ' active' : ''}`}
+          onClick={() => setView('app')}
+          title="TOP — メイン検索（ホーム）に戻る。ロゴのクリックでも戻れます"
+        >
+          🏠 TOP
+        </button>
         {monitorAvailable && (
           <button
             className={`btn btn-sm${view === 'monitor' || view === 'monitor-projects' || view === 'monitor-assessment' ? ' active' : ''}`}
