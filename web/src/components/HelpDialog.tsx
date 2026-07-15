@@ -343,38 +343,46 @@ export function HelpDialog({ onClose }: { onClose: () => void }) {
             </p>
             <ul className="help-steps">
               <li>
-                <b>① サーバ側（毎日・ブラウザ不要）＝ 定点観測の本体</b>
+                <b>① サーバ側（毎日・ブラウザ不要）＝ 定点観測の本体・すべての自動処理の唯一の実行主体</b>
                 <br />
                 Cloudflare プロキシが<b>毎日1回（05:00 UTC ≒ 14:00 JST）</b>、⚡Auto の <b>IP-Mon 全IP</b> と <b>CP-Mon 全 auto IOC</b>
-                を自動<b>エンリッチ</b>し、その時点のスナップショット（VT・Shodan・MaxMind・AbuseIPDB・RF 等）を<b>共有ストアに保存</b>します。
-                <b>誰も vteeee を開いていなくても継続</b>し、次に開いた端末が同期して受け取ります。エンリッチ結果には Shodan の
-                ポート/CVE も含まれるので、<b>アタックサーフェス・リスクの推移も日次で観測</b>されます。
+                について <b>エンリッチ ＋ Shodan チェック(check) ＋ urlscan 魚拓</b> を<b>まとめて1回だけ</b>実行し、その時点のスナップショット
+                （VT・Shodan・MaxMind・AbuseIPDB・RF 等）と魚拓タイムラインを<b>共有ストアに保存</b>します。<b>誰も vteeee を開いていなくても継続</b>し、
+                <b>どの端末からアクセスしても同一の状態</b>に同期されます。エンリッチ結果には Shodan のポート/CVE も含まれるので、
+                <b>アタックサーフェス・リスクの推移も日次で観測</b>されます。魚拓は無駄打ちを防ぐため、直近の取得が約1日以内なら再取得しません
+                （プロキシ側の1日あたり上限でも保護）。
               </li>
               <li>
-                <b>② クライアント側（開いている間・約5分ごと）＝ きめ細かい上乗せ</b>
+                <b>② クライアント側（開いている間・約5分ごと）＝ 共有モードでは「読み取り専用の同期」だけ</b>
                 <br />
-                vteeee を開いている間だけ、より短い間隔で Re-enrich ＋ <b>Shodan スキャン(check)</b>（未スキャンは即時）＋
-                <b>urlscan 魚拓</b>（約1日毎）を実行します。エンリッチ間隔は監視期間連動（追加〜1週≒日次 → 2週 → 3–4週 → 5–6週 → 以降は月次）。
+                <b>チーム共有 ON（既定）</b>：開いている端末は<b>自分では自動処理を走らせず</b>、約5分ごとに共有ストアから最新（魚拓タイムライン・
+                レポート履歴）を取得して同期するだけです。これで端末が何台開いていても<b>API・KV書き込みの二重化</b>（Cloudflare KV 無料枠の悲鳴の原因）が起きません。
+                <br />
+                <b>チーム共有 OFF（この端末のみ／プロキシ未接続）</b>：サーバ cron が使えないので、従来どおり開いている間だけ client 側で
+                Re-enrich ＋ Shodan チェック ＋ urlscan 魚拓 を実行します（エンリッチ間隔は監視期間連動：追加〜1週≒日次 → 2週 → 3–4週 → 5–6週 → 以降は月次）。
               </li>
             </ul>
             <p className="help-ja">
-              <b>⚠ 魚拓だけは現状クライアント側のみ</b>（＝vteeee を開いている間）。エンリッチ＝<b>定点観測はサーバ側で毎日</b>走ります。
-              サーバ側でも <b>魚拓</b> を自動取得したい場合は cron に組み込めます（ご相談ください）。<b>前提</b>：サーバ側自動化には watchlist の
-              <b>チーム共有 ON</b>（既定）＋プロキシに各 API キー登録が必要です。
+              <b>✅ 定点観測（エンリッチ・Shodanチェック・魚拓）はすべてサーバ側で毎日</b>走ります。ブラウザを開いておく必要はありません。
+              <b>意図的な Re-魚拓</b>（対象を選んで手動で「再取得」した場合）は、サーバ管理とは別に<b>その対象だけ即時にクライアント側で実行</b>されます
+              — 意図した1回はちゃんと走ります。<b>前提</b>：サーバ側自動化には watchlist の <b>チーム共有 ON</b>（既定）＋プロキシに各 API キー登録が必要です。
             </p>
             <p className="help-ja">
-              <b>記録</b>：クライアントで自動処理が走るたび <b>🔔 通知ログ</b>にサマリ（IP-MON / CP-MON ごとに何を何件・対象を明記）、
-              自動<b>魚拓</b>は <b>🎣 実行ログ</b>に <b>⚡auto</b> タグ付きで残ります。未スキャン/古いものだけ今すぐ回すなら、
-              IP-MON レポートの「🔄 未スキャン/古いIPを今すぐ再スキャン」ボタンをどうぞ。
+              <b>記録</b>：ローカル専用時にクライアントで自動処理が走ると <b>🔔 通知ログ</b>にサマリ（IP-MON / CP-MON ごとに何を何件・対象を明記）、
+              自動<b>魚拓</b>は <b>🎣 実行ログ</b>に <b>⚡auto</b> タグ付きで残ります。共有モードのサーバ自動処理は共有ストアに反映され、次回同期で各端末に届きます。
+              未スキャン/古いものだけ今すぐ回すなら、IP-MON レポートの「🔄 未スキャン/古いIPを今すぐ再スキャン」ボタンをどうぞ。
             </p>
             <p className="help-en">
-              ⚡ Auto runs in two tiers (opt-in per IP/IoC). (1) SERVER-SIDE, daily at 05:00 UTC on the Cloudflare proxy —
-              re-enriches every ⚡Auto IP-Mon IP and CP-Mon auto IOC and saves snapshots to the shared store, so continuous
-              monitoring keeps running with NO browser open; clients sync it on next open (enrichment snapshots include
-              Shodan ports/CVEs, so surface/risk trends are captured daily). (2) CLIENT-SIDE, every ~5 min while vteeee is
-              open — finer re-enrich + Shodan re-check + ~daily urlscan capture. Only the urlscan 魚拓 is currently
-              client-only; the daily enrichment 定点観測 is server-side. Requires the watchlist shared (default) + API keys
-              on the proxy.
+              ⚡ Auto is SERVER-MANAGED. (1) SERVER-SIDE, daily at 05:00 UTC on the Cloudflare proxy — the single authority for
+              ALL standing auto work: it re-enriches, Shodan-checks, AND takes a urlscan 魚拓 for every ⚡Auto IP-Mon IP and
+              CP-Mon auto IOC exactly ONCE, saving snapshots + the 魚拓 timeline to the shared store, so monitoring keeps running
+              with NO browser open and every device converges to the IDENTICAL state (enrichment snapshots include Shodan
+              ports/CVEs, so surface/risk trends are captured daily; captures are skipped if one was taken in the last ~day, and
+              bounded by a per-day urlscan cap). (2) CLIENT-SIDE, every ~5 min while open — in the default shared mode this is
+              READ-ONLY sync (pull the latest shared 魚拓 timeline + report history), so N open devices never duplicate API calls
+              or KV writes. Only a local-only setup (sharing off) runs enrich/check/魚拓 client-side. An intentional Re-魚拓 of a
+              hand-picked target always runs immediately client-side, independent of the server schedule. Requires the watchlist
+              shared (default) + API keys on the proxy.
             </p>
           </section>
 

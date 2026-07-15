@@ -2698,11 +2698,22 @@ export const useStore = create<State>((set, get) => {
     const ipEnrich: string[] = []; // IP-Mon IPs re-enriched this pass
     const ipScan: string[] = []; // IP-Mon IPs Shodan-checked this pass
 
-    // When the watchlist is TEAM-SHARED, the daily server-side cron is the single authority for auto
-    // re-enrich/scan — it does the work ONCE (not once-per-open-device) and writes shared KV minimally.
-    // So each open device skipping enrich/scan here avoids N× duplicate API calls + KV writes (the cause
-    // of the Cloudflare KV free-tier alarms). Local-only setups (no sharing) still run it client-side.
+    // When the watchlist is TEAM-SHARED, the daily server-side cron is the single authority for ALL
+    // standing auto work — re-enrich, Shodan check, AND 魚拓 — doing each ONCE (not once-per-open-device)
+    // and writing shared KV minimally. So each open device skipping that work here avoids N× duplicate
+    // API calls + KV writes (the cause of the Cloudflare KV free-tier alarms). Local-only setups (no
+    // sharing) still run everything client-side below.
     const deferToServer = monitorSharingOn(s.settings);
+
+    // In shared mode this device is a READER, not a writer: pull the freshest cron-written shared state
+    // (the 魚拓 timeline + report history) every pass so every device converges to the IDENTICAL state
+    // without doing — or duplicating — the work. We deliberately DON'T re-pull shared monitors/campaigns
+    // here: those are pulled on their page mounts, and that path re-stamps updatedAt, which would push
+    // redundant KV writes — the very thing this whole change removes.
+    if (deferToServer) {
+      void get().refreshCaptures();
+      void get().refreshMonitorAssessments();
+    }
 
     if (!deferToServer) {
       // 1) Auto re-enrich due monitored IPs (capped per pass so a large watchlist doesn't burst the API).
@@ -2735,47 +2746,52 @@ export const useStore = create<State>((set, get) => {
     }
 
     // 2) Auto re-魚拓: keep a fresh urlscan capture for every auto-enabled, web-capturable target —
-    // IP-Mon IPs (https://<ip>) and CP-Mon auto IOCs (URL/domain as-is, IP → https). Throttled: only
-    // when the latest capture is stale (~daily) and a few per pass, run silently (they land in history,
-    // tagged ⚡auto in the 実行ログ).
-    const AUTO_CAP_MS = 20 * 3_600_000;
-    const monTargets = new Set<string>();
-    const campTargets = new Set<string>();
-    for (const e of Object.values(s.monitors)) {
-      if (e.autoEnrich) monTargets.add(e.ip.includes(':') ? `https://[${e.ip}]` : `https://${e.ip}`);
-    }
-    for (const c of Object.values(s.campaigns)) {
-      for (const i of Object.values(c.iocs)) {
-        if (!i.autoEnrich) continue;
-        const t =
-          i.type === 'url' || i.type === 'domain'
-            ? i.value
-            : i.type === 'ipv4'
-              ? `https://${i.value}`
-              : i.type === 'ipv6'
-                ? `https://[${i.value}]`
-                : null;
-        if (t) campTargets.add(t);
-      }
-    }
-    const caps = get().webCaptures;
-    const capDue = [...new Set([...monTargets, ...campTargets])]
-      .filter((t) => {
-        const j = caps[t];
-        if (j && isActiveCapture(j)) return false;
-        // Throttle by the last ATTEMPT (updatedAt), not just the last SUCCESSFUL capture (history[0].at):
-        // a failing target (dead/nonexistent domain, error/stalled/interrupted) writes no history entry,
-        // so keying off history alone made it look perpetually due and retry every ~5-min pass. Using the
-        // attempt time backs failures off to ~daily too (≈1回/日), and cuts the notification spam.
-        const lastAttempt = Math.max(j?.history?.[0]?.at ?? 0, j?.updatedAt ?? 0);
-        return now - lastAttempt >= AUTO_CAP_MS;
-      })
-      .slice(0, 3);
+    // IP-Mon IPs (https://<ip>) and CP-Mon auto IOCs (URL/domain as-is, IP → https). Like enrich/scan
+    // above, this is SERVER-MANAGED in team-shared mode: the daily cron captures each target ONCE and
+    // writes the shared 魚拓 blob, so every device converges to the identical timeline without N open
+    // browsers each firing a submission (wasteful urlscan-quota / KV burn). Local-only setups still run
+    // it client-side. Throttled to ~daily, a few per pass, silent (they land in history tagged ⚡auto).
+    // Intentional Re-魚拓 of a hand-picked target (startWebCapture from the UI) is unaffected by this.
     const capIp: string[] = [];
     const capCp: string[] = [];
-    for (const t of capDue) {
-      void get().startWebCapture(t, undefined, { silent: true, auto: true });
-      (monTargets.has(t) ? capIp : capCp).push(t);
+    if (!deferToServer) {
+      const AUTO_CAP_MS = 20 * 3_600_000;
+      const monTargets = new Set<string>();
+      const campTargets = new Set<string>();
+      for (const e of Object.values(s.monitors)) {
+        if (e.autoEnrich) monTargets.add(e.ip.includes(':') ? `https://[${e.ip}]` : `https://${e.ip}`);
+      }
+      for (const c of Object.values(s.campaigns)) {
+        for (const i of Object.values(c.iocs)) {
+          if (!i.autoEnrich) continue;
+          const t =
+            i.type === 'url' || i.type === 'domain'
+              ? i.value
+              : i.type === 'ipv4'
+                ? `https://${i.value}`
+                : i.type === 'ipv6'
+                  ? `https://[${i.value}]`
+                  : null;
+          if (t) campTargets.add(t);
+        }
+      }
+      const caps = get().webCaptures;
+      const capDue = [...new Set([...monTargets, ...campTargets])]
+        .filter((t) => {
+          const j = caps[t];
+          if (j && isActiveCapture(j)) return false;
+          // Throttle by the last ATTEMPT (updatedAt), not just the last SUCCESSFUL capture (history[0].at):
+          // a failing target (dead/nonexistent domain, error/stalled/interrupted) writes no history entry,
+          // so keying off history alone made it look perpetually due and retry every ~5-min pass. Using the
+          // attempt time backs failures off to ~daily too (≈1回/日), and cuts the notification spam.
+          const lastAttempt = Math.max(j?.history?.[0]?.at ?? 0, j?.updatedAt ?? 0);
+          return now - lastAttempt >= AUTO_CAP_MS;
+        })
+        .slice(0, 3);
+      for (const t of capDue) {
+        void get().startWebCapture(t, undefined, { silent: true, auto: true });
+        (monTargets.has(t) ? capIp : capCp).push(t);
+      }
     }
 
     // Record the pass in the notification LOG (naming what ran, by side) so auto activity is auditable.
