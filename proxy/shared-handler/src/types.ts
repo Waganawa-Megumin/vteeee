@@ -99,6 +99,8 @@ export interface ProxyEnv {
   dailyCap: number;
   /** Max Claude smart-parse calls per day (0 = unlimited). */
   parseDailyCap: number;
+  /** Max urlscan 魚拓 submissions per day across the whole proxy (0 = unlimited). Bounds auto-魚拓. */
+  urlscanDailyCap: number;
 }
 
 /** Minimal KV-like store for users/settings (Node file store or Cloudflare KV). */

@@ -104,6 +104,7 @@ interface Env {
   MAX_BATCH?: string;
   VT_DAILY?: string;
   PARSE_DAILY?: string;
+  URLSCAN_DAILY?: string;
   HISTORY_DAYS?: string;
   VTEEEE_KV: KVNamespace;
 }
@@ -169,6 +170,7 @@ function build(env: Env): { proxy: ProxyEnv; allowed: string[]; store: Storage }
     maxBatch: Number(env.MAX_BATCH ?? 1000),
     dailyCap: Number(env.VT_DAILY ?? 500),
     parseDailyCap: Number(env.PARSE_DAILY ?? 200),
+    urlscanDailyCap: Number(env.URLSCAN_DAILY ?? 500),
   };
   return { proxy, allowed, store };
 }
@@ -340,6 +342,9 @@ export default {
         if (!proxy.urlscanApiKey) return json({ error: 'urlscan not configured' }, 400);
         const b = (await request.json()) as { url?: string; visibility?: string };
         if (!b.url) return json({ error: 'url required' }, 400);
+        // Server-side daily ceiling on 魚拓 submissions (across all devices) — bounds auto-魚拓.
+        if (!(await consumeDailyQuota(store, 'urlscan', proxy.urlscanDailyCap, 1)))
+          return json({ error: `daily 魚拓 quota (${proxy.urlscanDailyCap}) reached — try again tomorrow` }, 429);
         return json((await urlscanSubmit(b.url, proxy, b.visibility, request.signal)) ?? { error: 'unavailable' });
       }
 

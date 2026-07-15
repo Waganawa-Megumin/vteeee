@@ -2698,34 +2698,40 @@ export const useStore = create<State>((set, get) => {
     const ipEnrich: string[] = []; // IP-Mon IPs re-enriched this pass
     const ipScan: string[] = []; // IP-Mon IPs Shodan-checked this pass
 
-    // 1) Auto re-enrich due monitored IPs (capped per pass so a large watchlist doesn't burst the API).
-    const due = Object.values(s.monitors)
-      .filter(
-        (e) =>
-          e.autoEnrich &&
-          !e.enriching &&
-          now - (e.lastEnrichAt ?? e.addedAt) >= autoEnrichInterval(now - e.addedAt),
-      )
-      .sort((a, b) => (a.lastEnrichAt ?? a.addedAt) - (b.lastEnrichAt ?? b.addedAt));
-    for (const e of due.slice(0, 4)) {
-      await get().reEnrichMonitor(e.ip);
-      ipEnrich.push(e.ip);
-    }
+    // When the watchlist is TEAM-SHARED, the daily server-side cron is the single authority for auto
+    // re-enrich/scan — it does the work ONCE (not once-per-open-device) and writes shared KV minimally.
+    // So each open device skipping enrich/scan here avoids N× duplicate API calls + KV writes (the cause
+    // of the Cloudflare KV free-tier alarms). Local-only setups (no sharing) still run it client-side.
+    const deferToServer = monitorSharingOn(s.settings);
 
-    // 1b) Auto Shodan re-scan (check) for auto IPs whose monitoring result is MISSING or stale — this is
-    // what populates/refreshes the "Scan情報" for watched hosts. Never-checked ⇒ due now (initial scan);
-    // otherwise on the same age-based cadence as the enrich. Capped per pass to protect Shodan credits.
-    const checkDue = Object.values(get().monitors)
-      .filter(
-        (e) =>
-          e.autoEnrich &&
-          !e.checking &&
-          (!e.check || now - e.check.at >= autoEnrichInterval(now - e.addedAt)),
-      )
-      .sort((a, b) => (a.check?.at ?? 0) - (b.check?.at ?? 0));
-    for (const e of checkDue.slice(0, 4)) {
-      await get().checkMonitor(e.ip);
-      ipScan.push(e.ip);
+    if (!deferToServer) {
+      // 1) Auto re-enrich due monitored IPs (capped per pass so a large watchlist doesn't burst the API).
+      const due = Object.values(s.monitors)
+        .filter(
+          (e) =>
+            e.autoEnrich &&
+            !e.enriching &&
+            now - (e.lastEnrichAt ?? e.addedAt) >= autoEnrichInterval(now - e.addedAt),
+        )
+        .sort((a, b) => (a.lastEnrichAt ?? a.addedAt) - (b.lastEnrichAt ?? b.addedAt));
+      for (const e of due.slice(0, 4)) {
+        await get().reEnrichMonitor(e.ip);
+        ipEnrich.push(e.ip);
+      }
+
+      // 1b) Auto Shodan re-scan (check) for auto IPs whose monitoring result is MISSING or stale.
+      const checkDue = Object.values(get().monitors)
+        .filter(
+          (e) =>
+            e.autoEnrich &&
+            !e.checking &&
+            (!e.check || now - e.check.at >= autoEnrichInterval(now - e.addedAt)),
+        )
+        .sort((a, b) => (a.check?.at ?? 0) - (b.check?.at ?? 0));
+      for (const e of checkDue.slice(0, 4)) {
+        await get().checkMonitor(e.ip);
+        ipScan.push(e.ip);
+      }
     }
 
     // 2) Auto re-魚拓: keep a fresh urlscan capture for every auto-enabled, web-capturable target —

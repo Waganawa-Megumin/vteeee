@@ -51,6 +51,7 @@ const env: ProxyEnv = {
   maxBatch: 1000,
   dailyCap: 0,
   parseDailyCap: 0,
+  urlscanDailyCap: 0,
 };
 
 function resp(status: number, body: unknown): Response {

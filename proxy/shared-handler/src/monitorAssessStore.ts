@@ -19,5 +19,8 @@ export async function getSharedMonitorAssessments(store: Storage): Promise<unkno
 }
 
 export async function putSharedMonitorAssessments(store: Storage, data: unknown): Promise<void> {
-  await store.put(KEY, JSON.stringify(Array.isArray(data) ? data : []));
+  const next = JSON.stringify(Array.isArray(data) ? data : []);
+  // Skip the KV WRITE when unchanged (writes are the scarce free-tier quota; reads are cheap).
+  if ((await store.get(KEY)) === next) return;
+  await store.put(KEY, next);
 }

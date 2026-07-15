@@ -18,5 +18,8 @@ export async function getSharedCaptures(store: Storage): Promise<unknown> {
 }
 
 export async function putSharedCaptures(store: Storage, data: unknown): Promise<void> {
-  await store.put(KEY, JSON.stringify(data && typeof data === 'object' ? data : {}));
+  const next = JSON.stringify(data && typeof data === 'object' ? data : {});
+  // Skip the KV WRITE when unchanged (writes are the scarce free-tier quota; reads are cheap).
+  if ((await store.get(KEY)) === next) return;
+  await store.put(KEY, next);
 }

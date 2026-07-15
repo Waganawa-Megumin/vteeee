@@ -121,6 +121,7 @@ const env: ProxyEnv = {
   maxBatch: Number(process.env.MAX_BATCH ?? 1000),
   dailyCap: Number(process.env.VT_DAILY ?? 500),
   parseDailyCap: Number(process.env.PARSE_DAILY ?? 200),
+  urlscanDailyCap: Number(process.env.URLSCAN_DAILY ?? 500),
 };
 
 // JSON file storage for users/settings.
@@ -322,6 +323,11 @@ app.post('/api/urlscan', async (req, res) => {
   const target = (req.body?.url as string) || '';
   if (!target) {
     res.status(400).json({ error: 'url required' });
+    return;
+  }
+  // Server-side daily ceiling on 魚拓 submissions (across all devices) — bounds auto-魚拓.
+  if (!(await consumeDailyQuota(store, 'urlscan', env.urlscanDailyCap, 1))) {
+    res.status(429).json({ error: `daily 魚拓 quota (${env.urlscanDailyCap}) reached — try again tomorrow` });
     return;
   }
   res.json((await urlscanSubmit(target, env, req.body?.visibility)) ?? { error: 'unavailable' });
