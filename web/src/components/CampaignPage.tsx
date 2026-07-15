@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
-import { extractIndicators, type EnrichableType } from '@vteeee/shared';
+import { extractIndicators, type EnrichableType, type NormalizedResult } from '@vteeee/shared';
 import { useStore, type CampaignIoc, type IocSide, type TlpLevel } from '../state/store';
 import {
   TLP_LEVELS,
@@ -11,7 +11,7 @@ import { VerdictBadge } from './Badges';
 import { Spark } from './Spark';
 import { CountryChoropleth } from './CountryChoropleth';
 import { MarkdownLite } from './MarkdownLite';
-import { intelChips } from '../lib/iocChips';
+import { intelChips, countryFlag } from '../lib/iocChips';
 import { copyText, copyElementImage, exportAssessmentPdf } from '../lib/assessment-export';
 import { abuseOf, countryOf, cvesOf, detOf, diffParts, portsOf, rfOf } from '../lib/enrichTrend';
 
@@ -108,6 +108,19 @@ function Bars({
   );
 }
 
+/** A recent enrichment change plus the asset CONTEXT needed to read it at a glance. */
+type RecentChange = {
+  value: string;
+  at: number;
+  changes: string[];
+  type: EnrichableType;
+  side: IocSide;
+  group?: string;
+  country: string;
+  org: string;
+  verdict?: string;
+};
+
 /** Campaign analytics, scoped so Attack (threat) and Target (OSINT exposure) never mix — the map too. */
 function CampaignDashboard({ iocs, onOpen }: { iocs: CampaignIoc[]; onOpen?: (v: string) => void }) {
   const attackN = iocs.filter((i) => (i.side ?? 'attack') === 'attack').length;
@@ -168,12 +181,28 @@ function CampaignDashboard({ iocs, onOpen }: { iocs: CampaignIoc[]; onOpen?: (v:
       }
       if (r?.maxmind?.anonymizerType?.length) anon++;
     }
-    const recent: { value: string; at: number; changes: string[] }[] = [];
+    // Each recent change carries enough CONTEXT to read it without opening the IOC: which group, side,
+    // country, network owner (ASN org / registrar) and current verdict — an IP + a delta alone is unreadable.
+    const orgOf = (r?: NormalizedResult): string =>
+      (r?.shodan?.org || r?.maxmind?.organization || r?.ip?.asOwner || r?.domaintools?.registrar || '').trim();
+    const recent: RecentChange[] = [];
     for (const i of scoped) {
       const h = i.history?.length ? [...i.history].sort((a, b) => a.at - b.at) : [];
       if (h.length < 2) continue;
       const changes = diffParts(h[h.length - 1].result, h[h.length - 2].result);
-      if (changes.length) recent.push({ value: i.value, at: h[h.length - 1].at, changes });
+      if (!changes.length) continue;
+      const r = h[h.length - 1].result ?? i.result;
+      recent.push({
+        value: i.value,
+        at: h[h.length - 1].at,
+        changes,
+        type: i.type,
+        side: i.side ?? 'attack',
+        group: i.group,
+        country: r ? countryOf(r) : '',
+        org: orgOf(r),
+        verdict: r?.verdict,
+      });
     }
     recent.sort((a, b) => b.at - a.at);
     return {
@@ -378,15 +407,45 @@ function CampaignDashboard({ iocs, onOpen }: { iocs: CampaignIoc[]; onOpen?: (v:
       {d.recent.length > 0 && (
         <div className="cp-recent">
           <div className="mon-bars-title">Recent changes（直近のエンリッチ変化）</div>
-          {d.recent.map((r) => (
-            <div key={r.value} className="cp-recent-row">
-              <button className="cp-recent-ioc mono" onClick={() => onOpen?.(r.value)} title="Open detail">
-                {r.value}
-              </button>
-              <span className="cp-recent-when">{new Date(r.at).toLocaleDateString()}</span>
-              <span className="hist-diff changed">▲ {r.changes.join(' · ')}</span>
-            </div>
-          ))}
+          {d.recent.map((r) => {
+            const flag = countryFlag(r.country);
+            return (
+              <div key={r.value} className="cp-recent-row">
+                <div className="cp-recent-head">
+                  <button className="cp-recent-ioc mono" onClick={() => onOpen?.(r.value)} title="詳細を開く">
+                    {r.value}
+                  </button>
+                  <span className="cp-recent-when">{new Date(r.at).toLocaleDateString()}</span>
+                </div>
+                <div className="cp-recent-ctx">
+                  <span className={`mon-chip cp-side cp-side-${r.side}`} title={r.side === 'target' ? '標的（自組織／守る側）' : '攻撃インフラ'}>
+                    {r.side === 'target' ? '標的' : '攻撃'}
+                  </span>
+                  <span className="mon-chip" title="グループ">
+                    📁 {r.group || '未分類'}
+                  </span>
+                  <span className="mon-chip mono" title="IoC種別">{r.type}</span>
+                  {r.country && (
+                    <span className="mon-chip" title={`国: ${r.country}`}>
+                      {flag ? `${flag} ` : '📍 '}
+                      {r.country}
+                    </span>
+                  )}
+                  {r.org && (
+                    <span className="mon-chip" title="ネットワーク所有者（ASN組織／レジストラ）">
+                      🏢 {r.org.length > 28 ? `${r.org.slice(0, 28)}…` : r.org}
+                    </span>
+                  )}
+                  {(r.verdict === 'malicious' || r.verdict === 'suspicious') && (
+                    <span className={`mon-chip ${r.verdict === 'malicious' ? 'sev-high' : 'sev-med'}`} title="現在の判定">
+                      {r.verdict === 'malicious' ? '悪性' : '疑わしい'}
+                    </span>
+                  )}
+                </div>
+                <span className="hist-diff changed cp-recent-diff">▲ {r.changes.join(' · ')}</span>
+              </div>
+            );
+          })}
         </div>
       )}
     </>
