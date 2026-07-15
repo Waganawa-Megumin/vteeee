@@ -2757,7 +2757,12 @@ export const useStore = create<State>((set, get) => {
       .filter((t) => {
         const j = caps[t];
         if (j && isActiveCapture(j)) return false;
-        return now - (j?.history?.[0]?.at ?? 0) >= AUTO_CAP_MS;
+        // Throttle by the last ATTEMPT (updatedAt), not just the last SUCCESSFUL capture (history[0].at):
+        // a failing target (dead/nonexistent domain, error/stalled/interrupted) writes no history entry,
+        // so keying off history alone made it look perpetually due and retry every ~5-min pass. Using the
+        // attempt time backs failures off to ~daily too (≈1回/日), and cuts the notification spam.
+        const lastAttempt = Math.max(j?.history?.[0]?.at ?? 0, j?.updatedAt ?? 0);
+        return now - lastAttempt >= AUTO_CAP_MS;
       })
       .slice(0, 3);
     const capIp: string[] = [];
