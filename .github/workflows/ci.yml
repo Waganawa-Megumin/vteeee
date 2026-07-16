@@ -24,3 +24,19 @@ jobs:
         run: pnpm --filter @vteeee/web build
         env:
           VITE_BASE: /vteeee/
+      # E2E smoke tests: drive the built app in a real browser (nav, modal close, mobile layout — the
+      # bugs unit tests can't see). Uses a default-base build so the app serves at '/' for the preview
+      # server. CI installs the matching Chromium; PW_CHROMIUM stays unset so Playwright auto-resolves it.
+      - name: Install Playwright browser (chromium)
+        run: pnpm --filter @vteeee/web exec playwright install --with-deps chromium
+      - name: Build web (default base for e2e)
+        run: pnpm --filter @vteeee/web build
+      - name: E2E smoke tests (Playwright)
+        run: pnpm --filter @vteeee/web test:e2e
+      - name: Upload Playwright report on failure
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: playwright-report
+          path: web/playwright-report/
+          retention-days: 7

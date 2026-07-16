@@ -9,6 +9,9 @@ build/
 
 # test / coverage
 coverage/
+playwright-report/
+test-results/
+.playwright/
 
 # secrets & local env (NEVER commit real keys/tokens)
 .env
