@@ -24,7 +24,10 @@ export default defineConfig({
   // Serve the production build. Assumes `pnpm --filter @vteeee/web build` ran first (CI does; the
   // test:e2e npm script chains it locally). reuseExistingServer keeps local iteration fast.
   webServer: {
-    command: 'vite preview --port 4173 --strictPort',
+    // Bind explicitly to 127.0.0.1 so the server is reachable at the exact URL Playwright polls — a bare
+    // `vite preview` binds to `localhost`, which on some CI runners resolves to IPv6 (::1) while the poll
+    // hits IPv4, and the server-ready check times out. `pnpm exec` makes the vite bin resolution robust.
+    command: 'pnpm exec vite preview --port 4173 --strictPort --host 127.0.0.1',
     url: 'http://127.0.0.1:4173',
     reuseExistingServer: !process.env.CI,
     timeout: 120_000,
