@@ -894,7 +894,17 @@ async function fetchCampaignAssessment(settings: AppSettings, digest: unknown): 
       headers: { ...monitorAuth(settings), 'content-type': 'application/json' },
       body: JSON.stringify(digest),
     });
-    if (!res.ok) return `アセスメント生成に失敗しました（HTTP ${res.status}）。`;
+    if (!res.ok) {
+      // Surface the server's error message instead of a bare status — a 500 alone hides the cause.
+      let detail = '';
+      try {
+        const j = (await res.json()) as { error?: string };
+        if (j?.error) detail = ` — ${String(j.error).slice(0, 300)}`;
+      } catch {
+        /* non-JSON error body */
+      }
+      return `アセスメント生成に失敗しました（HTTP ${res.status}${detail}）。`;
+    }
     const j = (await res.json()) as { text?: string; error?: string };
     return j.text?.trim() || j.error || 'アセスメントを生成できませんでした。';
   } catch {
@@ -1087,7 +1097,16 @@ async function fetchMonitorAssessment(
       headers: { ...monitorAuth(settings), 'content-type': 'application/json' },
       body: JSON.stringify(digest),
     });
-    if (!res.ok) return { ok: false, text: `レポート生成に失敗しました（HTTP ${res.status}）。` };
+    if (!res.ok) {
+      let detail = '';
+      try {
+        const j = (await res.json()) as { error?: string };
+        if (j?.error) detail = ` — ${String(j.error).slice(0, 300)}`;
+      } catch {
+        /* non-JSON error body */
+      }
+      return { ok: false, text: `レポート生成に失敗しました（HTTP ${res.status}${detail}）。` };
+    }
     const j = (await res.json()) as { text?: string; model?: string; error?: string };
     const text = j.text?.trim();
     if (text) return { ok: true, text, model: j.model };

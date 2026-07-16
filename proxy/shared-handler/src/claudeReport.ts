@@ -64,8 +64,11 @@ export async function generateClaudeReport(
         'このプロキシに ANTHROPIC_API_KEY が未設定のため、レポートは生成できません（管理者に登録を依頼してください）。',
     };
   }
-  const user = JSON.stringify(digest).slice(0, opts?.maxUserChars ?? 60_000);
   try {
+    // Inside the try so a bad digest (undefined / circular) surfaces as an error, never a thrown 500.
+    const serialized = JSON.stringify(digest);
+    if (!serialized) return { text: '', error: 'アセスメント対象のデータが空です。' };
+    const user = serialized.slice(0, opts?.maxUserChars ?? 60_000);
     let acc = '';
     let model: string | undefined;
     let stop = 'max_tokens';
