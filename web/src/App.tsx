@@ -1,28 +1,33 @@
-import { useEffect, useState } from 'react';
+import { lazy, Suspense, useEffect, useState } from 'react';
 import { useStore } from './state/store';
+// Eager: everything on the initial search screen + the persistent topbar chrome.
 import { LoginScreen } from './components/LoginScreen';
 import { InputPanel } from './components/InputPanel';
 import { ParsePreview } from './components/ParsePreview';
 import { ResultsTable } from './components/ResultsTable';
-import { DetailPanel } from './components/DetailPanel';
 import { ProgressBar } from './components/ProgressBar';
-import { SettingsDialog } from './components/SettingsDialog';
 import { IntegrationStatus } from './components/IntegrationStatus';
 import { ScanTracker } from './components/ScanTracker';
 import { NotifBell } from './components/NotifBell';
-import { HelpDialog } from './components/HelpDialog';
-import { HistoryDialog } from './components/HistoryDialog';
-import { MonitorPage } from './components/MonitorPage';
-import { MonitorAnalysisPage } from './components/MonitorAnalysisPage';
-import { MonitorAssessmentPage } from './components/MonitorAssessmentPage';
-import { MonitorProjectsPage } from './components/MonitorProjectsPage';
 import { Breadcrumbs } from './components/Breadcrumbs';
-import { CampaignsPage } from './components/CampaignsPage';
-import { CampaignPage } from './components/CampaignPage';
-import { CampaignAnalysisPage } from './components/CampaignAnalysisPage';
-import { RuleSearchDialog } from './components/RuleSearchDialog';
 import { EmptyState } from './components/EmptyState';
-import { AdminPanel } from './admin/AdminPanel';
+// Lazy: the big feature pages, dialogs, and the heavy detail panel — none are needed to paint the
+// landing search view, so they split into their own chunks and load on first navigation/open instead
+// of bloating the initial bundle. (jspdf / html2canvas / leaflet are already dynamically imported
+// inside these, so they stay lazy too.) Named exports → default for React.lazy.
+const DetailPanel = lazy(() => import('./components/DetailPanel').then((m) => ({ default: m.DetailPanel })));
+const SettingsDialog = lazy(() => import('./components/SettingsDialog').then((m) => ({ default: m.SettingsDialog })));
+const HelpDialog = lazy(() => import('./components/HelpDialog').then((m) => ({ default: m.HelpDialog })));
+const HistoryDialog = lazy(() => import('./components/HistoryDialog').then((m) => ({ default: m.HistoryDialog })));
+const RuleSearchDialog = lazy(() => import('./components/RuleSearchDialog').then((m) => ({ default: m.RuleSearchDialog })));
+const MonitorPage = lazy(() => import('./components/MonitorPage').then((m) => ({ default: m.MonitorPage })));
+const MonitorAnalysisPage = lazy(() => import('./components/MonitorAnalysisPage').then((m) => ({ default: m.MonitorAnalysisPage })));
+const MonitorAssessmentPage = lazy(() => import('./components/MonitorAssessmentPage').then((m) => ({ default: m.MonitorAssessmentPage })));
+const MonitorProjectsPage = lazy(() => import('./components/MonitorProjectsPage').then((m) => ({ default: m.MonitorProjectsPage })));
+const CampaignsPage = lazy(() => import('./components/CampaignsPage').then((m) => ({ default: m.CampaignsPage })));
+const CampaignPage = lazy(() => import('./components/CampaignPage').then((m) => ({ default: m.CampaignPage })));
+const CampaignAnalysisPage = lazy(() => import('./components/CampaignAnalysisPage').then((m) => ({ default: m.CampaignAnalysisPage })));
+const AdminPanel = lazy(() => import('./admin/AdminPanel').then((m) => ({ default: m.AdminPanel })));
 
 type Theme = 'chalk' | 'light';
 
@@ -179,6 +184,7 @@ export default function App() {
         </div>
       )}
 
+      <Suspense fallback={<div className="page-wrap"><div className="boot">Loading…</div></div>}>
       {view === 'admin' ? (
         <div className="page-wrap">
           <AdminPanel />
@@ -223,12 +229,17 @@ export default function App() {
           </div>
         </main>
       )}
+      </Suspense>
 
-      {settingsOpen && <SettingsDialog onClose={() => setSettingsOpen(false)} />}
-      {helpOpen && <HelpDialog onClose={() => setHelpOpen(false)} />}
-      {historyOpen && <HistoryDialog onClose={() => setHistoryOpen(false)} />}
-      {rulesOpen && <RuleSearchDialog onClose={() => setRulesOpen(false)} />}
-      <DetailPanel />
+      {/* Dialogs + the heavy result drawer: null fallback so a lazy chunk loading never flashes the
+          page (the drawer is hidden until a result is opened; dialogs only mount when opened). */}
+      <Suspense fallback={null}>
+        {settingsOpen && <SettingsDialog onClose={() => setSettingsOpen(false)} />}
+        {helpOpen && <HelpDialog onClose={() => setHelpOpen(false)} />}
+        {historyOpen && <HistoryDialog onClose={() => setHistoryOpen(false)} />}
+        {rulesOpen && <RuleSearchDialog onClose={() => setRulesOpen(false)} />}
+        <DetailPanel />
+      </Suspense>
     </div>
   );
 }
