@@ -22,6 +22,8 @@ export { assessCampaign } from './campaignAssessment';
 export { assessMonitors } from './monitorAssessment';
 export { generateClaudeReport } from './claudeReport';
 export { runScheduledAutoEnrich, runScheduledCampaignEnrich, runScheduledCaptures, runAllScheduledEnrich } from './monitorAutoEnrich';
+export { runScheduledAssessments } from './scheduledAssessments';
+export { buildCampaignDigest, buildMonitorDigest } from './assessmentDigest';
 export { maxmindLookup, mapMaxmind } from './maxmindFetch';
 export { domaintoolsEnrichDomain, domaintoolsReverseIp, mapIrisEnrich, mapIrisInvestigateReverseIp } from './domaintoolsFetch';
 export { dnslyticsIpInfo, dnslyticsHostingHistory, mapDnslyticsIp, mapDnslyticsHostingHistory } from './dnslyticsFetch';

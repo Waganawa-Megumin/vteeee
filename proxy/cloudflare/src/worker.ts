@@ -56,6 +56,7 @@ import type { AppSettings, CampaignDigest, EnrichableType, EnrichRequest, UserRe
 interface Env {
   VT_API_KEY: string;
   ANTHROPIC_API_KEY?: string;
+  ANTHROPIC_BASE_URL?: string;
   SHODAN_API_KEY?: string;
   MAXMIND_ACCOUNT_ID?: string;
   MAXMIND_LICENSE_KEY?: string;
@@ -105,6 +106,7 @@ interface Env {
   VT_DAILY?: string;
   PARSE_DAILY?: string;
   URLSCAN_DAILY?: string;
+  SCHEDULED_ASSESS?: string;
   HISTORY_DAYS?: string;
   VTEEEE_KV: KVNamespace;
 }
@@ -121,6 +123,7 @@ function build(env: Env): { proxy: ProxyEnv; allowed: string[]; store: Storage }
   const proxy: ProxyEnv = {
     vtApiKey: env.VT_API_KEY,
     anthropicApiKey: env.ANTHROPIC_API_KEY,
+    anthropicBaseUrl: env.ANTHROPIC_BASE_URL,
     shodanApiKey: env.SHODAN_API_KEY,
     maxmindAccountId: env.MAXMIND_ACCOUNT_ID,
     maxmindLicenseKey: env.MAXMIND_LICENSE_KEY,
@@ -171,6 +174,7 @@ function build(env: Env): { proxy: ProxyEnv; allowed: string[]; store: Storage }
     dailyCap: Number(env.VT_DAILY ?? 500),
     parseDailyCap: Number(env.PARSE_DAILY ?? 200),
     urlscanDailyCap: Number(env.URLSCAN_DAILY ?? 500),
+    scheduledAssess: env.SCHEDULED_ASSESS !== 'false',
   };
   return { proxy, allowed, store };
 }

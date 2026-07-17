@@ -2,6 +2,8 @@
 export interface ProxyEnv {
   vtApiKey: string;
   anthropicApiKey?: string;
+  /** Anthropic API base URL. Default https://api.anthropic.com. Override for a compatible gateway/proxy. */
+  anthropicBaseUrl?: string;
   /** Shodan API key. When set, IP indicators are enriched with Shodan OSINT context. */
   shodanApiKey?: string;
   /** Per-minute cap on Shodan host lookups (free plan ≈ 1/s). Default 60. */
@@ -101,6 +103,12 @@ export interface ProxyEnv {
   parseDailyCap: number;
   /** Max urlscan 魚拓 submissions per day across the whole proxy (0 = unlimited). Bounds auto-魚拓. */
   urlscanDailyCap: number;
+  /**
+   * Whether the daily cron generates CP-Mon / IP-Mon Claude assessment reports (for the Assessment
+   * Timeline). Default true (needs ANTHROPIC_API_KEY). Set SCHEDULED_ASSESS=false to disable the
+   * standing daily Claude spend.
+   */
+  scheduledAssess?: boolean;
 }
 
 /** Minimal KV-like store for users/settings (Node file store or Cloudflare KV). */

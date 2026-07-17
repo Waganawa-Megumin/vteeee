@@ -6,6 +6,7 @@ import { getSharedCampaigns, putSharedCampaigns } from './campaignStore';
 import { getSharedCaptures, putSharedCaptures } from './captureStore';
 import { urlscanSubmit, urlscanResult } from './urlscanFetch';
 import { consumeDailyQuota } from './quota';
+import { runScheduledAssessments } from './scheduledAssessments';
 import { sleep } from './util';
 import type { ProxyEnv, Storage } from './types';
 
@@ -321,9 +322,12 @@ export async function runAllScheduledEnrich(
   monitors: { due: number; enriched: number; changed: number };
   campaigns: { due: number; enriched: number; changed: number };
   captures: { due: number; captured: number; pending: number };
+  assessments: { ipMon: boolean; campaigns: number; skipped: number };
 }> {
   const monitors = await runScheduledAutoEnrich(store, env);
   const campaigns = await runScheduledCampaignEnrich(store, env);
   const captures = await runScheduledCaptures(store, env);
-  return { monitors, campaigns, captures };
+  // Assessments run LAST so the CP-Mon / IP-Mon reports reflect the freshly-enriched data from this run.
+  const assessments = await runScheduledAssessments(store, env);
+  return { monitors, campaigns, captures, assessments };
 }

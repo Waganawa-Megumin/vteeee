@@ -18,7 +18,8 @@ interface ClaudeReply {
 }
 
 async function callClaude(env: ProxyEnv, system: string, messages: ClaudeMsg[], maxTokens: number): Promise<ClaudeReply> {
-  const res = await fetch('https://api.anthropic.com/v1/messages', {
+  const base = (env.anthropicBaseUrl || 'https://api.anthropic.com').replace(/\/$/, '');
+  const res = await fetch(`${base}/v1/messages`, {
     method: 'POST',
     headers: {
       'content-type': 'application/json',
