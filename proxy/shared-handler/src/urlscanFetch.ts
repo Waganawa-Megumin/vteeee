@@ -113,8 +113,19 @@ export function mapUrlscanResult(json: any, fallbackBase = DEFAULT_BASE): Urlsca
   const uuid = str(task.uuid);
   const out: UrlscanResult = { raw: json };
   out.uuid = uuid;
-  out.screenshotUrl = str(task.screenshotURL) ?? (uuid ? `${fallbackBase}/screenshots/${uuid}.png` : undefined);
-  out.resultUrl = str(task.reportURL) ?? (uuid ? `${fallbackBase}/result/${uuid}/` : undefined);
+  // Pin the upstream-provided asset URLs to the urlscan base origin. A compromised/spoofed upstream (or
+  // a later poisoned copy in the shared store) otherwise sets an attacker host that the analyst's browser
+  // fetches via <img src>, leaking their IP/UA/Referer (OPSEC break). Off-origin → use the safe fallback.
+  const sameOrigin = (u: string | undefined): string | undefined => {
+    if (!u) return undefined;
+    try {
+      return new URL(u).origin === new URL(fallbackBase).origin ? u : undefined;
+    } catch {
+      return undefined;
+    }
+  };
+  out.screenshotUrl = sameOrigin(str(task.screenshotURL)) ?? (uuid ? `${fallbackBase}/screenshots/${uuid}.png` : undefined);
+  out.resultUrl = sameOrigin(str(task.reportURL)) ?? (uuid ? `${fallbackBase}/result/${uuid}/` : undefined);
   out.url = str(task.url) ?? str(page.url);
   out.finalUrl = str(page.url);
   out.title = str(page.title);

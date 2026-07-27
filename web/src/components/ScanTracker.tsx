@@ -1,5 +1,6 @@
 import { useState } from 'react';
 import { useStore, isActiveScan, isActiveCapture } from '../state/store';
+import { safeUrlscanAsset } from '../lib/safeUrl';
 
 /** Local date-time WITH the timezone shown (e.g. "2026/07/13 15:30 JST"), so log times are unambiguous. */
 function fmtWhen(at: number): string {
@@ -62,7 +63,11 @@ export function ScanTracker() {
     markCapSeen(target);
     const cap = captures[target];
     if (results[target]) select(target);
-    else if (cap?.result?.resultUrl) window.open(cap.result.resultUrl, '_blank', 'noopener');
+    else {
+      // Validate the URL (shared captures blob) before opening — never navigate to a poisoned host.
+      const url = safeUrlscanAsset(cap?.result?.resultUrl);
+      if (url) window.open(url, '_blank', 'noopener');
+    }
     setOpen(false);
   }
 

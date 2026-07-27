@@ -31,6 +31,7 @@ import { useStore } from '../state/store';
 import { GtiBadge, VerdictBadge } from './Badges';
 import { InfoTip } from './InfoTip';
 import { detectionRatio } from '../lib/verdict';
+import { safeUrlscanAsset } from '../lib/safeUrl';
 import { resultToText } from '../lib/detailText';
 import { exportResultPdf, type PdfMapImage } from '../lib/pdf-export';
 import { RuleCard } from './RuleCard';
@@ -1908,9 +1909,10 @@ function UrlscanCapture({ target, buttonLabel }: { target: string; buttonLabel?:
             <span className="hint">{history.length} 件</span>
           </label>
         )}
-        {/* Only link out once the result is ready — while pending the result page 404s. */}
-        {d?.resultUrl && (
-          <a className="btn btn-ghost shodan-link" href={d.resultUrl} target="_blank" rel="noreferrer">
+        {/* Only link out once the result is ready — while pending the result page 404s. Validate the URL
+            (it comes from the shared captures blob) so a poisoned entry can't redirect the analyst. */}
+        {safeUrlscanAsset(d?.resultUrl) && (
+          <a className="btn btn-ghost shodan-link" href={safeUrlscanAsset(d?.resultUrl)} target="_blank" rel="noreferrer">
             Open on urlscan ↗
           </a>
         )}
@@ -1942,11 +1944,13 @@ function UrlscanCapture({ target, buttonLabel }: { target: string; buttonLabel?:
 
       {hasShot && d && (
         <>
-          {d.screenshotUrl && imgOk && (
+          {safeUrlscanAsset(d.screenshotUrl) && imgOk && (
             <figure className="urlscan-shot" data-noimage="true">
-              <a href={d.resultUrl ?? d.screenshotUrl} target="_blank" rel="noreferrer">
+              {/* Only fetch/link a validated urlscan.io asset — a poisoned screenshotUrl would otherwise
+                  make the analyst's browser beacon an attacker host (IP/UA/Referer leak = OPSEC break). */}
+              <a href={safeUrlscanAsset(d.resultUrl) ?? safeUrlscanAsset(d.screenshotUrl)} target="_blank" rel="noreferrer">
                 <img
-                  src={d.screenshotUrl}
+                  src={safeUrlscanAsset(d.screenshotUrl)}
                   alt={`urlscan screenshot of ${d.finalUrl ?? target}`}
                   crossOrigin="anonymous"
                   loading="lazy"

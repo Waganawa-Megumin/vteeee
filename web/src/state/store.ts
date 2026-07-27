@@ -376,11 +376,26 @@ const MONITOR_PROJECTS_KEY = 'vteeee.monitorProjects';
 /** Fixed id of the auto-migration bucket, so every browser converges to the SAME default PJ (no dupes). */
 export const DEFAULT_PROJECT_ID = '__default_pj__';
 const PROJECTS_MIGRATED_KEY = 'vteeee.monitorProjectsMigrated';
+/** Coerce a projects registry so every entry is an object with a string `name` (drop garbage). Guards the
+ *  PJ pickers that sort by `name` against a poisoned/name-less shared entry (same UI-DoS class as campaigns). */
+function sanitizeProjectMap(raw: unknown): Record<string, MonitorProject> {
+  if (!raw || typeof raw !== 'object' || Array.isArray(raw)) return {};
+  const out: Record<string, MonitorProject> = {};
+  for (const [id, v] of Object.entries(raw as Record<string, unknown>)) {
+    if (!v || typeof v !== 'object' || Array.isArray(v)) continue;
+    const p = v as Record<string, unknown>;
+    out[id] = {
+      ...(p as object),
+      id: typeof p.id === 'string' ? (p.id as string) : id,
+      name: typeof p.name === 'string' && p.name.trim() ? (p.name as string) : `(unnamed ${id})`,
+    } as MonitorProject;
+  }
+  return out;
+}
 function loadMonitorProjects(): Record<string, MonitorProject> {
   try {
     const raw = localStorage.getItem(MONITOR_PROJECTS_KEY);
-    const v = raw ? (JSON.parse(raw) as Record<string, MonitorProject>) : {};
-    return v && typeof v === 'object' ? v : {};
+    return raw ? sanitizeProjectMap(JSON.parse(raw)) : {};
   } catch {
     return {};
   }
@@ -397,9 +412,9 @@ function mergeMonitorProjects(
   a: Record<string, MonitorProject>,
   b: Record<string, MonitorProject>,
 ): Record<string, MonitorProject> {
-  const out: Record<string, MonitorProject> = { ...a };
-  for (const [id, p] of Object.entries(b)) {
-    if (!p || typeof p.id !== 'string') continue;
+  // Sanitize both sides (b is the untrusted shared registry) so every entry has a string name.
+  const out: Record<string, MonitorProject> = sanitizeProjectMap(a);
+  for (const [id, p] of Object.entries(sanitizeProjectMap(b))) {
     const cur = out[id];
     if (!cur || (p.updatedAt ?? 0) >= (cur.updatedAt ?? 0)) out[id] = p;
   }

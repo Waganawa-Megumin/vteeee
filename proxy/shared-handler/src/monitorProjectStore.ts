@@ -18,8 +18,21 @@ export async function getSharedMonitorProjects(store: Storage): Promise<unknown>
   }
 }
 
+/** Drop non-object entries and guarantee a string `name` on each project (same UI-DoS guard as campaigns:
+ *  the PJ pickers sort by name, so a name-less shared entry would crash them). Coerces, never rejects. */
+function sanitize(data: unknown): Record<string, unknown> {
+  if (!data || typeof data !== 'object' || Array.isArray(data)) return {};
+  const out: Record<string, unknown> = {};
+  for (const [id, v] of Object.entries(data as Record<string, unknown>)) {
+    if (!v || typeof v !== 'object' || Array.isArray(v)) continue;
+    const p = v as Record<string, unknown>;
+    out[id] = { ...p, name: typeof p.name === 'string' && p.name.trim() ? p.name : `(unnamed ${id})` };
+  }
+  return out;
+}
+
 export async function putSharedMonitorProjects(store: Storage, data: unknown): Promise<void> {
-  const next = JSON.stringify(data && typeof data === 'object' && !Array.isArray(data) ? data : {});
+  const next = JSON.stringify(sanitize(data));
   // Skip the KV WRITE when unchanged (writes are the scarce free-tier quota; reads are cheap).
   if ((await store.get(KEY)) === next) return;
   await store.put(KEY, next);

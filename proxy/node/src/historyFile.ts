@@ -7,6 +7,12 @@ interface Stored extends HistoryRecord {
   expiresAt: number;
 }
 
+// Bound the file so it can't grow without limit — the whole store is read+written synchronously on
+// every op (single Node thread), so an unbounded file would block the event loop (incl. /health,
+// /api/enrich) for time proportional to its size. Newest records win; oversized results are truncated.
+const MAX_RECORDS = 5000;
+const MAX_RESULTS_PER_RECORD = 2000;
+
 /** Simple JSON-file history backend for the Node proxy (keeps full results, incl. raw). */
 export function fileHistoryBackend(dir: string): HistoryBackend {
   const file = path.join(dir, 'history.json');
@@ -28,8 +34,12 @@ export function fileHistoryBackend(dir: string): HistoryBackend {
 
   return {
     async save(rec, ttl) {
-      const rows = read().filter((r) => r.id !== rec.id);
-      rows.push({ ...rec, expiresAt: Date.now() + Math.max(60, ttl) * 1000 });
+      const capped =
+        rec.results.length > MAX_RESULTS_PER_RECORD ? { ...rec, results: rec.results.slice(0, MAX_RESULTS_PER_RECORD) } : rec;
+      let rows = read().filter((r) => r.id !== rec.id);
+      rows.push({ ...capped, expiresAt: Date.now() + Math.max(60, ttl) * 1000 });
+      // Keep only the newest MAX_RECORDS so the file (and each sync read/write) stays bounded.
+      if (rows.length > MAX_RECORDS) rows = rows.sort((a, b) => b.createdAt - a.createdAt).slice(0, MAX_RECORDS);
       write(rows);
     },
     async list(limit) {

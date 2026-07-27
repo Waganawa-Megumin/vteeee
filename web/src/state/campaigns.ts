@@ -125,10 +125,30 @@ export function slimCampaign(c: Campaign): Campaign {
 
 const CAMPAIGNS_BAK = `${CAMPAIGNS_KEY}.bak`;
 
+/**
+ * Coerce a possibly-poisoned campaigns map (from the shared store, localStorage, or an import) into
+ * well-formed entries: drop non-object entries and GUARANTEE a string `name` + object `iocs`. Without
+ * this, a name-less/typeless entry crashes any consumer that sorts/renders by name (a single such entry
+ * in the shared store persistently DoSes every teammate's results view). Valid entries pass unchanged.
+ */
+export function sanitizeCampaignMap(raw: unknown): Record<string, Campaign> {
+  if (!raw || typeof raw !== 'object' || Array.isArray(raw)) return {};
+  const out: Record<string, Campaign> = {};
+  for (const [id, v] of Object.entries(raw as Record<string, unknown>)) {
+    if (!v || typeof v !== 'object' || Array.isArray(v)) continue; // drop garbage entries
+    const c = v as Record<string, unknown>;
+    const name = typeof c.name === 'string' && c.name.trim() ? (c.name as string) : `(unnamed ${id})`;
+    const iocs =
+      c.iocs && typeof c.iocs === 'object' && !Array.isArray(c.iocs) ? (c.iocs as Campaign['iocs']) : {};
+    out[id] = { ...(c as object), id: typeof c.id === 'string' ? (c.id as string) : id, name, iocs } as Campaign;
+  }
+  return out;
+}
+
 export function loadCampaigns(): Record<string, Campaign> {
   try {
     const raw = localStorage.getItem(CAMPAIGNS_KEY);
-    return raw ? (JSON.parse(raw) as Record<string, Campaign>) : {};
+    return raw ? sanitizeCampaignMap(JSON.parse(raw)) : {};
   } catch {
     // Corrupt JSON — preserve it under a side key rather than silently losing it.
     try {
@@ -274,8 +294,12 @@ export function mergeCampaigns(
   local: Record<string, Campaign>,
   shared: Record<string, Campaign> | null,
 ): Record<string, Campaign> {
+  // Sanitize BOTH sides (shared is untrusted; local may hold previously-persisted poison) so every
+  // merged campaign has a string name + object iocs and no consumer can crash on it.
+  const L = sanitizeCampaignMap(local);
+  const S = sanitizeCampaignMap(shared ?? {});
   const out: Record<string, Campaign> = {};
-  const keys = new Set([...Object.keys(local), ...Object.keys(shared ?? {})]);
-  for (const id of keys) out[id] = mergeCampaign(local[id], shared?.[id]);
+  const keys = new Set([...Object.keys(L), ...Object.keys(S)]);
+  for (const id of keys) out[id] = mergeCampaign(L[id], S[id]);
   return out;
 }
