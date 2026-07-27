@@ -15,8 +15,9 @@
  */
 
 const LEADING_WRAP = /^[\s<>"'`“”‘’()[\]{}*•‣◦|]+/;
-const TRAILING_WRAP = /[\s<>"'`“”‘’()[\]{}|]+$/;
-const TRAILING_PUNCT = /[.,;:!?]+$/;
+// Trailing wrap chars AND sentence punctuation in ONE class, stripped in a single pass. (Previously two
+// classes stripped in a `while` fixpoint loop, which was O(n²) on adversarial alternating input.)
+const TRAILING_STRIP = /[\s<>"'`“”‘’()[\]{}|.,;:!?]+$/;
 
 /** Collapse defanging artifacts across a whole line. Case-insensitive where relevant. */
 export function refang(line: string): string {
@@ -59,12 +60,7 @@ export function stripToken(token: string): string {
   const md = t.match(/^\[[^\]]*\]\((.+)\)$/);
   if (md) t = md[1].trim();
 
-  let prev = '';
-  while (t !== prev) {
-    prev = t;
-    t = t.replace(LEADING_WRAP, '');
-    t = t.replace(TRAILING_WRAP, '');
-    t = t.replace(TRAILING_PUNCT, '');
-  }
-  return t;
+  // Single linear pass: LEADING_WRAP already matches the whole leading run; TRAILING_STRIP matches the
+  // whole trailing run of wrap+punct — so one replace each reaches the same fixpoint the old loop did.
+  return t.replace(LEADING_WRAP, '').replace(TRAILING_STRIP, '');
 }

@@ -121,15 +121,38 @@ export function consumeConnectLink(base: AppSettings): AppSettings | null {
     const patch = JSON.parse(b64urlDecode(m[1])) as Partial<AppSettings>;
     const clean: Partial<AppSettings> = {};
     for (const k of CONNECT_FIELDS) if (k in patch) (clean as Record<string, unknown>)[k] = patch[k];
-    if (Object.keys(clean).length === 0) return null;
-    const merged: AppSettings = { ...base, ...clean };
-    saveSettings(merged);
-    // Strip the hash so the access token isn't left sitting in the address bar / history.
+    // Always strip the hash first (so a declined/again-loaded link can't linger in the address bar).
     try {
       history.replaceState(null, '', location.pathname + location.search);
     } catch {
       /* ignore */
     }
+    if (Object.keys(clean).length === 0) return null;
+
+    const merged: AppSettings = { ...base, ...clean };
+    // ANTI-EXFIL: when a link points this browser at a DIFFERENT proxy, never carry over the tokens
+    // already stored here — a malicious link that sets only `proxyBaseUrl` would otherwise cause boot()'s
+    // shared fetches to send our existing access/admin token to the attacker's proxy. Tokens must come
+    // from the link itself; if it doesn't include them, the target gets none.
+    const changesProxy = 'proxyBaseUrl' in clean && clean.proxyBaseUrl !== base.proxyBaseUrl;
+    if (changesProxy) {
+      merged.accessToken = (clean as Partial<AppSettings>).accessToken;
+      merged.adminToken = (clean as Partial<AppSettings>).adminToken;
+      // Confirm the destination before applying (this only runs on the rare #connect onboarding path).
+      const host = (() => {
+        try {
+          return new URL(String(clean.proxyBaseUrl ?? '')).host;
+        } catch {
+          return String(clean.proxyBaseUrl ?? '');
+        }
+      })();
+      const ok =
+        typeof window !== 'undefined' && typeof window.confirm === 'function'
+          ? window.confirm(`この端末をプロキシ「${host}」に接続します。\nよろしいですか？ / Connect this device to proxy "${host}"?`)
+          : true;
+      if (!ok) return null;
+    }
+    saveSettings(merged);
     return merged;
   } catch {
     return null;

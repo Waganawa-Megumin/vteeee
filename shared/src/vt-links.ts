@@ -52,7 +52,11 @@ export function apiPath(type: EnrichableType, value: string): string {
     case 'md5':
     case 'sha1':
     case 'sha256':
-      return `${API}/files/${value}`;
+      // Reject anything but a bare hex hash so a crafted `value` (e.g. "../users/x") can't traverse to
+      // another VT v3 endpoint under the server's VT/GTI key (confused-deputy). encodeURIComponent is a
+      // second belt: a valid hash has nothing to encode.
+      if (!/^[a-fA-F0-9]{32}$|^[a-fA-F0-9]{40}$|^[a-fA-F0-9]{64}$/.test(value)) throw new Error('invalid file hash');
+      return `${API}/files/${encodeURIComponent(value)}`;
   }
 }
 

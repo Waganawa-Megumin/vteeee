@@ -324,9 +324,13 @@ export async function rfSandboxIntel(
   signal?: AbortSignal,
 ): Promise<RfSandboxIntel | undefined> {
   if (!env.recordedfutureApiKey) return undefined;
-  const algo = hash.length === 32 ? 'md5' : hash.length === 40 ? 'sha1' : 'sha256';
+  // Reject anything but a bare hex hash BEFORE it's interpolated into the RF query DSL — otherwise a
+  // crafted `hash` (e.g. `x" OR sandbox_score > 0 OR "`) would inject query logic under the server RF key.
+  const h = hash.trim().toLowerCase();
+  if (!/^[a-f0-9]{32}$|^[a-f0-9]{40}$|^[a-f0-9]{64}$/.test(h)) return undefined;
+  const algo = h.length === 32 ? 'md5' : h.length === 40 ? 'sha1' : 'sha256';
   const body = {
-    query: `sample.${algo} == "${hash.toLowerCase()}"`,
+    query: `sample.${algo} == "${h}"`,
     field: 'sha256',
     sandbox_score: true,
     links: true,

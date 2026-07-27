@@ -1,5 +1,20 @@
 import { Fragment, type ReactNode } from 'react';
 
+/**
+ * Only allow web/mail (and scheme-relative) link targets. Resolving against the page base means a
+ * `javascript:` / `data:` / `vbscript:` href resolves to that protocol and is rejected, so a poisoned
+ * assessment body (from the shared store / LLM output) can't smuggle a script URL into a rendered link.
+ * Returns the href to use, or undefined when it must be rendered inert.
+ */
+function safeUrl(u: string): string | undefined {
+  try {
+    const proto = new URL(u, window.location.href).protocol;
+    return proto === 'http:' || proto === 'https:' || proto === 'mailto:' ? u : undefined;
+  } catch {
+    return undefined;
+  }
+}
+
 /** Inline: split a line into **bold**, `code`, and [text](url) spans (safe — React nodes, no innerHTML). */
 function inline(text: string): ReactNode[] {
   const out: ReactNode[] = [];
@@ -11,12 +26,19 @@ function inline(text: string): ReactNode[] {
     if (m.index > last) out.push(text.slice(last, m.index));
     if (m[1] != null) out.push(<strong key={k++}>{m[1]}</strong>);
     else if (m[2] != null) out.push(<code key={k++}>{m[2]}</code>);
-    else
+    else {
+      const href = safeUrl(m[4]);
+      // Unsafe scheme (javascript:, data:, …) → render the label as inert text, never an active link.
       out.push(
-        <a key={k++} href={m[4]} target="_blank" rel="noreferrer">
-          {m[3]}
-        </a>,
+        href ? (
+          <a key={k++} href={href} target="_blank" rel="noreferrer">
+            {m[3]}
+          </a>
+        ) : (
+          <span key={k++}>{m[3]}</span>
+        ),
       );
+    }
     last = m.index + m[0].length;
   }
   if (last < text.length) out.push(text.slice(last));

@@ -124,6 +124,7 @@ const env: ProxyEnv = {
   urlscanDailyCap: Number(process.env.URLSCAN_DAILY ?? 500),
   scheduledAssess: process.env.SCHEDULED_ASSESS !== 'false',
   anthropicBaseUrl: process.env.ANTHROPIC_BASE_URL || undefined,
+  allowAnonymous: process.env.ALLOW_ANONYMOUS === 'true',
 };
 
 // JSON file storage for users/settings.

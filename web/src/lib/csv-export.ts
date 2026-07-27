@@ -2,8 +2,11 @@ import type { NormalizedResult } from '@vteeee/shared';
 import { detectionRatio } from './verdict';
 
 function cell(v: unknown): string {
-  const s = v == null ? '' : String(v);
-  return /[",\n]/.test(s) ? `"${s.replace(/"/g, '""')}"` : s;
+  let s = v == null ? '' : String(v);
+  // CSV formula-injection guard: a leading = + - @ TAB or CR makes Excel/Sheets treat the cell as a
+  // formula (DDE / =HYPERLINK data-exfil). Prefix a single quote so it renders as literal text.
+  if (/^[=+\-@\t\r]/.test(s)) s = `'${s}`;
+  return /[",\n\r]/.test(s) ? `"${s.replace(/"/g, '""')}"` : s;
 }
 
 export function resultsToCsv(results: NormalizedResult[]): string {

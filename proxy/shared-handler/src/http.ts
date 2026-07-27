@@ -19,8 +19,10 @@ export function originAllowed(origin: string | null, allowed: string[]): boolean
 
 /** /api/* requires the shared access token. */
 export function checkAccess(authHeader: string | null | undefined, env: ProxyEnv): boolean {
-  // If no access token is configured, the proxy is open (discouraged; document it).
-  if (!env.accessToken) return true;
+  // Fail CLOSED when no access token is configured: /api/* is denied unless the operator EXPLICITLY
+  // opts into an open proxy via ALLOW_ANONYMOUS=true (e.g. local dev or an intentionally-public demo).
+  // Previously this failed open, so a missing/empty ACCESS_TOKEN silently exposed the proxy + its keys.
+  if (!env.accessToken) return env.allowAnonymous === true;
   return checkToken(parseBearer(authHeader), env.accessToken);
 }
 

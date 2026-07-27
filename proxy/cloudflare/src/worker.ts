@@ -107,6 +107,7 @@ interface Env {
   PARSE_DAILY?: string;
   URLSCAN_DAILY?: string;
   SCHEDULED_ASSESS?: string;
+  ALLOW_ANONYMOUS?: string;
   HISTORY_DAYS?: string;
   VTEEEE_KV: KVNamespace;
 }
@@ -175,6 +176,7 @@ function build(env: Env): { proxy: ProxyEnv; allowed: string[]; store: Storage }
     parseDailyCap: Number(env.PARSE_DAILY ?? 200),
     urlscanDailyCap: Number(env.URLSCAN_DAILY ?? 500),
     scheduledAssess: env.SCHEDULED_ASSESS !== 'false',
+    allowAnonymous: env.ALLOW_ANONYMOUS === 'true',
   };
   return { proxy, allowed, store };
 }

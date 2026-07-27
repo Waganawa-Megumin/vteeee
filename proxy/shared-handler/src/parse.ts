@@ -60,8 +60,11 @@ export async function smartParse(
   env: ProxyEnv,
   maxIndicators = 500,
 ): Promise<ParseResponse> {
+  // Cap input length for BOTH paths (the Claude path already sliced; the regex fallback did not). This
+  // bounds CPU for the fallback tokenizer so a multi-MB body can't stall the (single-threaded Node) proxy.
+  const capped = text.length > 120_000 ? text.slice(0, 120_000) : text;
   if (!env.anthropicApiKey) {
-    return { indicators: extractIndicators(text).indicators.slice(0, maxIndicators) };
+    return { indicators: extractIndicators(capped).indicators.slice(0, maxIndicators) };
   }
 
   const res = await fetch('https://api.anthropic.com/v1/messages', {
@@ -79,7 +82,7 @@ export async function smartParse(
       tools: [EMIT_TOOL],
       tool_choice: { type: 'tool', name: 'emit_indicators' },
       // Cap input length to bound per-call token cost.
-      messages: [{ role: 'user', content: text.slice(0, 120_000) }],
+      messages: [{ role: 'user', content: capped }],
     }),
   });
 

@@ -39,10 +39,23 @@ jobs:
       - name: Deploy worker
         run: pnpm exec wrangler deploy
       - name: Push secrets
+        env:
+          # Pass required secrets via env (not inline interpolation) so their values never reach the
+          # shell command line, and so we can fail the deploy when a required one is empty.
+          VT_API_KEY: ${{ secrets.VT_API_KEY }}
+          ACCESS_TOKEN: ${{ secrets.ACCESS_TOKEN }}
+          ADMIN_TOKEN: ${{ secrets.ADMIN_TOKEN }}
         run: |
-          printf '%s' "${{ secrets.VT_API_KEY }}"        | pnpm exec wrangler secret put VT_API_KEY
-          printf '%s' "${{ secrets.ACCESS_TOKEN }}"      | pnpm exec wrangler secret put ACCESS_TOKEN
-          printf '%s' "${{ secrets.ADMIN_TOKEN }}"       | pnpm exec wrangler secret put ADMIN_TOKEN
+          # Fail closed: a missing/empty required secret must NOT silently deploy an open or broken proxy
+          # (an empty ACCESS_TOKEN used to open /api/*; it now denies all — either way, abort instead).
+          for req in VT_API_KEY ACCESS_TOKEN; do
+            if [ -z "${!req}" ]; then echo "::error::required secret $req is empty — aborting deploy"; exit 1; fi
+          done
+          printf '%s' "$VT_API_KEY"   | pnpm exec wrangler secret put VT_API_KEY
+          printf '%s' "$ACCESS_TOKEN" | pnpm exec wrangler secret put ACCESS_TOKEN
+          if [ -n "$ADMIN_TOKEN" ]; then
+            printf '%s' "$ADMIN_TOKEN" | pnpm exec wrangler secret put ADMIN_TOKEN
+          fi
           if [ -n "${{ secrets.ANTHROPIC_API_KEY }}" ]; then
             printf '%s' "${{ secrets.ANTHROPIC_API_KEY }}" | pnpm exec wrangler secret put ANTHROPIC_API_KEY
           fi

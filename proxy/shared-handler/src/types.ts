@@ -86,6 +86,8 @@ export interface ProxyEnv {
   abuseipdbRpm?: number;
   /** Shared token required on /api/* (enrich, parse). */
   accessToken?: string;
+  /** Only when accessToken is unset: allow unauthenticated /api/* (open proxy). Default false (fail closed). */
+  allowAnonymous?: boolean;
   /** Token required to write users/settings via /api/admin/*. */
   adminToken?: string;
   /** Exact origins allowed by CORS (e.g. https://you.github.io, http://localhost:5173). */
