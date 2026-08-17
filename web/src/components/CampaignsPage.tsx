@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { useStore, type Campaign } from '../state/store';
 import { loadCampaignsBackup } from '../state/campaigns';
+import { ReconnectHint } from './ReconnectHint';
 
 /** Roll-up stats for a campaign card. */
 function stats(c: Campaign) {
@@ -118,6 +119,7 @@ export function CampaignsPage() {
 
       {list.length === 0 ? (
         <>
+          <ReconnectHint />
           {(syncErr || backup) && (
             <div className="cp-recovery">
               <b>キャンペーンが表示されていません。</b> データは通常<b>消えていません</b>。次をお試しください：{' '}

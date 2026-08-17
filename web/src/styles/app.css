@@ -3088,6 +3088,32 @@ button.pv-monitored.link:hover {
   line-height: 1.7;
   margin-bottom: 12px;
 }
+.reconnect-hint {
+  display: flex;
+  gap: 10px;
+  align-items: flex-start;
+  border: 1px solid var(--sus);
+  background: rgba(240, 187, 96, 0.08);
+  border-radius: 8px;
+  padding: 10px 12px;
+  font-size: 13px;
+  line-height: 1.7;
+  margin-bottom: 12px;
+}
+.reconnect-hint .rh-icon {
+  font-size: 18px;
+  line-height: 1.5;
+  flex: 0 0 auto;
+}
+.reconnect-hint .rh-body {
+  min-width: 0;
+}
+.reconnect-hint .rh-sub {
+  display: block;
+  margin-top: 6px;
+  color: var(--muted);
+  font-size: 12px;
+}
 .cp-group-actions {
   margin-left: auto;
 }

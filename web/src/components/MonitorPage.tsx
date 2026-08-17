@@ -7,6 +7,7 @@ import { CountryChoropleth } from './CountryChoropleth';
 import { MonitorMap } from './MonitorMap';
 import { abuseOf, cvesOf, detOf, diffParts, portsOf, rfOf } from '../lib/enrichTrend';
 import { intelChips } from '../lib/iocChips';
+import { ReconnectHint } from './ReconnectHint';
 
 /** Country of a monitored entry, best-effort across the enrichers. */
 function countryOf(e: MonitorEntry): string | undefined {
@@ -668,11 +669,14 @@ export function MonitorPage() {
       )}
 
       {total === 0 ? (
-        <div className="empty-state">
-          {projectId !== null
-            ? 'このPJにはまだ監視IPがありません。上の「➕ このPJにIP追加」で登録するか、検索結果の Monitor 時にこのPJを選んでください。'
-            : 'まだ監視IPはありません。検索結果テーブルの Monitor か、詳細ページの ☆ Monitor で登録してください。'}
-        </div>
+        <>
+          <ReconnectHint />
+          <div className="empty-state">
+            {projectId !== null
+              ? 'このPJにはまだ監視IPがありません。上の「➕ このPJにIP追加」で登録するか、検索結果の Monitor 時にこのPJを選んでください。'
+              : 'まだ監視IPはありません。検索結果テーブルの Monitor か、詳細ページの ☆ Monitor で登録してください。'}
+          </div>
+        </>
       ) : (
         <>
           {drill && (
