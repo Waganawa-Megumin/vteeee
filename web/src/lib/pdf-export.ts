@@ -1,5 +1,6 @@
 import type { NormalizedResult, TlpLevel } from '@vteeee/shared';
-import { resultToText } from './detailText';
+import { resultToText, type CaptureForText } from './detailText';
+import { useStore, type WebCaptureJob } from '../state/store';
 
 /**
  * Build a real-text (selectable / searchable) PDF report for one indicator — NOT a screenshot.
@@ -36,14 +37,55 @@ export interface PdfMapImage {
 export interface PdfOptions {
   map?: PdfMapImage;
   tlp?: TlpLevel;
+  /** urlscan 魚拓 captures for this indicator (from the shared store) → rendered as a text section. */
+  captures?: CaptureForText[];
 }
 
 /** Labels whose values read better in a monospace font (IDs, addresses, coordinates). */
 const MONO_LABEL =
   /^(MD5|SHA-1|SHA-256|Network|IPs?|Coordinates|Open ports|Name servers|Mail servers|Reverse DNS|SPF|Related (IPs|domains|hashes))$/;
 
+/** Host of a capture target URL, IPv6 brackets stripped + lowercased — for matching captures to `r`. */
+function captureHost(u: string): string | null {
+  try {
+    return new URL(u).hostname.replace(/^\[|\]$/g, '').toLowerCase();
+  } catch {
+    return null;
+  }
+}
+
+/**
+ * The urlscan 魚拓 captures that belong to this indicator, pulled from the shared captures store so the
+ * PDF carries the same 魚拓 the analyst sees on screen. For an IP: any captured target whose host is the
+ * IP itself or one of its Shodan hostnames (covers the bare-IP :port endpoints, the recommended
+ * hostname captures, and a custom URL against the IP). For a URL/domain: the indicator value itself.
+ * Only targets with a completed capture (history) are included; hostname captures sort first.
+ */
+function capturesForResult(r: NormalizedResult, caps: Record<string, WebCaptureJob>): WebCaptureJob[] {
+  const done = Object.values(caps).filter((j) => (j.history?.length ?? 0) > 0);
+  if (r.type === 'ipv4' || r.type === 'ipv6') {
+    const ip = r.value.toLowerCase();
+    const names = new Set((r.shodan?.hostnames ?? []).map((h) => h.toLowerCase()));
+    return done
+      .filter((j) => {
+        const h = captureHost(j.target);
+        return h === ip || (h != null && names.has(h));
+      })
+      .sort((a, b) => {
+        const ax = captureHost(a.target) === ip ? 1 : 0; // hostname captures (host !== ip) sort first
+        const bx = captureHost(b.target) === ip ? 1 : 0;
+        return ax - bx || a.target.localeCompare(b.target);
+      });
+  }
+  const want = r.value.toLowerCase();
+  return done.filter((j) => j.target.toLowerCase() === want || captureHost(j.target) === want);
+}
+
 export async function exportResultPdf(r: NormalizedResult, opts: PdfOptions = {}): Promise<void> {
   const { map } = opts;
+  // The 魚拓 captures live in the shared store (not on `r`); read them here so "Export PDF" includes the
+  // same captures shown on screen without the caller having to thread them in.
+  const captures = opts.captures ?? capturesForResult(r, useStore.getState().webCaptures);
   const tlp: TlpLevel = opts.tlp && TLP_COLOR[opts.tlp] ? opts.tlp : 'AMBER';
   const { jsPDF } = await import('jspdf');
   const doc = new jsPDF({ unit: 'pt', format: 'a4' });
@@ -171,7 +213,7 @@ export async function exportResultPdf(r: NormalizedResult, opts: PdfOptions = {}
   let section = 'VirusTotal';
   let mapPlaced = false;
   let vtLinkDone = false;
-  for (const line of resultToText(r).split('\n')) {
+  for (const line of resultToText(r, captures).split('\n')) {
     if (line.startsWith('# ')) continue; // title already rendered above
     if (line.startsWith('VirusTotal: ')) continue; // link is rendered in the VT section instead
     if (line.startsWith('## ')) {
