@@ -1,11 +1,20 @@
-import type { NormalizedResult } from '@vteeee/shared';
+import type { NormalizedResult, UrlscanResult } from '@vteeee/shared';
 import { detectionRatio } from './verdict';
+
+/** One target's urlscan 魚拓 history (newest-first) — enough to render the capture section. */
+export interface CaptureForText {
+  target: string;
+  history: { at: number; by?: string; visibility?: string; result: UrlscanResult }[];
+}
 
 /**
  * Render the full enrichment detail for one indicator as a readable, paste-into-a-ticket
- * plain-text report — VT core + every configured provider section + the VT deep link.
+ * plain-text report — VT core + every configured provider section + the VT deep link. Kept in step
+ * with the on-screen detail panel field-for-field, so "Copy text" and "Export PDF" match what the
+ * analyst actually sees. `captures` (optional) adds the urlscan 魚拓 section, whose data lives in the
+ * shared captures store rather than on `r`.
  */
-export function resultToText(r: NormalizedResult): string {
+export function resultToText(r: NormalizedResult, captures: CaptureForText[] = []): string {
   const L: string[] = [];
   const push = (k: string, v: unknown): void => {
     if (v == null || v === '' || (Array.isArray(v) && v.length === 0)) return;
@@ -76,8 +85,50 @@ export function resultToText(r: NormalizedResult): string {
     push('Location', [r.shodan.city, r.shodan.country].filter(Boolean).join(', '));
     push('ASN', r.shodan.asn);
     push('Open ports', r.shodan.ports);
+    if (r.shodan.services?.length)
+      push(
+        'Services',
+        r.shodan.services.map((s) => [s.port, s.product ?? s.module, s.version].filter(Boolean).join(' ')),
+      );
     push('CVEs', r.shodan.vulns);
+    push('Hostnames', r.shodan.hostnames);
     push('Tags', r.shodan.tags);
+  }
+
+  // Web 魚拓 (urlscan) — the captures live in the shared store, not on `r`, so they're threaded in.
+  // Placed right after Shodan, mirroring the panel (the 魚拓 of the site the host serves).
+  if (captures.length) {
+    L.push('', '## Web capture (urlscan · 魚拓)');
+    let first = true;
+    for (const c of captures) {
+      const snap = c.history[0]; // newest-first
+      if (!snap) continue;
+      const res = snap.result ?? {};
+      if (!first) L.push('');
+      first = false;
+      push('Target', c.target);
+      push('Final URL', res.finalUrl ?? res.url);
+      push('Title', res.title);
+      push(
+        'Verdict',
+        [
+          res.malicious != null ? (res.malicious ? 'malicious' : 'no verdict') : '',
+          res.score != null ? `score ${res.score}` : '',
+        ]
+          .filter(Boolean)
+          .join(' · ') || undefined,
+      );
+      push('Impersonates', res.brands);
+      push('Server', [res.server, res.status != null ? `HTTP ${res.status}` : ''].filter(Boolean).join(' · ') || undefined);
+      push('Resolved IP', [res.ip, [res.asn, res.asnName].filter(Boolean).join(' ')].filter(Boolean).join(' · ') || undefined);
+      push('Contacted domains', res.contactedDomains);
+      push('Contacted IPs', res.contactedIps);
+      push(
+        'Captured',
+        `${new Date(snap.at).toLocaleString()}${snap.by ? ` · ${snap.by}` : ''}${snap.visibility ? ` · ${snap.visibility}` : ''}`,
+      );
+      push('Result', res.resultUrl);
+    }
   }
   if (r.maxmind?.found) {
     const m = r.maxmind;
@@ -139,16 +190,26 @@ export function resultToText(r: NormalizedResult): string {
     push('Portal', r.intel471.portalUrl);
   }
   if (r.cyfirma?.found) {
+    const c = r.cyfirma;
     L.push('', '## CYFIRMA (DeCYFIR)');
-    const risk = r.cyfirma.indicatorRiskScore ?? r.cyfirma.riskScore;
-    push('Risk', risk != null ? `${risk}/10` : undefined);
-    push('Recommended action', r.cyfirma.action);
-    push('Story', r.cyfirma.story);
-    push('ASN', [r.cyfirma.asn ? `AS${r.cyfirma.asn}` : '', r.cyfirma.asnOwner].filter(Boolean).join(' '));
-    push('Country', r.cyfirma.country);
-    push('Threat actors', r.cyfirma.threatActors);
-    push('Campaigns', r.cyfirma.campaigns);
-    push('Malware', r.cyfirma.malware);
+    push(
+      'Risk scores',
+      [c.riskScore != null ? `risk ${c.riskScore}/10` : '', c.externalThreatScore != null ? `ext threat ${c.externalThreatScore}/10` : '']
+        .filter(Boolean)
+        .join(' · ') || undefined,
+    );
+    push('Indicator risk', c.indicatorRiskScore != null ? `${c.indicatorRiskScore}/10` : undefined);
+    push('Indicator', [c.indicatorType, c.indicatorName].filter(Boolean).join(' · ') || undefined);
+    push('Recommended action', c.action);
+    push('Story', c.story);
+    push('Impact', c.impact);
+    push('Description', c.description);
+    push('ASN', [c.asn ? `AS${c.asn}` : '', c.asnOwner].filter(Boolean).join(' '));
+    push('Organization', c.organization && c.organization !== c.asnOwner ? c.organization : undefined);
+    push('Country', c.country);
+    push('Threat actors', c.threatActors);
+    push('Campaigns', c.campaigns);
+    push('Malware', c.malware);
     if (r.cyfirma.related) {
       push('Related IPs', r.cyfirma.related.ips);
       push('Related domains', r.cyfirma.related.domains);
@@ -187,6 +248,7 @@ export function resultToText(r: NormalizedResult): string {
     );
     push('Last reported', dt(a.lastReportedAt));
     push('Usage type', a.usageType);
+    push('Hostnames', a.hostnames);
     push('ISP', a.isp);
     push('Domain', a.domain);
     push('Country', [a.countryName, a.countryCode].filter(Boolean).join(' '));
@@ -194,19 +256,33 @@ export function resultToText(r: NormalizedResult): string {
     push('Attack categories', a.categories);
   }
   if (r.threatvision?.found) {
+    const t = r.threatvision;
     L.push('', '## ThreatVision (TeamT5)');
+    push('Risk', [t.riskLevel, t.riskScore != null ? `score ${t.riskScore}` : ''].filter(Boolean).join(' · '));
+    push('Risk types', t.riskTypes);
+    push('Adversaries', t.adversaries);
+    push('Malware', t.malwareFamilies);
+    push('Attributes', t.attributes);
+    push('Location', [t.city, t.region, t.country].filter(Boolean).join(', '));
+    push('Registrar', t.registrar);
+    push('SHA-256', t.sha256);
+    push('MD5', t.md5);
+    push('Size', t.size != null ? `${t.size.toLocaleString()} bytes` : undefined);
+    push('First seen', day(t.firstSeen));
+    if (t.hasNetworkActivity != null) push('Network activity', t.hasNetworkActivity ? 'yes' : 'no');
     push(
-      'Risk',
-      [r.threatvision.riskLevel, r.threatvision.riskScore != null ? `score ${r.threatvision.riskScore}` : '']
+      'Related intel',
+      [
+        t.relatedReports ? `${t.relatedReports} reports` : '',
+        t.relatedSamples ? `${t.relatedSamples} samples` : '',
+        t.relatedAdversaries ? `${t.relatedAdversaries} adversaries` : '',
+        t.dnsRecords ? `${t.dnsRecords} DNS` : '',
+        t.osint ? `${t.osint} OSINT` : '',
+      ]
         .filter(Boolean)
-        .join(' · '),
+        .join(' · ') || undefined,
     );
-    push('Adversaries', r.threatvision.adversaries);
-    push('Malware', r.threatvision.malwareFamilies);
-    push('Attributes', r.threatvision.attributes);
-    push('Location', [r.threatvision.city, r.threatvision.region, r.threatvision.country].filter(Boolean).join(', '));
-    push('Registrar', r.threatvision.registrar);
-    push('First seen', day(r.threatvision.firstSeen));
+    push('Updated', day(t.lastUpdate));
   }
 
   L.push('', `VirusTotal: ${r.links.gui}`);
